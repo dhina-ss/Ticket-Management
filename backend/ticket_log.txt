@@ -1,0 +1,92 @@
+2026-03-11 21:47:10,000 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-11 21:47:10,001 - INFO - Added job "auto_confirm_stale_tickets" to job store "default"
+2026-03-11 21:47:10,001 - INFO - Scheduler started
+2026-03-11 21:47:10,010 - INFO - Serving on http://[::1]:443
+2026-03-11 21:47:10,010 - INFO - Serving on http://127.0.0.1:443
+2026-03-11 21:53:03,649 - INFO - Admin Action: Created new user - Name: Kishore, Email: kishore@gmail.com, Access: View, Support: Admin Support
+2026-03-11 22:02:10,017 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-11 22:02:10 IST)" (scheduled at 2026-03-11 22:02:10.000848+05:30)
+2026-03-11 22:02:10,184 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-11 22:17:10 IST)" executed successfully
+2026-03-11 22:03:32,148 - INFO - Scheduler has been shut down
+2026-03-11 22:03:35,530 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-11 22:03:35,532 - INFO - Added job "auto_confirm_stale_tickets" to job store "default"
+2026-03-11 22:03:35,532 - INFO - Scheduler started
+2026-03-11 22:03:35,540 - INFO - Serving on http://[::1]:443
+2026-03-11 22:03:35,542 - INFO - Serving on http://127.0.0.1:443
+2026-03-11 22:18:35,544 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-11 22:18:35 IST)" (scheduled at 2026-03-11 22:18:35.530688+05:30)
+2026-03-11 22:18:35,614 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-11 22:33:35 IST)" executed successfully
+2026-03-11 22:21:28,051 - INFO - Admin Action: User 6 changed permanent password and set security questions.
+2026-03-11 22:33:35,532 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-11 22:48:35 IST)" (scheduled at 2026-03-11 22:33:35.530688+05:30)
+2026-03-11 22:33:35,589 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-11 22:48:35 IST)" executed successfully
+2026-03-11 22:35:12,291 - INFO - Scheduler has been shut down
+2026-03-11 22:35:15,328 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-11 22:35:15,329 - INFO - Added job "auto_confirm_stale_tickets" to job store "default"
+2026-03-11 22:35:15,329 - INFO - Scheduler started
+2026-03-11 22:35:15,337 - INFO - Serving on http://[::1]:443
+2026-03-11 22:35:15,337 - INFO - Serving on http://127.0.0.1:443
+2026-03-11 22:36:00,918 - INFO - Admin Action: User 6 reset their password via security questions.
+2026-03-12 10:25:29,958 - INFO - Admin Action: User 6 reset their password via security questions.
+2026-03-12 10:28:29,146 - WARNING - Run time of job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-11 22:50:15 IST)" was missed by 0:08:13.817668
+2026-03-12 10:35:15,380 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 10:50:15 IST)" (scheduled at 2026-03-12 10:35:15.328841+05:30)
+2026-03-12 10:35:15,434 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 10:50:15 IST)" executed successfully
+2026-03-12 10:50:05,219 - INFO - Scheduler has been shut down
+2026-03-12 10:50:09,059 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-12 10:50:09,059 - INFO - Added job "auto_confirm_stale_tickets" to job store "default"
+2026-03-12 10:50:09,059 - INFO - Scheduler started
+2026-03-12 10:50:09,067 - INFO - Serving on http://[::1]:443
+2026-03-12 10:50:09,067 - INFO - Serving on http://127.0.0.1:443
+2026-03-12 10:50:52,225 - INFO - Admin Action: User 1 changed permanent password and set security questions.
+2026-03-12 10:51:30,652 - INFO - Admin Action: Created new user - Name: Sakthi, Email: sakthi@gmail.com, Access: View, Support: IT Support
+2026-03-12 10:51:30,703 - INFO - Admin Action: Automatically added user Sakthi as assignee.
+2026-03-12 10:51:37,297 - WARNING - Task queue depth is 1
+2026-03-12 11:02:42,632 - WARNING - Task queue depth is 1
+2026-03-12 11:03:09,544 - INFO - Admin Action: Created new user - Name: Ruban, Email: ruban@gmail.com, Access: View, Support: IT Support,Admin Support
+2026-03-12 11:03:09,601 - INFO - Admin Action: Automatically added user Ruban as assignee.
+2026-03-12 11:05:09,076 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 11:05:09 IST)" (scheduled at 2026-03-12 11:05:09.059415+05:30)
+2026-03-12 11:05:09,125 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 11:20:09 IST)" executed successfully
+2026-03-12 11:09:04,530 - WARNING - Task queue depth is 1
+2026-03-12 11:09:04,860 - WARNING - Task queue depth is 1
+2026-03-12 11:20:09,082 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 11:35:09 IST)" (scheduled at 2026-03-12 11:20:09.059415+05:30)
+2026-03-12 11:20:09,136 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 11:35:09 IST)" executed successfully
+2026-03-12 11:35:09,061 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 11:50:09 IST)" (scheduled at 2026-03-12 11:35:09.059415+05:30)
+2026-03-12 11:35:09,113 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 11:50:09 IST)" executed successfully
+2026-03-12 11:50:09,083 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 12:05:09 IST)" (scheduled at 2026-03-12 11:50:09.059415+05:30)
+2026-03-12 11:50:09,132 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 12:05:09 IST)" executed successfully
+2026-03-12 11:54:48,165 - WARNING - Task queue depth is 1
+2026-03-12 11:56:08,280 - INFO - Admin Action: Created new user - Name: Balaji, Email: balaji@gmail.com, Access: View, Support: IT Support,Admin Support
+2026-03-12 11:56:46,953 - INFO - Scheduler has been shut down
+2026-03-12 11:56:50,242 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-12 11:56:50,243 - INFO - Added job "auto_confirm_stale_tickets" to job store "default"
+2026-03-12 11:56:50,244 - INFO - Scheduler started
+2026-03-12 11:56:50,252 - INFO - Serving on http://[::1]:443
+2026-03-12 11:56:50,252 - INFO - Serving on http://127.0.0.1:443
+2026-03-12 12:11:50,257 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 12:11:50 IST)" (scheduled at 2026-03-12 12:11:50.242355+05:30)
+2026-03-12 12:11:50,313 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 12:26:50 IST)" executed successfully
+2026-03-12 12:26:50,268 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 12:41:50 IST)" (scheduled at 2026-03-12 12:26:50.242355+05:30)
+2026-03-12 12:26:50,357 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 12:41:50 IST)" executed successfully
+2026-03-12 12:36:10,863 - INFO - Scheduler has been shut down
+2026-03-12 12:36:14,151 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-12 12:36:14,154 - INFO - Added job "auto_confirm_stale_tickets" to job store "default"
+2026-03-12 12:36:14,154 - INFO - Scheduler started
+2026-03-12 12:36:14,163 - INFO - Serving on http://[::1]:443
+2026-03-12 12:36:14,163 - INFO - Serving on http://127.0.0.1:443
+2026-03-12 12:40:38,624 - WARNING - Task queue depth is 1
+2026-03-12 12:41:27,370 - INFO - Admin Action: Edited user 9 - Name: Balaji, Email: balaji@gmail.com, Access: View, Support: IT Support,Admin Support
+2026-03-12 12:41:30,176 - WARNING - Task queue depth is 1
+2026-03-12 12:41:30,217 - WARNING - Task queue depth is 2
+2026-03-12 12:41:46,475 - WARNING - Task queue depth is 1
+2026-03-12 12:51:14,160 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 12:51:14 IST)" (scheduled at 2026-03-12 12:51:14.151961+05:30)
+2026-03-12 12:51:14,218 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 13:06:14 IST)" executed successfully
+2026-03-12 12:52:36,941 - WARNING - Task queue depth is 1
+2026-03-12 12:56:28,344 - WARNING - Task queue depth is 1
+2026-03-12 12:56:30,557 - WARNING - Task queue depth is 1
+2026-03-12 12:59:28,793 - WARNING - Task queue depth is 1
+2026-03-12 12:59:58,054 - WARNING - Task queue depth is 1
+2026-03-12 12:59:58,054 - WARNING - Task queue depth is 2
+2026-03-12 12:59:58,059 - WARNING - Task queue depth is 1
+2026-03-12 13:52:15,496 - WARNING - Task queue depth is 1
+2026-03-12 13:52:32,380 - WARNING - Task queue depth is 1
+2026-03-12 13:52:32,381 - WARNING - Task queue depth is 2
+2026-03-12 13:52:32,385 - WARNING - Task queue depth is 1
+2026-03-12 13:53:00,867 - WARNING - Task queue depth is 1
+2026-03-12 13:54:49,427 - WARNING - Run time of job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-12 14:06:14 IST)" was missed by 0:03:35.274642
+2026-03-12 13:55:57,887 - INFO - Scheduler has been shut down

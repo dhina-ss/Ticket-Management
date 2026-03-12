@@ -1,0 +1,9 @@
+backend/ticket-raise-test-568fbe873bcd.json
+backend/__pycache__/
+backend/env/
+backend/.pytest_cache/
+backend/uploads/
+backend/dist/
+frontend/node_modules/
+frontend/dist/
+.DS_Store
