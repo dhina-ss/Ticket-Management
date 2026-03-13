@@ -92,11 +92,11 @@ def send_approval_email(ticket_data, to_email, receiver_name, role="Management")
         manager_status   = ticket_data.get('adminManagerStatus', '')
         manager_section  = ""
 
-        # Show manager approval details only to non-Admin Manager receivers (Vanjinathan, Annie, Jesline)
-        if receiver_name != "Admin Manager" and (manager_status or manager_comments):
+        # Show manager approval details only to non-Manager receivers (Vanjinathan, Annie, Jesline)
+        if receiver_name != "Manager" and (manager_status or manager_comments):
             display_status = manager_status if manager_status else "Approved"
             manager_section = f"""
-            <h3 style="color:#2563eb;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">Admin Manager Approval</h3>
+            <h3 style="color:#2563eb;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">Manager Approval</h3>
             <table border="1" cellpadding="8" cellspacing="0"
                    style="border-collapse:collapse;width:100%;max-width:600px;margin-bottom:24px;font-size:14px;">
               <tr style="background:#f8fafc;">
@@ -781,7 +781,7 @@ def serve_bill_attachment(ticket_id):
 def initiate_approval_flow(ticket_id):
     """
     Sends approval-request emails to all selected receivers.
-    - Admin Manager is always emailed first if in the list.
+    - Manager is always emailed first if in the list.
     - Every email contains full ticket info + admin name + admin's material description.
     """
     # Fetch receivers from DB who have can_receive_mail = True
@@ -801,10 +801,10 @@ def initiate_approval_flow(ticket_id):
         receiver_raw  = request.form.get('receiver', '')   # comma-separated names
         admin_name    = request.form.get('admin_name', 'Admin')  # passed from frontend
 
-        # Parse receivers, preserve original order then put Admin Manager first
+        # Parse receivers, preserve original order then put Manager first
         receivers_list = [r.strip() for r in receiver_raw.split(',') if r.strip()]
-        ordered = (["Admin Manager"] if "Admin Manager" in receivers_list else []) + \
-                  [r for r in receivers_list if r != "Admin Manager"]
+        ordered = (["Manager"] if "Manager" in receivers_list else []) + \
+                  [r for r in receivers_list if r != "Manager"]
 
         # Read optional attachment
         file = request.files.get('attachment')
@@ -846,13 +846,13 @@ def initiate_approval_flow(ticket_id):
             'user_attachment_name': user_attachment_name,
         }
 
-        # Send one personalised email per receiver (Admin Manager goes first)
+        # Send one personalised email per receiver (Manager goes first)
         sent_to = []
         for receiver_name in ordered:
             to_email = RECEIVER_EMAIL_MAP.get(receiver_name, "")
             # Role determined by DB receiver_position
             db_pos = RECEIVER_POSITION_MAP.get(receiver_name, "Management")
-            role = "Admin-Manager" if db_pos == "Admin Manager" else "Management"
+            role = "Admin-Manager" if db_pos == "Manager" else "Management"
             send_approval_email(ticket_data, to_email=to_email, receiver_name=receiver_name, role=role)
             
             # Log exact timestamp of mail sent into PostgreSQL natively
@@ -861,7 +861,7 @@ def initiate_approval_flow(ticket_id):
             sent_to.append(receiver_name)
 
         # Determine which status columns to update based on selected receivers' positions
-        update_admin_mgr = any(RECEIVER_POSITION_MAP.get(r) == "Admin Manager" for r in ordered)
+        update_admin_mgr = any(RECEIVER_POSITION_MAP.get(r) == "Manager" for r in ordered)
         update_mgmt = any(RECEIVER_POSITION_MAP.get(r) == "Management" for r in ordered)
 
         # Mark approval statuses as Pending
@@ -944,12 +944,12 @@ def approval_action_page(ticket_id, role):
                     <span class="value">{ticket.get('adminDescription', '') or '—'}</span></div>
                 <hr>
                 {"".join([f'''
-                <div class="field"><span class="label">Admin Manager Status:</span>
+                <div class="field"><span class="label">Manager Status:</span>
                     <span class="value" style="font-weight:bold; color:{'#16a34a' if ticket.get('adminManagerStatus') == 'Approved' else '#dc2626'}">
                         {ticket.get('adminManagerStatus', 'Pending')}
                     </span>
                 </div>
-                <div class="field"><span class="label">Admin Manager Comments:</span>
+                <div class="field"><span class="label">Manager Comments:</span>
                     <span class="value" style="font-style:italic;">{ticket.get('adminManagerComments', '') or 'No comments provided.'}</span>
                 </div>
                 <hr>
@@ -995,9 +995,9 @@ def process_approval(ticket_id, role):
 
         if role == "Admin-Manager":
             if status == "Approved":
-                msg += " Approved by Admin Manager."
+                msg += " Approved by Manager."
             else:
-                msg += " Rejected by Admin Manager."
+                msg += " Rejected by Manager."
         elif role == "Management":
             msg += f" Management decision ({status}) recorded."
 

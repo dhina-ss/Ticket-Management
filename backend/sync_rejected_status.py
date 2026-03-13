@@ -24,7 +24,7 @@ def sync_rejected_tickets():
 
         conn.commit()
         print(f"Migration Complete:")
-        print(f" - Updated {am_count} ticket(s) rejected by Admin Manager.")
+        print(f" - Updated {am_count} ticket(s) rejected by Manager.")
         print(f" - Updated {mgmt_count} ticket(s) rejected by Management.")
 
         cur.close()

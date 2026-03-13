@@ -266,9 +266,9 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                 <div className="flex gap-3">
                                     {SUPPORT_TYPE_OPTIONS.map(type => (
                                         <label key={type}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all select-none text-sm font-semibold ${newUser.support_type.includes(type)
-                                            ? 'border-primary bg-primary/10 text-primary'
-                                            : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-primary/40'}`}>
+                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all select-none text-sm font-semibold ${newUser.support_type.includes(type)
+                                                ? 'border-primary bg-primary/10 text-primary'
+                                                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-primary/40'}`}>
                                             <input type="checkbox" className="sr-only" checked={newUser.support_type.includes(type)}
                                                 onChange={() => toggleSupportType(type)} />
                                             <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 border-2 transition-colors ${newUser.support_type.includes(type) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'}`}>
@@ -329,7 +329,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                             className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-primary text-slate-800 dark:text-white appearance-none transition-shadow"
                                             required
                                         >
-                                            <option value="Admin Manager">Admin Manager</option>
+                                            <option value="Manager">Manager</option>
                                             <option value="Management">Management</option>
                                         </select>
                                         <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
@@ -2402,7 +2402,7 @@ const AdminDashboard = () => {
                                             {selectedTicket.adminManagerStatus && (
                                                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-100 dark:border-slate-800">
                                                     <div className="flex items-center justify-between mb-2">
-                                                        <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Admin Manager</span>
+                                                        <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Manager</span>
                                                         <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${selectedTicket.adminManagerStatus.toLowerCase() === 'approved'
                                                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                                                             : selectedTicket.adminManagerStatus.toLowerCase() === 'pending'
@@ -2793,7 +2793,7 @@ const AdminDashboard = () => {
                                                     // Dynamic check based on users who have mail enabled
                                                     const mailUsers = users.filter(u => u.can_receive_mail);
                                                     const managementNames = mailUsers.filter(u => u.receiver_position === 'Management').map(u => u.name);
-                                                    const adminManagerNames = mailUsers.filter(u => u.receiver_position === 'Admin Manager').map(u => u.name);
+                                                    const adminManagerNames = mailUsers.filter(u => u.receiver_position === 'Manager').map(u => u.name);
 
                                                     const adminManagerDone = adminManagerNames.length > 0 ? adminManagerNames.every(n => respondedNames.has(n)) : true;
                                                     const allManagementDone = managementNames.every(n => respondedNames.has(n));
@@ -2871,9 +2871,9 @@ const AdminDashboard = () => {
                                                                         if (match) alreadyNotified.add(match[1].trim());
                                                                     });
                                                                 }
-                                                                // Also exclude Admin Manager if already approved
+                                                                // Also exclude Manager if already approved
                                                                 if (selectedTicket.adminManagerStatus?.toLowerCase() === 'approved') {
-                                                                    alreadyNotified.add('Admin Manager');
+                                                                    alreadyNotified.add('Manager');
                                                                 }
 
                                                                 const available = users.filter(u => u.can_receive_mail).map(u => u.name)

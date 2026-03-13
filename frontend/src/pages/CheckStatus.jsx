@@ -163,7 +163,7 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                     {/* Material Request Approval Statuses */}
                     {ticketData.category?.toLowerCase().includes('material request') && (
                         <div className="space-y-3">
-                            {/* Admin Manager Status */}
+                            {/* Manager Status */}
                             {ticketData.adminManagerStatus && (
                                 <div className={`flex items-start gap-3 px-4 py-3 border rounded-xl 
                                 ${ticketData.adminManagerStatus === 'Approved' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' :
@@ -181,17 +181,17 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                                         ${ticketData.adminManagerStatus === 'Approved' ? 'text-green-700 dark:text-green-400' :
                                                 ticketData.adminManagerStatus === 'Rejected' ? 'text-red-700 dark:text-red-400' :
                                                     'text-amber-700 dark:text-amber-400'}`}>
-                                            {ticketData.adminManagerStatus === 'Pending' ? 'Pending for Admin Manager Approval' :
-                                                ticketData.adminManagerStatus === 'Approved' ? 'Approved by Admin Manager' :
-                                                    'Rejected by Admin Manager'}
+                                            {ticketData.adminManagerStatus === 'Pending' ? 'Pending for Manager Approval' :
+                                                ticketData.adminManagerStatus === 'Approved' ? 'Approved by Manager' :
+                                                    'Rejected by Manager'}
                                         </p>
                                         <p className={`text-xs mt-0.5 
                                         ${ticketData.adminManagerStatus === 'Approved' ? 'text-green-600 dark:text-green-500' :
                                                 ticketData.adminManagerStatus === 'Rejected' ? 'text-red-600 dark:text-red-500' :
                                                     'text-amber-600 dark:text-amber-500'}`}>
-                                            {ticketData.adminManagerStatus === 'Pending' ? 'Your request is awaiting decision from the Admin Manager.' :
-                                                ticketData.adminManagerStatus === 'Approved' ? 'The Admin Manager has reviewed and approved this request.' :
-                                                    'The Admin Manager has rejected this request.'}
+                                            {ticketData.adminManagerStatus === 'Pending' ? 'Your request is awaiting decision from the Manager.' :
+                                                ticketData.adminManagerStatus === 'Approved' ? 'The Manager has reviewed and approved this request.' :
+                                                    'The Manager has rejected this request.'}
                                         </p>
                                         <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
                                             {ticketData.adminManagerMailTime && (
@@ -209,7 +209,7 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                                 </div>
                             )}
 
-                            {/* Management Status - Only show if not rejected by Admin Manager and explicitly mailed out*/}
+                            {/* Management Status - Only show if not rejected by Manager and explicitly mailed out*/}
                             {ticketData.managementStatus && ticketData.managementMailTime && (!ticketData.adminManagerStatus || ticketData.adminManagerStatus.trim().toLowerCase() !== 'rejected') && (
                                 <div className={`flex items-start gap-3 px-4 py-3 border rounded-xl 
                                 ${ticketData.managementStatus === 'Approved' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' :
