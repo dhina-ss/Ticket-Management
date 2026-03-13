@@ -636,6 +636,7 @@ def update_ticket(ticket_id):
         if 'status' in data: updates['status'] = data['status']
         if 'assignee' in data: updates['assignee'] = data['assignee']
         if 'resolution_comments' in data: updates['resolution_comments'] = data['resolution_comments']
+        if 'pending_comments' in data: updates['pending_comments'] = data['pending_comments']
         if 'expense_amount' in data: updates['expense_amount'] = data['expense_amount']
         if 'user_confirmation' in data: updates['user_confirmation'] = data['user_confirmation']
 

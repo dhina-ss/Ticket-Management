@@ -1213,6 +1213,7 @@ const AdminDashboard = () => {
     const [updateAssignee, setUpdateAssignee] = useState('');
     const [expandedSettingsView, setExpandedSettingsView] = useState('assignees');
     const [resolutionComments, setResolutionComments] = useState('');
+    const [pendingComments, setPendingComments] = useState('');
     const [commentError, setCommentError] = useState('');
     const [addExpense, setAddExpense] = useState(false);
     const [expenseAmount, setExpenseAmount] = useState('');
@@ -1390,6 +1391,17 @@ const AdminDashboard = () => {
         }
     }, [user]);
 
+    // Auto-refresh every 5 minutes
+    useEffect(() => {
+        if (!user) return;
+
+        const interval = setInterval(() => {
+            fetchTickets();
+        }, 5 * 60 * 1000);
+
+        return () => clearInterval(interval);
+    }, [user]);
+
     const handleLogout = () => {
         logout();
         navigate('/login');
@@ -1400,6 +1412,7 @@ const AdminDashboard = () => {
         setUpdateStatus(ticket.status || 'Not Started');
         setUpdateAssignee(ticket.assignee || '');
         setResolutionComments(ticket.resolutionComments || '');
+        setPendingComments(ticket.pendingComments || '');
         setAddExpense(!!ticket.expenseAmount);
         setExpenseAmount(ticket.expenseAmount || '');
         setBillFile(null);
@@ -1412,6 +1425,7 @@ const AdminDashboard = () => {
         setIsModalOpen(false);
         setSelectedTicket(null);
         setResolutionComments('');
+        setPendingComments('');
         setCommentError('');
         setAddExpense(false);
         setExpenseAmount('');
@@ -1424,8 +1438,13 @@ const AdminDashboard = () => {
         if (!selectedTicket) return;
         setCommentError('');
 
-        if (updateStatus === 'Pending' && !resolutionComments.trim()) {
-            setCommentError("Resolution comments are mandatory when marking an issue as Pending.");
+        if (!updateAssignee.trim()) {
+            setCommentError("Please select an assignee before saving.");
+            return;
+        }
+
+        if (updateStatus === 'Pending' && !pendingComments.trim()) {
+            setCommentError("Comments are mandatory when marking an issue as Pending.");
             return;
         }
 
@@ -1452,6 +1471,7 @@ const AdminDashboard = () => {
                 formData.append('status', updateStatus);
                 formData.append('assignee', updateAssignee);
                 formData.append('resolution_comments', resolutionComments);
+                formData.append('pending_comments', pendingComments);
                 if (addExpense) {
                     formData.append('expense_amount', expenseAmount);
                     formData.append('vendor_name', vendorName);
@@ -1464,7 +1484,8 @@ const AdminDashboard = () => {
                 res = await api.put(`/api/tickets/${selectedTicket.ticket_id}`, {
                     status: updateStatus,
                     assignee: updateAssignee,
-                    resolution_comments: resolutionComments
+                    resolution_comments: resolutionComments,
+                    pending_comments: pendingComments
                 });
             }
 
@@ -2701,16 +2722,19 @@ const AdminDashboard = () => {
 
                                     {/* Row 5: Footer Actions */}
                                     <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
+                                        {/* Pending Comments — mandatory when setting to Pending */}
                                         {updateStatus === 'Pending' && !(selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved' || selectedTicket.status === 'Rejected') && (
                                             <div className="mb-4">
-                                                <label className="block text-xs font-semibold text-primary uppercase tracking-wider mb-1">Mandatory Comments *</label>
+                                                <label className="block text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">
+                                                    Pending Comments <span className="text-red-500">*</span>
+                                                </label>
                                                 <textarea
-                                                    className={`w-full p-3 bg-white dark:bg-slate-900 border ${commentError ? 'border-red-400 focus:ring-red-400' : 'border-amber-300 dark:border-amber-700/50 focus:ring-primary'} rounded-lg focus:ring-2 focus:border-transparent outline-none transition-shadow text-sm disabled:opacity-50 disabled:bg-slate-50 dark:disabled:bg-slate-800`}
+                                                    className={`w-full p-3 bg-white dark:bg-slate-900 border ${commentError ? 'border-red-400 focus:ring-red-400' : 'border-amber-300 dark:border-amber-700/50 focus:ring-amber-400'} rounded-lg focus:ring-2 focus:border-transparent outline-none transition-shadow text-sm disabled:opacity-50 disabled:bg-slate-50 dark:disabled:bg-slate-800`}
                                                     rows="3"
-                                                    placeholder="Please provide justification / comments for moving this ticket to Pending or Completed..."
-                                                    value={resolutionComments}
+                                                    placeholder="Please provide justification / comments for moving this ticket to Pending..."
+                                                    value={pendingComments}
                                                     onChange={(e) => {
-                                                        setResolutionComments(e.target.value);
+                                                        setPendingComments(e.target.value);
                                                         setCommentError('');
                                                     }}
                                                     disabled={user.access && !user.access.includes('Edit')}
@@ -2723,6 +2747,38 @@ const AdminDashboard = () => {
                                                     </p>
                                                 )}
                                             </div>
+                                        )}
+                                        {/* Resolution Comments — optional when setting to Completed */}
+                                        {updateStatus === 'Completed' && !(selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved' || selectedTicket.status === 'Rejected') && (
+                                            <div className="mb-4">
+                                                <label className="block text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">
+                                                    Resolution Comments (Optional)
+                                                </label>
+                                                <textarea
+                                                    className="w-full p-3 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700/50 focus:ring-emerald-400 rounded-lg focus:ring-2 focus:border-transparent outline-none transition-shadow text-sm disabled:opacity-50 disabled:bg-slate-50 dark:disabled:bg-slate-800"
+                                                    rows="3"
+                                                    placeholder="Add any final comments / resolution details before completing..."
+                                                    value={resolutionComments}
+                                                    onChange={(e) => {
+                                                        setResolutionComments(e.target.value);
+                                                        setCommentError('');
+                                                    }}
+                                                    disabled={user.access && !user.access.includes('Edit')}
+                                                ></textarea>
+                                                {commentError && (
+                                                    <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                                                        <span className="material-symbols-outlined text-[14px]">error</span>
+                                                        {commentError}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+                                        {/* Show commentError for other statuses too */}
+                                        {commentError && updateStatus !== 'Pending' && updateStatus !== 'Completed' && (
+                                            <p className="text-xs text-red-500 mb-4 flex items-center gap-1">
+                                                <span className="material-symbols-outlined text-[14px]">error</span>
+                                                {commentError}
+                                            </p>
                                         )}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                                             <div>

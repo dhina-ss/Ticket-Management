@@ -263,61 +263,66 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                         </div>
                     )}
 
-                    {/* Core Lifecycle Timestamps & Comments for Customer View */}
+                    {/* Admin Comments Timeline */}
                     {(ticketData.inProgressTime || ticketData.pendingTime || ticketData.completedTime) && (
                         <div className="mb-6">
-                            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                                 <span className="material-symbols-outlined text-base">history</span>
-                                ADMIN COMMENTS {ticketData.assignee ? `- ${ticketData.assignee}` : ''}
+                                Admin Comments {ticketData.assignee ? `— ${ticketData.assignee}` : ''}
                             </h3>
-                            <div className={`flex items-start gap-3 px-4 py-3 border rounded-xl 
-                                ${ticketData.completedTime
-                                    ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700'
-                                    : ticketData.pendingTime
-                                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700'
-                                        : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700'}`}>
-                                <span className={`material-symbols-outlined text-xl mt-0.5 shrink-0 
-                                ${ticketData.completedTime ? 'text-emerald-500' : ticketData.pendingTime ? 'text-amber-500' : 'text-blue-500'}`}>
-                                    {ticketData.completedTime ? 'check_circle' : ticketData.pendingTime ? 'hourglass_top' : 'build_circle'}
-                                </span>
-                                <div className="w-full">
-                                    <p className={`text-sm font-semibold 
-                                    ${ticketData.completedTime ? 'text-emerald-700 dark:text-emerald-400' : ticketData.pendingTime ? 'text-amber-700 dark:text-amber-400' : 'text-blue-700 dark:text-blue-400'}`}>
-                                        {ticketData.completedTime
-                                            ? 'Resolved (Completed)'
-                                            : ticketData.pendingTime
-                                                ? 'Work Started (Pending)'
-                                                : 'Work Started (In Progress)'}
-                                    </p>
+                            <div className="relative pl-6 space-y-4">
+                                {/* Vertical line */}
+                                <div className="absolute left-2 top-0 bottom-0 w-px bg-slate-200 dark:bg-slate-700"></div>
 
-                                    {ticketData.resolutionComments && (
-                                        <p className={`text-sm font-normal italic mt-1 mb-2 
-                                        ${ticketData.completedTime ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
-                                            "{ticketData.resolutionComments}"
-                                        </p>
-                                    )}
-
-                                    <div className="pt-2 mt-1 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
-                                        {ticketData.inProgressTime && (
-                                            <span className="text-[11px] text-slate-500">
-                                                <strong>Work started at:</strong> {ticketData.inProgressTime}
-                                            </span>
-                                        )}
-                                        {ticketData.pendingTime && (
-                                            <span className="text-[11px] text-slate-500">
-                                                <strong>Work Started:</strong> {ticketData.pendingTime}
-                                            </span>
-                                        )}
-                                        {ticketData.completedTime && (
-                                            <span className="text-[11px] text-slate-500">
-                                                <strong>Resolved On:</strong> {ticketData.completedTime}
-                                            </span>
-                                        )}
+                                {/* Resolved / Completed entry — newest first */}
+                                {ticketData.completedTime && (
+                                    <div className="relative">
+                                        <span className="absolute -left-4 top-1 w-3 h-3 rounded-full bg-emerald-400 dark:bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
+                                        <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl px-4 py-3">
+                                            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-1">
+                                                Resolved at: <span className="font-normal normal-case">{ticketData.completedTime}</span>
+                                            </p>
+                                            {ticketData.resolutionComments && (
+                                                <p className="text-sm text-emerald-800 dark:text-emerald-300 italic leading-relaxed">
+                                                    "{ticketData.resolutionComments}"
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
+
+                                {/* Pending entry */}
+                                {ticketData.pendingTime && (
+                                    <div className="relative">
+                                        <span className="absolute -left-4 top-1 w-3 h-3 rounded-full bg-amber-400 dark:bg-amber-500 border-2 border-white dark:border-slate-900"></span>
+                                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3">
+                                            <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide mb-1">
+                                                Pending at: <span className="font-normal normal-case">{ticketData.pendingTime}</span>
+                                            </p>
+                                            {ticketData.pendingComments && (
+                                                <p className="text-sm text-amber-800 dark:text-amber-300 italic leading-relaxed">
+                                                    "{ticketData.pendingComments}"
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* In Progress entry — oldest, at bottom */}
+                                {ticketData.inProgressTime && (
+                                    <div className="relative">
+                                        <span className="absolute -left-4 top-1 w-3 h-3 rounded-full bg-blue-400 dark:bg-blue-500 border-2 border-white dark:border-slate-900"></span>
+                                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3">
+                                            <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-0.5">
+                                                In Progress at: <span className="font-normal normal-case">{ticketData.inProgressTime}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
+
 
                     {/* --- USER CONFIRMATION UI --- */}
                     {ticketData.status === 'Completed' && (
