@@ -440,8 +440,8 @@ const TicketForm = () => {
                                 onChange={(e) => {
                                     const file = e.target.files && e.target.files[0];
                                     if (file) {
-                                        if (file.size > 200 * 1024) {
-                                            setAttachmentError('File size is larger than 200KB limit.');
+                                        if (file.size > 5 * 1024 * 1024) {
+                                            setAttachmentError('File size is larger than 5MB limit.');
                                             setAttachment(null);
                                             e.target.value = '';
                                         } else {
@@ -463,7 +463,7 @@ const TicketForm = () => {
                                     {!attachment && <p className="pl-1 text-slate-500">or drag and drop</p>}
                                 </div>
                                 <p className="text-xs text-slate-400 dark:text-slate-500">
-                                    PNG, JPG up to 200KB
+                                    PNG, JPG up to 5MB
                                 </p>
                             </div>
                         </div>

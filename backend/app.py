@@ -15,6 +15,7 @@ from database import (
     get_attachment,
     update_ticket_mail_time,
     auto_confirm_stale_tickets,
+    delete_expired_attachments, # Added this line
 )
 
 import os
@@ -28,6 +29,7 @@ from email.mime.multipart import MIMEMultipart
 
 DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'dist'))
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 CORS(app)
 
 logging.basicConfig(
@@ -1060,6 +1062,8 @@ import atexit
 scheduler = BackgroundScheduler()
 # Runs the auto-confirm sweep every 15 minutes
 scheduler.add_job(func=auto_confirm_stale_tickets, trigger="interval", minutes=15)
+# Runs the attachment cleanup every 24 hours
+scheduler.add_job(func=delete_expired_attachments, trigger="interval", hours=24)
 scheduler.start()
 
 # Shut down the scheduler when exiting the app

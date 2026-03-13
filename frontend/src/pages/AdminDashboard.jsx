@@ -2691,8 +2691,8 @@ const AdminDashboard = () => {
                                                                 onChange={(e) => {
                                                                     const file = e.target.files && e.target.files[0];
                                                                     if (file) {
-                                                                        if (file.size > 200 * 1024) {
-                                                                            setBillFileError('File size is larger than 200KB limit.');
+                                                                        if (file.size > 5 * 1024 * 1024) {
+                                                                            setBillFileError('File size is larger than 5MB limit.');
                                                                             setBillFile(null);
                                                                             e.target.value = ''; // Reset input
                                                                         } else {

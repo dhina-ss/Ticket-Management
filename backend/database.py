@@ -1030,3 +1030,40 @@ def auto_confirm_stale_tickets() -> dict:
     except Exception as e:
         print(f"ERROR: Failed to auto-confirm stale tickets: {e}")
         return {"success": False, "error": str(e)}
+
+def delete_expired_attachments() -> dict:
+    """
+    Clears raw binary attachments older than 7 days to save space.
+    - Requester attachments: 7 days after created_at
+    - Bill attachments: 7 days after completed_at
+    """
+    sql_requester = """
+        UPDATE tickets
+        SET attachment = NULL,
+            attachment_name = attachment_name || ' (Deleted after 7 days)'
+        WHERE attachment IS NOT NULL
+          AND created_at < NOW() - INTERVAL '7 days';
+    """
+    sql_bills = """
+        UPDATE tickets
+        SET bill_attachment = NULL,
+            bill_attachment_name = bill_attachment_name || ' (Deleted after 7 days)'
+        WHERE bill_attachment IS NOT NULL
+          AND completed_time IS NOT NULL
+          AND completed_time < NOW() - INTERVAL '7 days';
+    """
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(sql_requester)
+                req_count = cur.rowcount
+                cur.execute(sql_bills)
+                bill_count = cur.rowcount
+                if req_count > 0 or bill_count > 0:
+                    print(f"DEBUG: Cleaned up {req_count} requester attachments and {bill_count} bill attachments.")
+        conn.close()
+        return {"success": True, "requester_count": req_count, "bill_count": bill_count}
+    except Exception as e:
+        print(f"ERROR: Failed to delete expired attachments: {e}")
+        return {"success": False, "error": str(e)}
