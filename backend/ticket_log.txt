@@ -185,3 +185,63 @@
 2026-03-13 18:12:00,052 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-13 18:26:59 IST)" executed successfully
 2026-03-13 18:26:59,980 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-13 18:41:59 IST)" (scheduled at 2026-03-13 18:26:59.940822+05:30)
 2026-03-13 18:27:00,037 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-13 18:41:59 IST)" executed successfully
+2026-03-14 10:15:00,148 - WARNING - Run time of job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 10:26:59 IST)" was missed by 0:03:00.206418
+2026-03-14 10:27:00,868 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 10:41:59 IST)" (scheduled at 2026-03-14 10:26:59.940822+05:30)
+2026-03-14 10:27:01,028 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 10:41:59 IST)" executed successfully
+2026-03-14 10:41:59,960 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 10:56:59 IST)" (scheduled at 2026-03-14 10:41:59.940822+05:30)
+2026-03-14 10:42:00,066 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 10:56:59 IST)" executed successfully
+2026-03-14 10:56:59,969 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 11:11:59 IST)" (scheduled at 2026-03-14 10:56:59.940822+05:30)
+2026-03-14 10:57:00,062 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 11:11:59 IST)" executed successfully
+2026-03-14 11:11:59,967 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 11:26:59 IST)" (scheduled at 2026-03-14 11:11:59.940822+05:30)
+2026-03-14 11:12:00,055 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 11:26:59 IST)" executed successfully
+2026-03-14 11:26:59,946 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 11:41:59 IST)" (scheduled at 2026-03-14 11:26:59.940822+05:30)
+2026-03-14 11:27:00,010 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 11:41:59 IST)" executed successfully
+2026-03-14 11:41:59,948 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 11:56:59 IST)" (scheduled at 2026-03-14 11:41:59.940822+05:30)
+2026-03-14 11:42:00,044 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 11:56:59 IST)" executed successfully
+2026-03-14 11:56:59,947 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 12:11:59 IST)" (scheduled at 2026-03-14 11:56:59.940822+05:30)
+2026-03-14 11:57:00,005 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 12:11:59 IST)" executed successfully
+2026-03-14 12:09:16,715 - WARNING - Task queue depth is 1
+2026-03-14 12:09:16,770 - WARNING - Task queue depth is 2
+2026-03-14 12:10:40,426 - INFO - Admin Action: User 6 reset their password via security questions.
+2026-03-14 12:11:44,709 - INFO - Scheduler has been shut down
+2026-03-14 12:11:47,878 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-14 12:11:47,879 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-14 12:11:47,879 - INFO - Added job "auto_confirm_stale_tickets" to job store "default"
+2026-03-14 12:11:47,879 - INFO - Added job "delete_expired_attachments" to job store "default"
+2026-03-14 12:11:47,879 - INFO - Scheduler started
+2026-03-14 12:11:47,887 - INFO - Serving on http://[::1]:443
+2026-03-14 12:11:47,887 - INFO - Serving on http://127.0.0.1:443
+2026-03-14 12:12:13,856 - WARNING - Task queue depth is 1
+2026-03-14 12:26:47,892 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 12:26:47 IST)" (scheduled at 2026-03-14 12:26:47.878381+05:30)
+2026-03-14 12:26:47,944 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 12:41:47 IST)" executed successfully
+2026-03-14 12:41:47,892 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 12:56:47 IST)" (scheduled at 2026-03-14 12:41:47.878381+05:30)
+2026-03-14 12:41:47,953 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 12:56:47 IST)" executed successfully
+2026-03-14 12:56:47,891 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 13:11:47 IST)" (scheduled at 2026-03-14 12:56:47.878381+05:30)
+2026-03-14 12:56:48,052 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 13:11:47 IST)" executed successfully
+2026-03-14 14:01:16,855 - WARNING - Run time of job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 14:11:47 IST)" was missed by 0:04:28.977155
+2026-03-14 14:11:47,965 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 14:11:47 IST)" (scheduled at 2026-03-14 14:11:47.878381+05:30)
+2026-03-14 14:11:48,068 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 14:26:47 IST)" executed successfully
+2026-03-14 14:26:47,896 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 14:41:47 IST)" (scheduled at 2026-03-14 14:26:47.878381+05:30)
+2026-03-14 14:26:47,966 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 14:41:47 IST)" executed successfully
+2026-03-14 14:41:47,889 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 14:56:47 IST)" (scheduled at 2026-03-14 14:41:47.878381+05:30)
+2026-03-14 14:41:47,950 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 14:56:47 IST)" executed successfully
+2026-03-14 14:56:47,920 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 15:11:47 IST)" (scheduled at 2026-03-14 14:56:47.878381+05:30)
+2026-03-14 14:56:47,984 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 15:11:47 IST)" executed successfully
+2026-03-14 15:11:47,909 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 15:26:47 IST)" (scheduled at 2026-03-14 15:11:47.878381+05:30)
+2026-03-14 15:11:47,965 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 15:26:47 IST)" executed successfully
+2026-03-14 15:26:47,913 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 15:41:47 IST)" (scheduled at 2026-03-14 15:26:47.878381+05:30)
+2026-03-14 15:26:47,965 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 15:41:47 IST)" executed successfully
+2026-03-14 15:41:47,881 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 15:56:47 IST)" (scheduled at 2026-03-14 15:41:47.878381+05:30)
+2026-03-14 15:41:47,929 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-14 15:56:47 IST)" executed successfully
+2026-03-15 11:15:15,038 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-15 11:15:15,038 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-15 11:15:15,040 - INFO - Added job "auto_confirm_stale_tickets" to job store "default"
+2026-03-15 11:15:15,040 - INFO - Added job "delete_expired_attachments" to job store "default"
+2026-03-15 11:15:15,040 - INFO - Scheduler started
+2026-03-15 11:15:15,049 - INFO - Serving on http://[::1]:443
+2026-03-15 11:15:15,049 - INFO - Serving on http://127.0.0.1:443
+2026-03-15 11:17:11,246 - WARNING - Task queue depth is 1
+2026-03-15 11:17:44,992 - INFO - Admin Action: User 4 changed permanent password and set security questions.
+2026-03-15 11:18:12,562 - WARNING - Task queue depth is 1
+2026-03-15 11:30:15,041 - INFO - Running job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-15 11:30:15 IST)" (scheduled at 2026-03-15 11:30:15.038360+05:30)
+2026-03-15 11:30:15,095 - INFO - Job "auto_confirm_stale_tickets (trigger: interval[0:15:00], next run at: 2026-03-15 11:45:15 IST)" executed successfully

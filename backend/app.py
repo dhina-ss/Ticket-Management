@@ -45,11 +45,6 @@ SMTP_SERVER   = "smtp.gmail.com"
 SMTP_PORT     = 587
 EMAIL_SENDER  = "ticketmanagement066@gmail.com"
 EMAIL_PASSWORD = "rudfjqwrxbcwauin"
-VANJINATHAN_EMAIL = "dhinakaran15022000@gmail.com"
-ANNIE_EMAIL = "dhinakaransekar49@gmail.com"
-JESLINE_EMAIL = "dhinaexposure@gmail.com"
-ADMIN_MANAGER_EMAIL = "dhinakaransekar15@gmail.com"  # HR / Admin-Manager
-
 # Initialise DB on startup
 init_db()
 

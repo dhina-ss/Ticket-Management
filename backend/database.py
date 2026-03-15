@@ -1008,14 +1008,14 @@ def soft_delete_ticket(ticket_id: str) -> dict:
         return {"success": False, "error": str(e)}
 
 def auto_confirm_stale_tickets() -> dict:
-    """Find Completed tickets > 1 hr old with user_confirmation='Pending' and auto-confirm them."""
+    """Find Completed tickets > 24 hrs old with user_confirmation='Pending' and auto-confirm them."""
     sql = """
         UPDATE tickets
         SET user_confirmation = 'Yes (System Auto-Confirmed)'
         WHERE status = 'Completed'
           AND user_confirmation = 'Pending'
           AND completed_time IS NOT NULL
-          AND completed_time < NOW() - INTERVAL '1 hour';
+          AND completed_time < NOW() - INTERVAL '24 hours';
     """
     try:
         conn = _get_conn()

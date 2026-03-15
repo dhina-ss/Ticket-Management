@@ -2832,8 +2832,8 @@ const AdminDashboard = () => {
 
                                             </div>
                                         </div>
-                                        {/* Request Approval section — only for Material request */}
-                                        {selectedTicket.category === 'Material request' && (
+                                        {/* Request Approval section — for Material request OR Admin Support type */}
+                                        {(selectedTicket.category === 'Material request' || selectedTicket.supportType?.includes('Admin Support')) && (
                                             <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                                                 {/* Toggle button — disabled until status & assignee chosen */}
                                                 {/* Compute whether all members have responded */}
@@ -2855,7 +2855,7 @@ const AdminDashboard = () => {
                                                     const allManagementDone = managementNames.every(n => respondedNames.has(n));
                                                     const allMembersResponded = (adminManagerNames.length > 0 || managementNames.length > 0) && adminManagerDone && allManagementDone;
 
-                                                    const isDisabled = !updateStatus || !updateAssignee
+                                                    const isDisabled = !updateAssignee || !updateStatus || updateStatus === selectedTicket.status
                                                         || selectedTicket.status === 'Completed'
                                                         || selectedTicket.status === 'Resolved'
                                                         || selectedTicket.status === 'Rejected'
@@ -2959,11 +2959,11 @@ const AdminDashboard = () => {
                                                         {/* Material Description */}
                                                         <div>
                                                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                                                Material Description {selectedTicket.adminManagerStatus?.toLowerCase() !== 'approved' && <span className="text-red-500">*</span>}
+                                                                {selectedTicket.category === 'Material request' ? 'Material Description' : 'Approval Justification'} {selectedTicket.adminManagerStatus?.toLowerCase() !== 'approved' && <span className="text-red-500">*</span>}
                                                             </label>
                                                             <textarea
                                                                 rows="3"
-                                                                placeholder="Describe the material details"
+                                                                placeholder={selectedTicket.category === 'Material request' ? "Describe the material details" : "Provide justification for this approval request"}
                                                                 value={approvalData.description}
                                                                 onChange={(e) => setApprovalData({ ...approvalData, description: e.target.value })}
                                                                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary resize-none outline-none"
