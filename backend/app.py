@@ -712,6 +712,7 @@ def update_ticket(ticket_id):
 @app.route('/api/status/<ticket_id>', methods=['GET'])
 def check_status(ticket_id):
     try:
+        ticket_id = str(ticket_id).upper()
         ticket = get_ticket_by_id(ticket_id)
         if ticket:
             return jsonify(ticket), 200
