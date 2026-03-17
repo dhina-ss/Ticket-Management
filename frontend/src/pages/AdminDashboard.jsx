@@ -1391,13 +1391,13 @@ const AdminDashboard = () => {
         }
     }, [user]);
 
-    // Auto-refresh every 5 minutes
+    // Auto-refresh every 30 seconds
     useEffect(() => {
         if (!user) return;
 
         const interval = setInterval(() => {
             fetchTickets();
-        }, 5 * 60 * 1000);
+        }, 30 * 1000);
 
         return () => clearInterval(interval);
     }, [user]);

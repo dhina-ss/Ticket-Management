@@ -26,6 +26,7 @@ import smtplib
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import threading
 
 DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'dist'))
 app = Flask(__name__)
@@ -224,6 +225,62 @@ def send_approval_email(ticket_data, to_email, receiver_name, role="Management")
         print(f"DEBUG: Approval email sent to {to_email} ({receiver_name})")
     except Exception as e:
         print(f"ERROR: Failed to send email to {to_email}: {e}")
+
+
+def send_new_ticket_notification(ticket_data, recipient_email):
+    """
+    Sends notification email to a specified recipient when a new ticket is created.
+    """
+    if not all([EMAIL_SENDER, EMAIL_PASSWORD]):
+        return
+
+    try:
+        ticket_id = ticket_data.get('ticket_id', '')
+        name = ticket_data.get('fullName', 'Unknown')
+        category = ticket_data.get('category', '')
+        sub_category = ticket_data.get('subCategory', '')
+        branch = ticket_data.get('branch', '')
+        department = ticket_data.get('department', '')
+        description = ticket_data.get('description', '')
+
+        subject = f"New Ticket {ticket_id} from {name}"
+        
+        category_display = f"{category} ({sub_category})" if sub_category else category
+        
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <h2 style="color: #2563eb;">New Ticket Received</h2>
+          <p>A new ticket has been created with the following details:</p>
+          <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 600px;">
+            <tr><td style="width: 30%;"><strong>Ticket ID</strong></td><td>{ticket_id}</td></tr>
+            <tr><td><strong>From (Name)</strong></td><td>{name}</td></tr>
+            <tr><td><strong>Branch</strong></td><td>{branch}</td></tr>
+            <tr><td><strong>Department</strong></td><td>{department}</td></tr>
+            <tr><td><strong>Category</strong></td><td>{category_display}</td></tr>
+            <tr><td><strong>Description</strong></td><td style="white-space: pre-wrap;">{description}</td></tr>
+          </table>
+          <p style="margin-top: 20px; font-size: 0.9em; color: #666;">
+            This is an automated notification from the Ticket Raise system.
+          </p>
+        </body>
+        </html>
+        """
+
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_SENDER
+        msg['To'] = recipient_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'html'))
+
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_SENDER, recipient_email, msg.as_string())
+        server.quit()
+        print(f"DEBUG: Notification email sent to {recipient_email}")
+    except Exception as e:
+        print(f"ERROR: Failed to send notification to {recipient_email}: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -723,6 +780,13 @@ def submit_ticket():
 
         result = append_to_sheet(data)
         if result['success']:
+            # 1. Always send notification to itcottonconcepts@gmail.com in background
+            threading.Thread(target=send_new_ticket_notification, args=(data, "itcottonconcepts@gmail.com"), daemon=True).start()
+            
+            # 2. Additionally send to admin@cottonconcepts.co.in if support type is Admin Support in background
+            if data.get('supportType') == 'Admin Support':
+                threading.Thread(target=send_new_ticket_notification, args=(data, "admin@cottonconcepts.co.in"), daemon=True).start()
+                
             return jsonify({"message": "Ticket submitted successfully", "ticket_id": ticket_id}), 200
         return jsonify({"error": "Failed to save ticket", "details": result['error']}), 500
     except Exception as e:
