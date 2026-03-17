@@ -2832,8 +2832,8 @@ const AdminDashboard = () => {
 
                                             </div>
                                         </div>
-                                        {/* Request Approval section — for Material request OR Admin Support type */}
-                                        {(selectedTicket.category === 'Material request' || selectedTicket.supportType?.includes('Admin Support')) && (
+                                        {/* Request Approval section — for Material request, Admin Support, OR IT Support type */}
+                                        {(selectedTicket.category === 'Material request' || selectedTicket.supportType?.includes('Admin Support') || selectedTicket.supportType?.includes('IT Support')) && (
                                             <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                                                 {/* Toggle button — disabled until status & assignee chosen */}
                                                 {/* Compute whether all members have responded */}
@@ -2856,6 +2856,7 @@ const AdminDashboard = () => {
                                                     const allMembersResponded = (adminManagerNames.length > 0 || managementNames.length > 0) && adminManagerDone && allManagementDone;
 
                                                     const isDisabled = !updateAssignee || !updateStatus || updateStatus === selectedTicket.status
+                                                        || updateStatus === 'Not Started'
                                                         || selectedTicket.status === 'Completed'
                                                         || selectedTicket.status === 'Resolved'
                                                         || selectedTicket.status === 'Rejected'

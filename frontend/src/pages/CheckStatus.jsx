@@ -34,18 +34,18 @@ const StatusStepper = ({ currentStatus, isRejected }) => {
                     const isCurrent = index === currentStepIndex;
                     return (
                         <div key={index} className="relative flex flex-col items-center group">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-300 z-10 bg-white dark:bg-slate-900 
+                            <div className={`w-6 h-6 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-[2px] sm:border-4 transition-all duration-300 z-10 bg-white dark:bg-slate-900 
                                 ${isCompleted ? 'border-primary text-primary' : 'border-slate-300 dark:border-slate-600 text-slate-300 dark:text-slate-600'}
                                 ${isCurrent ? 'scale-110' : ''}`}
                             >
                                 {index <= currentStepIndex ? (
-                                    <div className="w-4 h-4 rounded-full bg-primary"></div>
+                                    <div className="w-2.5 h-2.5 sm:w-4 sm:h-4 rounded-full bg-primary"></div>
                                 ) : (
-                                    <span className="text-xs font-bold">{index + 1}</span>
+                                    <span className="text-[10px] sm:text-xs font-bold">{index + 1}</span>
                                 )}
                             </div>
                             <div
-                                className={`absolute top-14 text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors duration-300 whitespace-nowrap
+                                className={`absolute top-8 sm:top-14 text-[9px] sm:text-sm font-bold uppercase tracking-[0.05em] sm:tracking-wider transition-colors duration-300 whitespace-nowrap
                                     ${isCompleted ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}
                                     ${isCurrent ? 'opacity-100' : 'opacity-70'}`}
                                 style={{ left: '50%', transform: 'translateX(-50%)' }}
@@ -89,64 +89,64 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
 
     return (
         <div className="bg-white dark:bg-slate-900 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-            <div className="p-8">
-                <div className="flex justify-between items-center mb-8 border-b border-slate-100 dark:border-slate-800 pb-6">
+            <div className="p-4 sm:p-8">
+                <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-3 sm:gap-0 mb-6 sm:mb-8 border-b border-slate-100 dark:border-slate-800 pb-4 sm:pb-6">
                     <div>
-                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Ticket Details</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        <h2 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white">Ticket Details</h2>
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
                             ID: <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{ticketData.ticket_id}</span>
                         </p>
                     </div>
-                    <div className="text-right">
-                        <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-widest">Submitted On</p>
-                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{ticketData.timestamp}</p>
+                    <div className="text-left sm:text-right">
+                        <p className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-widest">Submitted On</p>
+                        <p className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">{ticketData.timestamp}</p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-6">
                     <div>
-                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Department</h3>
-                        <p className="text-slate-800 dark:text-slate-200 font-medium text-lg">{ticketData.department || '-'}</p>
+                        <h3 className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Department</h3>
+                        <p className="text-slate-800 dark:text-slate-200 font-medium text-sm sm:text-lg">{ticketData.department || '-'}</p>
                     </div>
                     <div>
-                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Category</h3>
-                        <p className="text-slate-800 dark:text-slate-200 font-medium text-lg">
+                        <h3 className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Category</h3>
+                        <p className="text-slate-800 dark:text-slate-200 font-medium text-sm sm:text-lg hover:break-words whitespace-normal break-words sm:break-normal">
                             {ticketData.category}
                         </p>
                     </div>
-                    <div>
-                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Support Type</h3>
-                        <p className="text-slate-800 dark:text-slate-200 font-medium text-lg">
+                    <div className="col-span-2 md:col-span-1">
+                        <h3 className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Support Type</h3>
+                        <p className="text-slate-800 dark:text-slate-200 font-medium text-sm sm:text-lg">
                             {ticketData.supportType || '-'}
                         </p>
                     </div>
                 </div>
 
-                <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50 mb-6">
-                    <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-base">description</span>
+                <div className="p-4 sm:p-5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50 mb-6">
+                    <h3 className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
+                        <span className="material-symbols-outlined text-sm sm:text-base">description</span>
                         Description
                     </h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-line">
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-line">
                         {ticketData.description || "No description provided."}
                     </p>
                 </div>
 
                 {ticketData.attachment && (
                     <div className="mb-6">
-                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-base">attachment</span>
+                        <h3 className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5 sm:gap-2">
+                            <span className="material-symbols-outlined text-sm sm:text-base">attachment</span>
                             Attachments
                         </h3>
                         <a
                             href={`/api/tickets/${ticketData.ticket_id}/attachment`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                         >
-                            <span className="material-icons text-primary text-lg">image</span>
-                            {ticketData.attachment}
-                            <span className="material-symbols-outlined text-slate-400 text-sm ml-auto">open_in_new</span>
+                            <span className="material-icons text-primary text-base sm:text-lg">image</span>
+                            <span className="truncate max-w-[150px] sm:max-w-none">{ticketData.attachment}</span>
+                            <span className="material-symbols-outlined text-slate-400 text-xs sm:text-sm ml-auto">open_in_new</span>
                         </a>
                     </div>
                 )}
@@ -441,15 +441,15 @@ const CheckStatus = () => {
     };
 
     return (
-        <main className="w-[70%] mx-auto px-4 py-10 space-y-8">
+        <main className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
             <div className="bg-white dark:bg-slate-900 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                <div className="p-8">
-                    <div className="text-center mb-8">
-                        <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
+                <div className="p-5 sm:p-8">
+                    <div className="text-center mb-6 sm:mb-8">
+                        <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-primary/10 rounded-full mb-3 sm:mb-4">
                             <span className="material-symbols-outlined text-primary text-3xl">search_check</span>
                         </div>
-                        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Check Ticket Status</h1>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">
+                        <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">Check Ticket Status</h1>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-1 sm:mt-2">
                             Search by Ticket ID or your registered mobile number.
                         </p>
                     </div>
@@ -555,7 +555,7 @@ const CheckStatus = () => {
             {/* Multiple tickets (Mobile search) */}
             {mobileTickets.length > 0 && (
                 <div className="bg-white dark:bg-slate-900 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                         <div>
                             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Your Tickets</h2>
                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
@@ -580,7 +580,7 @@ const CheckStatus = () => {
                             return (
                                 <div
                                     key={t.ticket_id}
-                                    className={`p-5 cursor-pointer transition-colors ${isSelected
+                                    className={`p-4 sm:p-5 cursor-pointer transition-colors ${isSelected
                                         ? 'bg-primary/5 dark:bg-primary/10'
                                         : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
                                         }`}
