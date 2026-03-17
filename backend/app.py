@@ -222,7 +222,7 @@ def send_approval_email(ticket_data, to_email, receiver_name, role="Management")
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
         server.sendmail(EMAIL_SENDER, to_email, msg.as_string())
         server.quit()
-        print(f"DEBUG: Approval email sent to {to_email} ({receiver_name})")
+
     except Exception as e:
         print(f"ERROR: Failed to send email to {to_email}: {e}")
 
