@@ -278,7 +278,7 @@ def send_new_ticket_notification(ticket_data, recipient_email):
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
         server.sendmail(EMAIL_SENDER, recipient_email, msg.as_string())
         server.quit()
-        print(f"DEBUG: Notification email sent to {recipient_email}")
+
     except Exception as e:
         print(f"ERROR: Failed to send notification to {recipient_email}: {e}")
 
