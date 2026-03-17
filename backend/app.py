@@ -62,7 +62,6 @@ def send_approval_email(ticket_data, to_email, receiver_name, role="Management")
                               mobile, status, timestamp
     """
     if not all([EMAIL_SENDER, EMAIL_PASSWORD]):
-        print("DEBUG: Email credentials missing. Skipping email.")
         return
     if not to_email:
         print(f"DEBUG: No email address for {receiver_name}. Skipping.")
