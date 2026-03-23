@@ -282,6 +282,98 @@ def send_new_ticket_notification(ticket_data, recipient_email):
         print(f"ERROR: Failed to send notification to {recipient_email}: {e}")
 
 
+def send_completion_email(ticket_data):
+    """
+    Sends an email to the requester when a ticket is marked as Completed.
+    Includes details and a link to confirm the resolution.
+    """
+    to_email = ticket_data.get('email')
+    if not all([EMAIL_SENDER, EMAIL_PASSWORD, to_email]):
+        return
+
+    try:
+        ticket_id = ticket_data.get('ticket_id', '')
+        
+        # Environment-based host selection
+        env = os.environ.get('APP_ENV', 'local')
+        if env == 'prod':
+            host = "http://122.165.253.167:443"
+        else:
+            host = "http://localhost:443"
+
+        status_link = f"{host}/status?ticketId={ticket_id}"
+
+        subject = f"Ticket Resolved: {ticket_id}"
+        
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0;">
+          <div style="background:#10b981;padding:24px 32px;">
+            <h2 style="color:#fff;margin:0;">Ticket Resolved</h2>
+            <p style="color:#d1fae5;margin:4px 0 0;">Ticket #{ticket_id}</p>
+          </div>
+          <div style="padding:24px 32px;">
+            <p style="font-size:16px;font-weight:600;color:#1e293b;margin-bottom:4px;">Dear {ticket_data.get('fullName', '')},</p>
+            <p>
+              Your ticket has been marked as <strong>Completed</strong> by our team. 
+              Please review the details below and confirm if the issue has been resolved to your satisfaction.
+            </p>
+
+            <h3 style="color:#10b981;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">Ticket Summary</h3>
+            <table border="0" cellpadding="8" cellspacing="0" style="width:100%;max-width:600px;margin-bottom:20px;font-size:14px;border: 1px solid #e2e8f0; border-collapse: collapse;">
+              <tr style="background:#f8fafc;">
+                <td style="width:35%; border: 1px solid #e2e8f0;"><strong>Ticket ID</strong></td>
+                <td style="border: 1px solid #e2e8f0;">{ticket_id}</td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #e2e8f0;"><strong>Category</strong></td>
+                <td style="border: 1px solid #e2e8f0;">{ticket_data.get('category', '')}</td>
+              </tr>
+              <tr style="background:#f8fafc;">
+                <td style="border: 1px solid #e2e8f0;"><strong>Description</strong></td>
+                <td style="border: 1px solid #e2e8f0; white-space:pre-wrap;">{ticket_data.get('description', '')}</td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #e2e8f0;"><strong>Resolution Comments</strong></td>
+                <td style="border: 1px solid #e2e8f0; font-style: italic;">{ticket_data.get('resolution_comments', 'No comments provided.')}</td>
+              </tr>
+            </table>
+
+            <div style="margin:30px 0;">
+              <a href="{status_link}"
+                 style="background-color:#10b981;color:white;padding:12px 28px;
+                        text-decoration:none;border-radius:6px;font-weight:bold;
+                        display:inline-block;">
+                Confirm Resolution
+              </a>
+            </div>
+            <p style="font-size:0.85em;color:#666;">
+              If you believe the issue is not fixed, you can also report it via the link above.
+            </p>
+          </div>
+          <div style="background:#f1f5f9;padding:16px 32px;font-size:0.8em;color:#94a3b8;">
+            This is an automated message from the Ticket Raise system.
+          </div>
+        </body>
+        </html>
+        """
+
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_SENDER
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'html'))
+
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_SENDER, to_email, msg.as_string())
+        server.quit()
+
+    except Exception as e:
+        print(f"ERROR: Failed to send completion email to {to_email}: {e}")
+
+
 # ---------------------------------------------------------------------------
 # API Routes
 # ---------------------------------------------------------------------------
@@ -703,6 +795,12 @@ def update_ticket(ticket_id):
             
         result = update_ticket_details(ticket_id, updates)
         if result['success']:
+            # If status changed to Completed, send email to requester
+            if updates.get('status') == 'Completed':
+                full_ticket = get_ticket_by_id(ticket_id)
+                if full_ticket and full_ticket.get('email'):
+                    threading.Thread(target=send_completion_email, args=(full_ticket,), daemon=True).start()
+                    
             return jsonify({"message": "Ticket updated successfully"}), 200
         return jsonify({"error": result['error']}), 500
     except Exception as e:

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import api from '../api';
 
 // Status Stepper Component
@@ -61,6 +61,32 @@ const StatusStepper = ({ currentStatus, isRejected }) => {
     );
 };
 
+// Simple Copy Button Component
+const CopyButton = ({ text, className = "" }) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <button
+            onClick={handleCopy}
+            type="button"
+            title={copied ? "Copied!" : "Copy to clipboard"}
+            className={`inline-flex items-center justify-center p-1 rounded-md transition-all hover:bg-slate-100 dark:hover:bg-slate-800 ${className} ${copied ? "text-emerald-500" : "text-slate-400 hover:text-primary"}`}
+        >
+            <span className="material-symbols-outlined text-base">
+                {copied ? "check" : "content_copy"}
+            </span>
+        </button>
+    );
+};
+
 // Single ticket card used for both search modes
 const TicketCard = ({ ticketData, onUpdateTicket }) => {
     const [isConfirming, setIsConfirming] = useState(false);
@@ -93,8 +119,9 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                 <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-3 sm:gap-0 mb-6 sm:mb-8 border-b border-slate-100 dark:border-slate-800 pb-4 sm:pb-6">
                     <div>
                         <h2 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white">Ticket Details</h2>
-                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                            ID: <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{ticketData.ticket_id}</span>
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
+                            ID: <span className="font-mono font-medium text-slate-700 dark:text-slate-300 select-all">{ticketData.ticket_id}</span>
+                            <CopyButton text={ticketData.ticket_id} />
                         </p>
                     </div>
                     <div className="text-left sm:text-right">
@@ -396,6 +423,7 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
 };
 
 const CheckStatus = () => {
+    const location = useLocation();
     const [searchType, setSearchType] = useState('ticket'); // 'ticket' | 'mobile'
     const [ticketId, setTicketId] = useState('');
     const [mobile, setMobile] = useState('');
@@ -404,6 +432,35 @@ const CheckStatus = () => {
     const [selectedTicket, setSelectedTicket] = useState(null); // expanded ticket from list
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+
+    useEffect(() => {
+        const queryParams = new URLSearchParams(location.search);
+        const ticketIdFromUrl = queryParams.get('ticketId');
+        
+        if (ticketIdFromUrl) {
+            setSearchType('ticket');
+            setTicketId(ticketIdFromUrl);
+            
+            const fetchTicketFromUrl = async () => {
+                setLoading(true);
+                setError('');
+                setTicketData(null);
+                setMobileTickets([]);
+                
+                try {
+                    const response = await api.get(`/api/status/${ticketIdFromUrl.trim()}`);
+                    if (response.status === 200) setTicketData(response.data);
+                    else setError('Ticket not found');
+                } catch (err) {
+                    setError('Failed to connect to server');
+                } finally {
+                    setLoading(false);
+                }
+            };
+            
+            fetchTicketFromUrl();
+        }
+    }, [location.search]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -589,8 +646,9 @@ const CheckStatus = () => {
                                     <div className="flex items-center gap-4">
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
-                                                    {t.ticket_id}
+                                                <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded flex items-center gap-1.5">
+                                                    <span className="select-all">{t.ticket_id}</span>
+                                                    <CopyButton text={t.ticket_id} className="h-4 w-4" />
                                                 </span>
                                                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeClass}`}>
                                                     {t.status || 'Not Started'}

@@ -67,6 +67,7 @@ def _row_to_ticket(row: dict) -> dict:
         "billAttachmentName":     row.get("bill_attachment_name") or "",
         "userConfirmation":       row.get("user_confirmation") or "Pending",
         "inProgressTime":         row["in_progress_time"].strftime("%d-%m-%Y %I:%M %p") if row.get("in_progress_time") else "",
+        "email":                  row.get("email") or "",
     }
 
 
@@ -139,7 +140,8 @@ def init_db():
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS bill_attachment_name TEXT;",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS department TEXT;",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS support_type TEXT;",
-            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS user_confirmation TEXT DEFAULT 'Pending';"
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS user_confirmation TEXT DEFAULT 'Pending';",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email TEXT;"
         ]
         try:
             conn = _get_conn()
@@ -445,8 +447,8 @@ def append_to_sheet(data: dict) -> dict:
                     INSERT INTO tickets
                         (ticket_id, full_name, mobile, category, mode,
                          description, attachment, attachment_name, assignee,
-                         status, sub_category, branch, department, support_type)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                         status, sub_category, branch, department, support_type, email)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """,
                     (
                         data.get("ticket_id"),
@@ -463,6 +465,7 @@ def append_to_sheet(data: dict) -> dict:
                         data.get("branch", ""),
                         data.get("department", ""),
                         data.get("supportType", ""),
+                        data.get("email", ""),
                     ),
                 )
         conn.close()

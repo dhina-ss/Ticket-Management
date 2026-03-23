@@ -65,7 +65,8 @@ const TicketForm = () => {
         description: '',
         supportType: '',
         branch: '',
-        department: ''
+        department: '',
+        email: ''
     });
 
     const handleChange = (e) => {
@@ -133,7 +134,8 @@ const TicketForm = () => {
                     description: '',
                     supportType: '',
                     branch: '',
-                    department: ''
+                    department: '',
+                    email: ''
                 });
                 setShowBranchPopup(true);
                 setAttachment(null);
@@ -312,6 +314,22 @@ const TicketForm = () => {
                                 onChange={handleChange}
                             />
                         </div>
+                        {/* Email Address */}
+                        <div className="space-y-2">
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="email">Email Address <span className="text-red-500">*</span></label>
+                            <input
+                                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                id="email"
+                                name="email"
+                                placeholder="john@example.com"
+                                type="email"
+                                required
+                                value={formData.email}
+                                onChange={handleChange}
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Mobile Number */}
                         <div className="space-y-2">
                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="mobile">Mobile Number <span className="text-red-500">*</span></label>
@@ -329,8 +347,6 @@ const TicketForm = () => {
                                 onChange={handleChange}
                             />
                         </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Department */}
                         <div className="space-y-2">
                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="department">Department <span className="text-red-500">*</span></label>
@@ -351,6 +367,8 @@ const TicketForm = () => {
                                     ))}
                             </select>
                         </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Issue Category */}
                         <div className="space-y-2">
                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="category">Category <span className="text-red-500">*</span></label>
@@ -371,8 +389,6 @@ const TicketForm = () => {
                                     ))}
                             </select>
                         </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Sub Category - Material Request Only */}
                         {formData.category === 'Material request' && (
                             <div className="space-y-2">
