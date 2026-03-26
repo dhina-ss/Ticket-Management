@@ -596,6 +596,10 @@ def update_ticket_details(ticket_id: str, updates: dict) -> dict:
         "bill_attachment_name": "bill_attachment_name",
         "user_confirmation": "user_confirmation",
     }
+    # If user rejects the resolution, move back to Pending
+    if updates.get("user_confirmation") == "No" and "status" not in updates:
+        updates["status"] = "Pending"
+
     set_clauses = []
     values = []
 
