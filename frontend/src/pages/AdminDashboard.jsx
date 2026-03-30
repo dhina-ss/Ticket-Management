@@ -2459,6 +2459,14 @@ const AdminDashboard = () => {
                                                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-100 dark:border-slate-800">
                                                     <div className="flex items-center justify-between mb-2">
                                                         <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Management</span>
+                                                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${selectedTicket.managementStatus.toLowerCase() === 'approved'
+                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                            : selectedTicket.managementStatus.toLowerCase() === 'pending' || selectedTicket.managementStatus.toLowerCase() === 'hold'
+                                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                                : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                                            }`}>
+                                                            {selectedTicket.managementStatus}
+                                                        </span>
                                                     </div>
                                                     <div className="space-y-2">
                                                         {selectedTicket.managementComments && (

@@ -187,8 +187,8 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
 
                 <div className="space-y-6">
 
-                    {/* Material Request Approval Statuses */}
-                    {ticketData.category?.toLowerCase().includes('material request') && (
+                    {/* Manager & Management Approval Statuses */}
+                    {(ticketData.adminManagerStatus || ticketData.managementStatus) && (
                         <div className="space-y-3">
                             {/* Manager Status */}
                             {ticketData.adminManagerStatus && (
@@ -208,17 +208,7 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                                         ${ticketData.adminManagerStatus === 'Approved' ? 'text-green-700 dark:text-green-400' :
                                                 ticketData.adminManagerStatus === 'Rejected' ? 'text-red-700 dark:text-red-400' :
                                                     'text-amber-700 dark:text-amber-400'}`}>
-                                            {ticketData.adminManagerStatus === 'Pending' ? 'Pending for Manager Approval' :
-                                                ticketData.adminManagerStatus === 'Approved' ? 'Approved by Manager' :
-                                                    'Rejected by Manager'}
-                                        </p>
-                                        <p className={`text-xs mt-0.5 
-                                        ${ticketData.adminManagerStatus === 'Approved' ? 'text-green-600 dark:text-green-500' :
-                                                ticketData.adminManagerStatus === 'Rejected' ? 'text-red-600 dark:text-red-500' :
-                                                    'text-amber-600 dark:text-amber-500'}`}>
-                                            {ticketData.adminManagerStatus === 'Pending' ? 'Your request is awaiting decision from the Manager.' :
-                                                ticketData.adminManagerStatus === 'Approved' ? 'The Manager has reviewed and approved this request.' :
-                                                    'The Manager has rejected this request.'}
+                                            Manager: {ticketData.adminManagerStatus}
                                         </p>
                                         <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
                                             {ticketData.adminManagerMailTime && (
@@ -257,20 +247,7 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                                                 ticketData.managementStatus === 'Rejected' ? 'text-red-700 dark:text-red-400' :
                                                     ticketData.managementStatus === 'Hold' ? 'text-orange-700 dark:text-orange-400' :
                                                         'text-amber-700 dark:text-amber-400'}`}>
-                                            {ticketData.managementStatus === 'Pending' ? 'Pending for Management Approval' :
-                                                ticketData.managementStatus === 'Approved' ? 'Approved by Management' :
-                                                    ticketData.managementStatus === 'Hold' ? 'Hold by Management' :
-                                                        'Rejected by Management'}
-                                        </p>
-                                        <p className={`text-xs mt-0.5 
-                                        ${ticketData.managementStatus === 'Approved' ? 'text-green-600 dark:text-green-500' :
-                                                ticketData.managementStatus === 'Rejected' ? 'text-red-600 dark:text-red-500' :
-                                                    ticketData.managementStatus === 'Hold' ? 'text-orange-600 dark:text-orange-500' :
-                                                        'text-amber-600 dark:text-amber-500'}`}>
-                                            {ticketData.managementStatus === 'Pending' ? 'Your request is awaiting final decision from the Management.' :
-                                                ticketData.managementStatus === 'Approved' ? 'The Management has given final approval.' :
-                                                    ticketData.managementStatus === 'Hold' ? 'The Management vote is tied. Awaiting further review.' :
-                                                        'The Management has rejected this request.'}
+                                            Management: {ticketData.managementStatus}
                                         </p>
                                         <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
                                             {ticketData.managementMailTime && (
