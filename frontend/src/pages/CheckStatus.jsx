@@ -194,79 +194,101 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                     {(ticketData.adminManagerStatus || ticketData.managementStatus) && (
                         <div className="space-y-3">
                             {/* Manager Status */}
-                            {ticketData.adminManagerStatus && (
-                                <div className={`flex items-start gap-3 px-4 py-3 border rounded-xl 
-                                ${ticketData.adminManagerStatus === 'Approved' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' :
-                                        ticketData.adminManagerStatus === 'Rejected' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' :
-                                            'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700'}`}>
-                                    <span className={`material-symbols-outlined text-xl mt-0.5 shrink-0 
-                                    ${ticketData.adminManagerStatus === 'Approved' ? 'text-green-500' :
-                                            ticketData.adminManagerStatus === 'Rejected' ? 'text-red-500' :
-                                                'text-amber-500'}`}>
-                                        {ticketData.adminManagerStatus === 'Approved' ? 'check_circle' :
-                                            ticketData.adminManagerStatus === 'Rejected' ? 'cancel' : 'hourglass_top'}
-                                    </span>
-                                    <div>
-                                        <p className={`text-sm font-semibold 
-                                        ${ticketData.adminManagerStatus === 'Approved' ? 'text-green-700 dark:text-green-400' :
-                                                ticketData.adminManagerStatus === 'Rejected' ? 'text-red-700 dark:text-red-400' :
-                                                    'text-amber-700 dark:text-amber-400'}`}>
-                                            Manager: {ticketData.adminManagerStatus}
-                                        </p>
-                                        <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
-                                            {ticketData.adminManagerMailTime && (
-                                                <span className="text-[11px] text-slate-500">
-                                                    <strong>Sent To Manager:</strong> {ticketData.adminManagerMailTime}
-                                                </span>
-                                            )}
-                                            {ticketData.adminManagerStatusTime && (
-                                                <span className="text-[11px] text-slate-500">
-                                                    <strong>Decision Made:</strong> {ticketData.adminManagerStatusTime}
-                                                </span>
-                                            )}
+                            {ticketData.adminManagerStatus && (() => {
+                                const parseManagerName = (comments) => {
+                                    if (!comments) return "Manager";
+                                    const match = comments.trim().match(/^([^[]+)\s*\[(?:APPROVED|REJECTED|HOLD)\]/i);
+                                    return match ? match[1].trim() : "Manager";
+                                };
+                                const managerName = parseManagerName(ticketData.adminManagerComments);
+                                return (
+                                    <div className={`flex items-start gap-3 px-4 py-3 border rounded-xl 
+                                    ${ticketData.adminManagerStatus === 'Approved' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' :
+                                            ticketData.adminManagerStatus === 'Rejected' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' :
+                                                'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700'}`}>
+                                        <span className={`material-symbols-outlined text-xl mt-0.5 shrink-0 
+                                        ${ticketData.adminManagerStatus === 'Approved' ? 'text-green-500' :
+                                                ticketData.adminManagerStatus === 'Rejected' ? 'text-red-500' :
+                                                    'text-amber-500'}`}>
+                                            {ticketData.adminManagerStatus === 'Approved' ? 'check_circle' :
+                                                ticketData.adminManagerStatus === 'Rejected' ? 'cancel' : 'hourglass_top'}
+                                        </span>
+                                        <div>
+                                            <p className={`text-sm font-semibold 
+                                            ${ticketData.adminManagerStatus === 'Approved' ? 'text-green-700 dark:text-green-400' :
+                                                    ticketData.adminManagerStatus === 'Rejected' ? 'text-red-700 dark:text-red-400' :
+                                                        'text-amber-700 dark:text-amber-400'}`}>
+                                                {managerName}: {ticketData.adminManagerStatus}
+                                            </p>
+                                            <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
+                                                {ticketData.adminManagerMailTime && (
+                                                    <span className="text-[11px] text-slate-500">
+                                                        <strong>Sent To {managerName}:</strong> {ticketData.adminManagerMailTime}
+                                                    </span>
+                                                )}
+                                                {ticketData.adminManagerStatusTime && (
+                                                    <span className="text-[11px] text-slate-500">
+                                                        <strong>Decision Made:</strong> {ticketData.adminManagerStatusTime}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {/* Management Status - Only show if not rejected by Manager and explicitly mailed out*/}
-                            {ticketData.managementStatus && ticketData.managementMailTime && (!ticketData.adminManagerStatus || ticketData.adminManagerStatus.trim().toLowerCase() !== 'rejected') && (
-                                <div className={`flex items-start gap-3 px-4 py-3 border rounded-xl 
-                                ${ticketData.managementStatus === 'Approved' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' :
-                                        ticketData.managementStatus === 'Rejected' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' :
-                                            'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700'}`}>
-                                    <span className={`material-symbols-outlined text-xl mt-0.5 shrink-0 
-                                    ${ticketData.managementStatus === 'Approved' ? 'text-green-500' :
-                                            ticketData.managementStatus === 'Rejected' ? 'text-red-500' :
-                                                ticketData.managementStatus === 'Hold' ? 'text-orange-500' :
-                                                    'text-amber-500'}`}>
-                                        {ticketData.managementStatus === 'Approved' ? 'verified' :
-                                            ticketData.managementStatus === 'Rejected' ? 'block' :
-                                                ticketData.managementStatus === 'Hold' ? 'pause_circle' : 'pending'}
-                                    </span>
-                                    <div>
-                                        <p className={`text-sm font-semibold 
-                                        ${ticketData.managementStatus === 'Approved' ? 'text-green-700 dark:text-green-400' :
-                                                ticketData.managementStatus === 'Rejected' ? 'text-red-700 dark:text-red-400' :
-                                                    ticketData.managementStatus === 'Hold' ? 'text-orange-700 dark:text-orange-400' :
-                                                        'text-amber-700 dark:text-amber-400'}`}>
-                                            Management: {ticketData.managementStatus}
-                                        </p>
-                                        <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
-                                            {ticketData.managementMailTime && (
-                                                <span className="text-[11px] text-slate-500">
-                                                    <strong>Sent To Management:</strong> {ticketData.managementMailTime}
-                                                </span>
-                                            )}
-                                            {ticketData.managementStatusTime && (
-                                                <span className="text-[11px] text-slate-500">
-                                                    <strong>Decision Made:</strong> {ticketData.managementStatusTime}
-                                                </span>
-                                            )}
+                            {ticketData.managementStatus && ticketData.managementMailTime && (!ticketData.adminManagerStatus || ticketData.adminManagerStatus.trim().toLowerCase() !== 'rejected') && (() => {
+                                const parseManagementNames = (comments) => {
+                                    if (!comments) return "Management";
+                                    const lines = comments.split('\n').filter(l => l.trim());
+                                    const names = lines.map(line => {
+                                        const content = line.includes('|||') ? line.split('|||')[1] : line;
+                                        const match = content.trim().match(/^([^[]+)\s*\[(?:APPROVED|REJECTED|HOLD)\]/i);
+                                        return match ? match[1].trim() : null;
+                                    }).filter(Boolean);
+                                    const uniqueNames = [...new Set(names)];
+                                    return uniqueNames.length > 0 ? uniqueNames.join(', ') : "Management";
+                                };
+                                const managementNames = parseManagementNames(ticketData.managementComments);
+                                return (
+                                    <div className={`flex items-start gap-3 px-4 py-3 border rounded-xl 
+                                    ${ticketData.managementStatus === 'Approved' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' :
+                                            ticketData.managementStatus === 'Rejected' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' :
+                                                'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700'}`}>
+                                        <span className={`material-symbols-outlined text-xl mt-0.5 shrink-0 
+                                        ${ticketData.managementStatus === 'Approved' ? 'text-green-500' :
+                                                ticketData.managementStatus === 'Rejected' ? 'text-red-500' :
+                                                    ticketData.managementStatus === 'Hold' ? 'text-orange-500' :
+                                                        'text-amber-500'}`}>
+                                            {ticketData.managementStatus === 'Approved' ? 'verified' :
+                                                ticketData.managementStatus === 'Rejected' ? 'block' :
+                                                    ticketData.managementStatus === 'Hold' ? 'pause_circle' : 'pending'}
+                                        </span>
+                                        <div>
+                                            <p className={`text-sm font-semibold 
+                                            ${ticketData.managementStatus === 'Approved' ? 'text-green-700 dark:text-green-400' :
+                                                    ticketData.managementStatus === 'Rejected' ? 'text-red-700 dark:text-red-400' :
+                                                        ticketData.managementStatus === 'Hold' ? 'text-orange-700 dark:text-orange-400' :
+                                                            'text-amber-700 dark:text-amber-400'}`}>
+                                                {managementNames}: {ticketData.managementStatus}
+                                            </p>
+                                            <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
+                                                {ticketData.managementMailTime && (
+                                                    <span className="text-[11px] text-slate-500">
+                                                        <strong>Sent To {managementNames}:</strong> {ticketData.managementMailTime}
+                                                    </span>
+                                                )}
+                                                {ticketData.managementStatusTime && (
+                                                    <span className="text-[11px] text-slate-500">
+                                                        <strong>Decision Made:</strong> {ticketData.managementStatusTime}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
                         </div>
                     )}
 

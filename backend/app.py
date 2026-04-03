@@ -85,25 +85,77 @@ def send_approval_email(ticket_data, to_email, receiver_name, role="Management")
 
         subject = f"Approval Request: New Asset Request \u2013 {ticket_id}"
 
-        manager_comments = ticket_data.get('adminManagerComments', '')
-        manager_status   = ticket_data.get('adminManagerStatus', '')
-        manager_section  = ""
+        # Gather approval history
+        history_html = ""
+        history_rows = []
 
-        # Show manager approval details only to non-Manager receivers (Vanjinathan, Annie, Jesline)
-        if receiver_name != "Manager" and (manager_status or manager_comments):
-            display_status = manager_status if manager_status else "Approved"
-            manager_section = f"""
-            <h3 style="color:#2563eb;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">Manager Approval</h3>
-            <table border="1" cellpadding="8" cellspacing="0"
-                   style="border-collapse:collapse;width:100%;max-width:600px;margin-bottom:24px;font-size:14px;">
-              <tr style="background:#f8fafc;">
-                <td style="width:35%;"><strong>Status</strong></td>
-                <td>{display_status}</td>
-              </tr>
-              <tr>
-                <td><strong>Comments</strong></td>
-                <td style="white-space:pre-wrap;font-style:italic;">{manager_comments or "No comments provided."}</td>
-              </tr>
+        # 1. Manager Approval
+        mgr_status = ticket_data.get('adminManagerStatus', '')
+        mgr_comments = ticket_data.get('adminManagerComments', '')
+        mgr_time = ticket_data.get('adminManagerStatusTime', '')
+        if mgr_status or mgr_comments:
+            history_rows.append({
+                "name": "Manager",
+                "status": mgr_status or "Approved",
+                "comments": mgr_comments or "No comments provided.",
+                "time": mgr_time
+            })
+
+        # 2. Management Approvals (from managementComments string)
+        mgmt_raw = ticket_data.get('managementComments', '')
+        if mgmt_raw:
+            import re
+            lines = [l.strip() for l in mgmt_raw.split('\n') if l.strip()]
+            for line in lines:
+                # Format: Timestamp ||| Name [STATUS]: Comment
+                parts = line.split('|||')
+                time_str = parts[0].strip() if len(parts) > 0 else ""
+                content = parts[1].strip() if len(parts) > 1 else line
+                
+                # Extract Name [STATUS]: Comment
+                match = re.match(r"^([^[]+)\s*\[(APPROVED|REJECTED|HOLD)\]:\s*(.*)$", content, re.IGNORECASE)
+                if match:
+                    history_rows.append({
+                        "name": match.group(1).strip(),
+                        "status": match.group(2).strip().capitalize(),
+                        "comments": match.group(3).strip(),
+                        "time": time_str
+                    })
+                else:
+                    # Fallback for unparsed lines
+                    history_rows.append({
+                        "name": "Management",
+                        "status": "Recorded",
+                        "comments": content,
+                        "time": time_str
+                    })
+
+        if history_rows:
+            rows_html = ""
+            for row in history_rows:
+                status_color = "#16a34a" if row['status'].lower() == "approved" else "#dc2626" if row['status'].lower() == "rejected" else "#333"
+                rows_html += f"""
+                <tr>
+                  <td style="border: 1px solid #e2e8f0; padding: 8px;"><strong>{row['name']}</strong><br><small style="color:#64748b;">{row['time']}</small></td>
+                  <td style="border: 1px solid #e2e8f0; padding: 8px; color: {status_color}; font-weight: bold;">{row['status']}</td>
+                  <td style="border: 1px solid #e2e8f0; padding: 8px; font-style: italic;">{row['comments']}</td>
+                </tr>
+                """
+
+            history_html = f"""
+            <h3 style="color:#2563eb;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-top:24px;">Approval History</h3>
+            <table border="0" cellpadding="0" cellspacing="0" 
+                   style="border-collapse:collapse;width:100%;max-width:600px;margin-bottom:24px;font-size:13px;border: 1px solid #e2e8f0;">
+              <thead>
+                <tr style="background:#f8fafc;">
+                  <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left; width: 30%;">User</th>
+                  <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left; width: 20%;">Status</th>
+                  <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">Comments</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows_html}
+              </tbody>
             </table>
             """
 
@@ -168,7 +220,7 @@ def send_approval_email(ticket_data, to_email, receiver_name, role="Management")
               </tr>
             </table>
 
-            {manager_section}
+            {history_html}
 
             <div style="margin:30px 0;">
               <a href="{approval_link}"
@@ -1140,8 +1192,8 @@ def process_approval(ticket_id, role):
         receiver = request.form.get('receiver_name', 'Unknown')
         status   = "Approved" if action == "Approve" else "Rejected"
         
-        # Prepend the name to the comments if the role is Management
-        if role == "Management" and receiver != 'Unknown':
+        # Prepend the name to the comments for all roles
+        if receiver != 'Unknown':
             if comments:
                 comments = f"{receiver} [{status.upper()}]: {comments}"
             else:
