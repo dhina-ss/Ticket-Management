@@ -1234,6 +1234,7 @@ const AdminDashboard = () => {
     const [departmentsLoading, setDepartmentsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
+    const [branchFilter, setBranchFilter] = useState('All');
     const [departmentFilter, setDepartmentFilter] = useState('All');
     const [categoryFilter, setCategoryFilter] = useState('All');
     const [assigneeFilter, setAssigneeFilter] = useState('All');
@@ -1258,7 +1259,6 @@ const AdminDashboard = () => {
         setDateRange([{ startDate: new Date(), endDate: new Date(), key: 'selection' }]);
     };
     const [currentPage, setCurrentPage] = useState(1);
-    const [activeAction, setActiveAction] = useState(null);
 
     // Export Modal State
     const [showExportModal, setShowExportModal] = useState(false);
@@ -1277,6 +1277,8 @@ const AdminDashboard = () => {
     const [ticketToDelete, setTicketToDelete] = useState(null);
 
     const { user, logout } = useAuth();
+    const isSuperAdmin = user?.email === 'admin@support.com';
+    const isPowerUser = user?.receiver_position === 'Management' || user?.receiver_position === 'Manager';
 
     // Dark mode
     const [darkMode, setDarkMode] = useState(() => {
@@ -1324,8 +1326,6 @@ const AdminDashboard = () => {
             }
             
             // If not super-admin and not management/manager, filter by tickets assigned to current user or unassigned
-            const isSuperAdmin = user?.email === 'admin@support.com';
-            const isPowerUser = user?.receiver_position === 'Management' || user?.receiver_position === 'Manager';
 
             if (!isSuperAdmin && !isPowerUser && user?.name) {
                 params.append('assignee', user.name);
@@ -1624,39 +1624,6 @@ const AdminDashboard = () => {
         }
     };
 
-    const toggleActionDropdown = (e, ticket) => {
-        e.stopPropagation();
-        if (activeAction?.id === ticket.ticket_id) {
-            setActiveAction(null);
-        } else {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const spaceBelow = window.innerHeight - rect.bottom;
-            const openUp = spaceBelow < 150;
-
-            setActiveAction({
-                id: ticket.ticket_id,
-                top: rect.bottom,
-                bottom: window.innerHeight - rect.top,
-                left: rect.right - 192,
-                openUp,
-                category: ticket.category // specific field needed for condition
-            });
-        }
-    };
-
-    // Close dropdown when clicking outside or scrolling
-    useEffect(() => {
-        const handleInteraction = () => activeAction && setActiveAction(null);
-
-        document.addEventListener('click', handleInteraction);
-        window.addEventListener('scroll', handleInteraction, true); // Capture scroll on any element
-
-        return () => {
-            document.removeEventListener('click', handleInteraction);
-            window.removeEventListener('scroll', handleInteraction, true);
-        };
-    }, [activeAction]);
-
     // (Summary Stats moved below filtered logic)
 
     const getStatusColor = (status) => {
@@ -1733,7 +1700,10 @@ const AdminDashboard = () => {
             timeZone: 'Asia/Kolkata',
             day: '2-digit',
             month: 'short',
-            year: 'numeric'
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
         }).format(date);
     };
 
@@ -1795,6 +1765,7 @@ const AdminDashboard = () => {
             (ticket.category && ticket.category.toLowerCase().includes(searchQuery.toLowerCase()));
 
         const matchesDepartment = departmentFilter === 'All' || ticket.department === departmentFilter;
+        const matchesBranch = branchFilter === 'All' || ticket.branch === branchFilter;
         const matchesCategory = categoryFilter === 'All' || ticket.category === categoryFilter;
         const matchesAssignee = assigneeFilter === 'All' || ticket.assignee === assigneeFilter;
 
@@ -1821,7 +1792,7 @@ const AdminDashboard = () => {
             }
         }
 
-        return matchesSearch && matchesDepartment && matchesCategory && matchesAssignee && matchesDate;
+        return matchesSearch && matchesBranch && matchesDepartment && matchesCategory && matchesAssignee && matchesDate;
     });
 
     const filteredTickets = baseFilteredTickets.filter(ticket => statusFilter === 'All' || ticket.status === statusFilter);
@@ -1843,8 +1814,9 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, statusFilter, departmentFilter, categoryFilter, assigneeFilter, dateRange, isDateFilterActive]);
+    }, [searchQuery, statusFilter, branchFilter, departmentFilter, categoryFilter, assigneeFilter, dateRange, isDateFilterActive]);
 
+    const uniqueBranches = ['All', ...new Set(tickets.map(t => t.branch).filter(Boolean))];
     const uniqueDepartments = ['All', ...new Set(tickets.map(t => t.department).filter(Boolean))];
     const uniqueCategories = ['All', ...new Set(tickets.map(t => t.category).filter(Boolean))];
     const uniqueAssignees = ['All', ...new Set(tickets.map(t => t.assignee).filter(Boolean))];
@@ -1945,6 +1917,18 @@ const AdminDashboard = () => {
                         <div className="flex items-center gap-2 mx-4">
                             <div className="relative w-[150px]">
                                 <select
+                                    value={branchFilter}
+                                    onChange={(e) => setBranchFilter(e.target.value)}
+                                    className="appearance-none w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary pl-3 pr-7 py-2.5 outline-none cursor-pointer"
+                                >
+                                    {uniqueBranches.map(branch => (
+                                        <option key={branch} value={branch}>{branch === 'All' ? 'All Branches' : branch}</option>
+                                    ))}
+                                </select>
+                                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-base">expand_more</span>
+                            </div>
+                            <div className="relative w-[150px]">
+                                <select
                                     value={departmentFilter}
                                     onChange={(e) => setDepartmentFilter(e.target.value)}
                                     className="appearance-none w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary pl-3 pr-7 py-2.5 outline-none cursor-pointer"
@@ -1986,7 +1970,7 @@ const AdminDashboard = () => {
                                 <select
                                     value={assigneeFilter}
                                     onChange={(e) => setAssigneeFilter(e.target.value)}
-                                    className="appearance-none w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary pl-3 pr-7 py-2.5 outline-none cursor-pointer"
+                                    className="appearance-none w-full bg-slate-100 dark:bg-sidebar-dark border-none rounded-lg text-sm focus:ring-2 focus:ring-primary pl-3 pr-7 py-2.5 outline-none cursor-pointer"
                                 >
                                     {uniqueAssignees.map(assignee => (
                                         <option key={assignee} value={assignee}>{assignee === 'All' ? 'All Assignees' : assignee}</option>
@@ -2015,11 +1999,12 @@ const AdminDashboard = () => {
                             </button>
 
                             {/* Clear Filters Button */}
-                            {(searchQuery !== '' || statusFilter !== 'All' || departmentFilter !== 'All' || categoryFilter !== 'All' || assigneeFilter !== 'All' || isDateFilterActive) && (
+                            {(searchQuery !== '' || statusFilter !== 'All' || branchFilter !== 'All' || departmentFilter !== 'All' || categoryFilter !== 'All' || assigneeFilter !== 'All' || isDateFilterActive) && (
                                 <button
                                     onClick={() => {
                                         setSearchQuery('');
                                         setStatusFilter('All');
+                                        setBranchFilter('All');
                                         setDepartmentFilter('All');
                                         setCategoryFilter('All');
                                         setAssigneeFilter('All');
@@ -2034,13 +2019,13 @@ const AdminDashboard = () => {
                                 </button>
                             )}
                         </div>
-                        <div className="relative ml-2 mr-4 flex items-center gap-2">
+                        <div className="relative mx-2 flex items-center gap-2">
 
                             <button
                                 aria-label="Export to CSV"
                                 title={!user?.access?.includes('Export') ? "You don't have permission to export" : "Export to CSV"}
                                 disabled={!user?.access?.includes('Export')}
-                                className={`flex items-center justify-center h-9 px-3 rounded-lg border transition-colors shadow-sm text-sm font-medium
+                                className={`flex items-center justify-center h-9 w-9 rounded-lg border transition-colors shadow-sm text-sm font-medium
                                     ${user?.access?.includes('Export')
                                         ? 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer'
                                         : 'bg-slate-100 dark:bg-slate-800/30 text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50'}`}
@@ -2049,8 +2034,7 @@ const AdminDashboard = () => {
                                     setShowExportModal(true);
                                 }}
                             >
-                                <span className="material-symbols-outlined text-[18px] mr-1.5">download</span>
-                                Export
+                                <span className="material-symbols-outlined text-[18px]">download</span>
                             </button>
 
                             {showDatePicker && (
@@ -2222,26 +2206,26 @@ const AdminDashboard = () => {
                                     <tr
                                         className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">
                                         <th className="px-6 py-4">Ticket ID</th>
+                                        <th className="px-6 py-4">Branch</th>
                                         <th className="px-6 py-4">Date</th>
                                         <th className="px-6 py-4">Name</th>
                                         <th className="px-6 py-4">Department</th>
                                         <th className="px-6 py-4">Category</th>
                                         <th className="px-6 py-4">Assignee</th>
                                         <th className="px-6 py-4">Status</th>
-                                        <th className="px-6 py-4">Expense</th>
                                         <th className="px-6 py-4 text-center">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan="8" className="px-6 py-8 text-center text-slate-500">
+                                            <td colSpan="9" className="px-6 py-8 text-center text-slate-500">
                                                 Loading tickets...
                                             </td>
                                         </tr>
                                     ) : filteredTickets.length === 0 ? (
                                         <tr>
-                                            <td colSpan="8" className="px-6 py-8 text-center text-slate-500">
+                                            <td colSpan="9" className="px-6 py-8 text-center text-slate-500">
                                                 {tickets.length === 0 ? "No tickets found." : "No tickets match your search."}
                                             </td>
                                         </tr>
@@ -2249,6 +2233,7 @@ const AdminDashboard = () => {
                                         pagedTickets.map((ticket, index) => (
                                             <tr key={ticket.ticket_id} onClick={() => handleRowClick(ticket)} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer">
                                                 <td className="px-6 py-2 text-sm font-medium text-primary">#{ticket.ticket_id}</td>
+                                                <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300">{ticket.branch || '-'}</td>
                                                 <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap">{formatDate(ticket.timestamp)}</td>
                                                 <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300">{ticket.fullName}</td>
                                                 <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300">{ticket.department || '-'}</td>
@@ -2257,16 +2242,14 @@ const AdminDashboard = () => {
                                                 <td className="px-6 py-2">
                                                     {getStatusBadge(ticket.status)}
                                                 </td>
-                                                <td className="px-6 py-2 text-sm font-medium text-slate-900 dark:text-slate-100">
-                                                    {ticket.expenseAmount ? ticket.expenseAmount : '-'}
-                                                </td>
 
                                                 <td className="px-6 py-2 text-center relative">
                                                     <button
-                                                        onClick={(e) => toggleActionDropdown(e, ticket)}
-                                                        className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                                                        onClick={(e) => handleDeleteTicket(e, ticket.ticket_id)}
+                                                        className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 rounded-lg transition-colors group"
+                                                        title="Delete Ticket"
                                                     >
-                                                        <span className="material-symbols-outlined text-slate-500">more_vert</span>
+                                                        <span className="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">delete</span>
                                                     </button>
                                                 </td>
                                             </tr>
@@ -2808,8 +2791,8 @@ const AdminDashboard = () => {
                                                     <select
                                                         value={updateStatus}
                                                         onChange={(e) => setUpdateStatus(e.target.value)}
-                                                        disabled={(user.access && !user.access.includes('Edit')) || selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved' || selectedTicket.status === 'Rejected'}
-                                                        className={`w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none transition-shadow ${selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved' || selectedTicket.status === 'Rejected' || (user.access && !user.access.includes('Edit')) ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
+                                                        disabled={!(isSuperAdmin || isPowerUser || user?.name === selectedTicket.assignee || (user.access && user.access.includes('Edit'))) || ['Completed', 'Resolved', 'Rejected'].includes(selectedTicket.status)}
+                                                        className={`w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none transition-shadow ${['Completed', 'Resolved', 'Rejected'].includes(selectedTicket.status) || !(isSuperAdmin || isPowerUser || user?.name === selectedTicket.assignee || (user.access && user.access.includes('Edit'))) ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
                                                     >
                                                         <option value="Not Started">Not Started</option>
                                                         <option value="In Progress">In Progress</option>
@@ -2824,8 +2807,8 @@ const AdminDashboard = () => {
                                                     <select
                                                         value={updateAssignee}
                                                         onChange={(e) => setUpdateAssignee(e.target.value)}
-                                                        disabled={(user.access && !user.access.includes('Edit')) || selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved' || selectedTicket.status === 'Rejected'}
-                                                        className={`w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none transition-shadow ${selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved' || selectedTicket.status === 'Rejected' || (user.access && !user.access.includes('Edit')) ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
+                                                        disabled={(user.access && !user.access.includes('Edit')) || ['Completed', 'Resolved', 'Rejected'].includes(selectedTicket.status) || (selectedTicket.assignee && user?.email !== 'admin@support.com')}
+                                                        className={`w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none transition-shadow ${['Completed', 'Resolved', 'Rejected'].includes(selectedTicket.status) || (user.access && !user.access.includes('Edit')) || (selectedTicket.assignee && user?.email !== 'admin@support.com') ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
                                                     >
                                                         <option value="">Assignee</option>
                                                         {Array.isArray(assignees) && assignees
@@ -2837,7 +2820,7 @@ const AdminDashboard = () => {
                                                     </select>
                                                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
                                                 </div>
-                                                {!(selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved' || selectedTicket.status === 'Rejected') && user.access && user.access.includes('Edit') && (
+                                                {!(['Completed', 'Resolved', 'Rejected'].includes(selectedTicket.status)) && (isSuperAdmin || isPowerUser || user?.name === selectedTicket.assignee || (user.access && user.access.includes('Edit'))) && (
                                                     <button
                                                         onClick={handleSaveChanges}
                                                         disabled={isUpdating}
@@ -2876,8 +2859,10 @@ const AdminDashboard = () => {
                                                     const allManagementDone = managementNames.every(n => respondedNames.has(n));
                                                     const allMembersResponded = (adminManagerNames.length > 0 || managementNames.length > 0) && adminManagerDone && allManagementDone;
 
-                                                    const isDisabled = !updateAssignee || !updateStatus || updateStatus === selectedTicket.status
-                                                        || updateStatus === 'Not Started'
+                                                    const isAlreadyInProgress = selectedTicket.status === 'In Progress';
+                                                    const isDisabled = !updateAssignee || !updateStatus
+                                                        || (updateStatus === selectedTicket.status && !isAlreadyInProgress)
+                                                        || (updateStatus === 'Not Started' && !isAlreadyInProgress)
                                                         || selectedTicket.status === 'Completed'
                                                         || selectedTicket.status === 'Resolved'
                                                         || selectedTicket.status === 'Rejected'
@@ -3027,28 +3012,6 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    )
-                }
-
-                {/* Fixed Dropdown Menu */}
-                {
-                    activeAction && (
-                        <div
-                            className="fixed z-[9999] bg-white dark:bg-slate-800 rounded-md shadow-lg border border-slate-200 dark:border-slate-700 w-48 py-1"
-                            style={{
-                                top: activeAction.openUp ? 'auto' : activeAction.top,
-                                bottom: activeAction.openUp ? activeAction.bottom : 'auto',
-                                left: activeAction.left
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <button
-                                onClick={(e) => handleDeleteTicket(e, activeAction.id)}
-                                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium transition-colors"
-                            >
-                                Delete Ticket
-                            </button>
                         </div>
                     )
                 }
