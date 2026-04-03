@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import api from '../api';
 import logoImage from '../assets/logo.png';
 import logoDarkImage from '../assets/logo1.png';
+import { copyToClipboard } from '../utils/clipboard';
 
 const TicketForm = () => {
     const location = useLocation();
@@ -264,10 +265,12 @@ const TicketForm = () => {
                                     <span className="text-2xl font-mono font-bold text-primary tracking-widest">{ticketId}</span>
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(ticketId);
-                                            setCopied(true);
-                                            setTimeout(() => setCopied(false), 2000);
+                                        onClick={async () => {
+                                            const success = await copyToClipboard(ticketId);
+                                            if (success) {
+                                                setCopied(true);
+                                                setTimeout(() => setCopied(false), 2000);
+                                            }
                                         }}
                                         title="Copy Ticket ID"
                                         className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"

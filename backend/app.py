@@ -382,10 +382,11 @@ def send_completion_email(ticket_data):
 def get_tickets():
     try:
         support_type_arg = request.args.get("support_type")
+        assignee = request.args.get("assignee")
         support_types = None
         if support_type_arg:
             support_types = [s.strip() for s in support_type_arg.split(',') if s.strip()]
-        return jsonify(get_all_tickets(support_types)), 200
+        return jsonify(get_all_tickets(support_types, assignee)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

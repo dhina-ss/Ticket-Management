@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import api from '../api';
+import { copyToClipboard } from '../utils/clipboard';
 
 // Status Stepper Component
 const StatusStepper = ({ currentStatus, isRejected }) => {
@@ -65,12 +66,14 @@ const StatusStepper = ({ currentStatus, isRejected }) => {
 const CopyButton = ({ text, className = "" }) => {
     const [copied, setCopied] = useState(false);
 
-    const handleCopy = (e) => {
+    const handleCopy = async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        const success = await copyToClipboard(text);
+        if (success) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
     return (
@@ -426,10 +429,13 @@ const CheckStatus = () => {
                 
                 try {
                     const response = await api.get(`/api/status/${ticketIdFromUrl.trim()}`);
-                    if (response.status === 200) setTicketData(response.data);
-                    else setError('Ticket not found');
+                    setTicketData(response.data);
                 } catch (err) {
-                    setError('Failed to connect to server');
+                    if (err.response && err.response.status === 404) {
+                        setError('The ticket id not in the list');
+                    } else {
+                        setError('Failed to connect to server');
+                    }
                 } finally {
                     setLoading(false);
                 }
@@ -449,15 +455,21 @@ const CheckStatus = () => {
         try {
             if (searchType === 'ticket') {
                 const response = await api.get(`/api/status/${ticketId.trim()}`);
-                if (response.status === 200) setTicketData(response.data);
-                else setError('Ticket not found');
+                setTicketData(response.data);
             } else {
                 const response = await api.get(`/api/status/mobile/${encodeURIComponent(mobile.trim())}`);
-                if (response.status === 200) setMobileTickets(response.data);
-                else setError('No tickets found for this mobile number');
+                setMobileTickets(response.data);
             }
         } catch (err) {
-            setError('Failed to connect to server');
+            if (err.response && err.response.status === 404) {
+                if (searchType === 'ticket') {
+                    setError('The ticket id not in the list');
+                } else {
+                    setError('No tickets found for this mobile number');
+                }
+            } else {
+                setError('Failed to connect to server');
+            }
         } finally {
             setLoading(false);
         }
@@ -575,7 +587,7 @@ const CheckStatus = () => {
                     <div className="bg-slate-50 dark:bg-slate-800/80 px-8 py-4 border-t border-slate-200 dark:border-slate-800">
                         <div className="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                             <span className="material-icons text-sm">info</span>
-                            Looking for a new ticket? <Link className="text-primary font-semibold hover:underline" to="/" state={{ fromTicketForm: true }}>Click here</Link>
+                            Looking for a new ticket? <Link className="text-primary font-semibold hover:underline" to="/">Click here</Link>
                         </div>
                     </div>
                 )}

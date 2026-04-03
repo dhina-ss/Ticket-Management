@@ -382,13 +382,21 @@ def verify_admin_login(email: str, password: str) -> dict | None:
     conn = _get_conn()
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT id, name, email, access, support_type, is_first_login FROM admin_users WHERE email = %s AND password = %s;",
+            "SELECT id, name, email, access, support_type, is_first_login, receiver_position FROM admin_users WHERE email = %s AND password = %s;",
             (email, password)
         )
         row = cur.fetchone()
     conn.close()
     if row:
-        return {"id": row[0], "name": row[1], "email": row[2], "access": row[3], "support_type": row[4], "is_first_login": row[5] if len(row) > 5 else True}
+        return {
+            "id": row[0], 
+            "name": row[1], 
+            "email": row[2], 
+            "access": row[3], 
+            "support_type": row[4], 
+            "is_first_login": row[5] if len(row) > 5 else True,
+            "receiver_position": row[6] if len(row) > 6 else None
+        }
     return None
 
 def update_admin_password(user_id: int, new_password: str, security_question: str = None, security_answer: str = None) -> bool:
@@ -555,20 +563,23 @@ def get_attachment(ticket_id: str) -> dict | None:
         return None
 
 
-def get_all_tickets(support_types: list = None) -> list:
+def get_all_tickets(support_types: list = None, assignee: str = None) -> list:
     try:
         conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            query = "SELECT * FROM tickets WHERE is_delete = FALSE"
+            params = []
+
             if support_types:
-                # Include tickets that match ANY of the support types, OR if the ticket has no support type assigned yet
-                # Note: PostgreSQL ANY array matching does not cleanly work with TEXT arrays, so we use string overlap 
-                # but tickets.support_type should be exact match per ticket. Let's use ANY(%s::text[])
-                cur.execute(
-                    "SELECT * FROM tickets WHERE is_delete = FALSE AND (support_type = ANY(%s::text[]) OR support_type IS NULL OR support_type = '') ORDER BY created_at DESC", 
-                    (support_types,)
-                )
-            else:
-                cur.execute("SELECT * FROM tickets WHERE is_delete = FALSE ORDER BY created_at DESC")
+                query += " AND (support_type = ANY(%s::text[]) OR support_type IS NULL OR support_type = '')"
+                params.append(support_types)
+            
+            if assignee:
+                query += " AND (assignee = %s OR assignee IS NULL OR assignee = '')"
+                params.append(assignee)
+
+            query += " ORDER BY created_at DESC"
+            cur.execute(query, params)
             rows = cur.fetchall()
         conn.close()
         return [_row_to_ticket(r) for r in rows]

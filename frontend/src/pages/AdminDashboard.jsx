@@ -417,7 +417,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Access</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Support Type</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Created At</th>
-                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Mail Settings</th>
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Mail</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Actions</th>
                             </tr>
                         </thead>
@@ -1316,9 +1316,22 @@ const AdminDashboard = () => {
 
     const fetchTickets = async () => {
         try {
-            const url = user?.support_type
-                ? `/api/tickets?support_type=${encodeURIComponent(user.support_type)}`
-                : '/api/tickets';
+            let url = '/api/tickets?';
+            const params = new URLSearchParams();
+            
+            if (user?.support_type) {
+                params.append('support_type', user.support_type);
+            }
+            
+            // If not super-admin and not management/manager, filter by tickets assigned to current user or unassigned
+            const isSuperAdmin = user?.email === 'admin@support.com';
+            const isPowerUser = user?.receiver_position === 'Management' || user?.receiver_position === 'Manager';
+
+            if (!isSuperAdmin && !isPowerUser && user?.name) {
+                params.append('assignee', user.name);
+            }
+            
+            url += params.toString();
             const response = await api.get(url);
             if (response.status !== 200) {
                 throw new Error('Failed to fetch tickets');
