@@ -1264,6 +1264,9 @@ const AdminDashboard = () => {
     const [showExportModal, setShowExportModal] = useState(false);
     const [selectedExportColumns, setSelectedExportColumns] = useState(() => EXPORT_COLUMNS.map(c => c.id));
 
+    // Selection State
+    const [selectedTickets, setSelectedTickets] = useState(new Set());
+
     // Inline Approval Form State
     const [showApprovalForm, setShowApprovalForm] = useState(false);
     const [approvalData, setApprovalData] = useState({
@@ -1420,6 +1423,26 @@ const AdminDashboard = () => {
         navigate('/login');
     };
 
+    const toggleSelectTicket = (ticketId) => {
+        setSelectedTickets(prev => {
+            const next = new Set(prev);
+            if (next.has(ticketId)) {
+                next.delete(ticketId);
+            } else {
+                next.add(ticketId);
+            }
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedTickets.size === pagedTickets.length) {
+            setSelectedTickets(new Set());
+        } else {
+            setSelectedTickets(new Set(pagedTickets.map(t => t.ticket_id)));
+        }
+    };
+
     const handleRowClick = (ticket) => {
         setSelectedTicket(ticket);
         setUpdateStatus(ticket.status || 'Not Started');
@@ -1510,7 +1533,7 @@ const AdminDashboard = () => {
             // Refresh tickets
             await fetchTickets();
             closeModal();
-            // alert('Ticket status updated successfully!'); // Optional: removed for cleaner UI or replace with toast
+            showToast('Ticket updated successfully');
         } catch (err) {
             console.error("Error updating ticket:", err);
             alert(`Failed to update status: ${err.message}`);
@@ -1529,22 +1552,34 @@ const AdminDashboard = () => {
     };
 
     const confirmDelete = async () => {
-        if (!ticketToDelete) return;
+        if (!ticketToDelete && selectedTickets.size === 0) return;
         setIsUpdating(true);
 
         try {
-            const response = await api.delete(`/api/tickets/${ticketToDelete}`);
-            const data = await response.data;
-
-            if (response.status === 200) {
-                setTickets(prev => prev.filter(t => t.ticket_id !== ticketToDelete));
-                showToast('Ticket deleted successfully', 'success');
+            if (selectedTickets.size > 0) {
+                const response = await api.post('/api/bulk-delete-tickets', {
+                    ticket_ids: Array.from(selectedTickets),
+                    admin_email: user?.email
+                });
+                if (response.status === 200) {
+                    setTickets(prev => prev.filter(t => !selectedTickets.has(t.ticket_id)));
+                    showToast(`Successfully deleted ${selectedTickets.size} tickets`, 'success');
+                    setSelectedTickets(new Set());
+                } else {
+                    showToast('Failed to delete some tickets', 'error');
+                }
             } else {
-                showToast(`Failed to delete ticket: ${data.error}`, 'error');
+                const response = await api.post(`/api/tickets/${ticketToDelete}`, {
+                    admin_email: user?.email
+                });
+                if (response.status === 200) {
+                    setTickets(prev => prev.filter(t => t.ticket_id !== ticketToDelete));
+                    showToast('Ticket deleted successfully', 'success');
+                }
             }
         } catch (err) {
             console.error("Error deleting ticket:", err);
-            showToast('An error occurred while deleting the ticket.', 'error');
+            showToast('An error occurred while deleting.', 'error');
         } finally {
             setIsUpdating(false);
             setShowDeleteConfirm(false);
@@ -2021,6 +2056,17 @@ const AdminDashboard = () => {
                         </div>
                         <div className="relative mx-2 flex items-center gap-2">
 
+                            {isSuperAdmin && selectedTickets.size > 0 && (
+                                <button
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    aria-label="Bulk delete"
+                                    title={`Delete ${selectedTickets.size} selected tickets`}
+                                    className="flex items-center justify-center h-9 w-9 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm cursor-pointer"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                                </button>
+                            )}
+
                             <button
                                 aria-label="Export to CSV"
                                 title={!user?.access?.includes('Export') ? "You don't have permission to export" : "Export to CSV"}
@@ -2205,7 +2251,17 @@ const AdminDashboard = () => {
                                 <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800">
                                     <tr
                                         className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">
-                                        <th className="px-6 py-4">Ticket ID</th>
+                                        {isSuperAdmin && (
+                                            <th className="px-4 py-4 text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary cursor-pointer"
+                                                    checked={pagedTickets.length > 0 && selectedTickets.size === pagedTickets.length}
+                                                    onChange={toggleSelectAll}
+                                                />
+                                            </th>
+                                        )}
+                                        <th className="px-6 py-4 text-center">Ticket ID</th>
                                         <th className="px-6 py-4">Branch</th>
                                         <th className="px-6 py-4">Date</th>
                                         <th className="px-6 py-4">Name</th>
@@ -2213,26 +2269,35 @@ const AdminDashboard = () => {
                                         <th className="px-6 py-4">Category</th>
                                         <th className="px-6 py-4">Assignee</th>
                                         <th className="px-6 py-4">Status</th>
-                                        <th className="px-6 py-4 text-center">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan="9" className="px-6 py-8 text-center text-slate-500">
+                                            <td colSpan={isSuperAdmin ? "9" : "8"} className="px-6 py-8 text-center text-slate-500">
                                                 Loading tickets...
                                             </td>
                                         </tr>
                                     ) : filteredTickets.length === 0 ? (
                                         <tr>
-                                            <td colSpan="9" className="px-6 py-8 text-center text-slate-500">
+                                            <td colSpan={isSuperAdmin ? "9" : "8"} className="px-6 py-8 text-center text-slate-500">
                                                 {tickets.length === 0 ? "No tickets found." : "No tickets match your search."}
                                             </td>
                                         </tr>
                                     ) : (
                                         pagedTickets.map((ticket, index) => (
-                                            <tr key={ticket.ticket_id} onClick={() => handleRowClick(ticket)} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer">
-                                                <td className="px-6 py-2 text-sm font-medium text-primary">#{ticket.ticket_id}</td>
+                                            <tr key={ticket.ticket_id} onClick={() => handleRowClick(ticket)} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer ${selectedTickets.has(ticket.ticket_id) ? 'bg-primary/5 dark:bg-primary/10 select-none' : ''}`}>
+                                                {isSuperAdmin && (
+                                                    <td className="px-4 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                                                        <input
+                                                            type="checkbox"
+                                                            className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary cursor-pointer"
+                                                            checked={selectedTickets.has(ticket.ticket_id)}
+                                                            onChange={() => toggleSelectTicket(ticket.ticket_id)}
+                                                        />
+                                                    </td>
+                                                )}
+                                                <td className="px-6 py-2 text-sm font-medium text-primary text-center">#{ticket.ticket_id}</td>
                                                 <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300">{ticket.branch || '-'}</td>
                                                 <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap">{formatDate(ticket.timestamp)}</td>
                                                 <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300">{ticket.fullName}</td>
@@ -2241,16 +2306,6 @@ const AdminDashboard = () => {
                                                 <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300">{ticket.assignee || '-'}</td>
                                                 <td className="px-6 py-2">
                                                     {getStatusBadge(ticket.status)}
-                                                </td>
-
-                                                <td className="px-6 py-2 text-center relative">
-                                                    <button
-                                                        onClick={(e) => handleDeleteTicket(e, ticket.ticket_id)}
-                                                        className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 rounded-lg transition-colors group"
-                                                        title="Delete Ticket"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[20px] group-hover:scale-110 transition-transform">delete</span>
-                                                    </button>
                                                 </td>
                                             </tr>
                                         ))
@@ -3025,9 +3080,9 @@ const AdminDashboard = () => {
                                     <div className="mx-auto w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
                                         <span className="material-symbols-outlined text-red-600 text-3xl">delete_forever</span>
                                     </div>
-                                    <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Are you sure?</h3>
+                                    <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Delete {selectedTickets.size > 0 ? `${selectedTickets.size} Tickets` : 'Ticket'}?</h3>
                                     <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-6">
-                                        Are you sure you want to delete this ticket?
+                                        Are you sure you want to delete {selectedTickets.size > 0 ? 'the selected tickets' : 'this ticket'}? This action cannot be undone.
                                     </p>
                                     <div className="flex flex-col gap-3">
                                         <button

@@ -122,10 +122,15 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                 <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-3 sm:gap-0 mb-6 sm:mb-8 border-b border-slate-100 dark:border-slate-800 pb-4 sm:pb-6">
                     <div>
                         <h2 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white">Ticket Details</h2>
-                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
-                            ID: <span className="font-mono font-medium text-slate-700 dark:text-slate-300 select-all">{ticketData.ticket_id}</span>
-                            <CopyButton text={ticketData.ticket_id} />
-                        </p>
+                        <div className="mt-1 flex flex-col gap-1">
+                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                ID: <span className="font-mono font-medium text-slate-700 dark:text-slate-300 select-all">{ticketData.ticket_id}</span>
+                                <CopyButton text={ticketData.ticket_id} />
+                            </p>
+                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                                Submitted By: <span className="font-semibold text-slate-700 dark:text-slate-300">{ticketData.fullName}</span>
+                            </p>
+                        </div>
                     </div>
                     <div className="text-left sm:text-right">
                         <p className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-widest">Submitted On</p>
@@ -196,9 +201,9 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                             {/* Manager Status */}
                             {ticketData.adminManagerStatus && (() => {
                                 const parseManagerName = (comments) => {
-                                    if (!comments) return "Manager";
+                                    if (!comments) return ticketData.managerName || "Manager";
                                     const match = comments.trim().match(/^([^[]+)\s*\[(?:APPROVED|REJECTED|HOLD)\]/i);
-                                    return match ? match[1].trim() : "Manager";
+                                    return match ? match[1].trim() : (ticketData.managerName || "Manager");
                                 };
                                 const managerName = parseManagerName(ticketData.adminManagerComments);
                                 return (

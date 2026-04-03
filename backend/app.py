@@ -33,6 +33,8 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 CORS(app)
 
+LAST_SENT_EMAIL = None # Store the last sent email for E2E testing
+
 logging.basicConfig(
     filename='ticket_log.txt',
     level=logging.INFO,
@@ -268,6 +270,14 @@ def send_approval_email(ticket_data, to_email, receiver_name, role="Management")
         admin_name  = ticket_data.get('admin_attachment_name')
         attach_file(admin_bytes, admin_name)
 
+        # Capture for E2E testing
+        global LAST_SENT_EMAIL
+        LAST_SENT_EMAIL = {
+            "to": to_email,
+            "subject": subject,
+            "body": body
+        }
+
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
@@ -323,6 +333,14 @@ def send_new_ticket_notification(ticket_data, recipient_email):
         msg['To'] = recipient_email
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'html'))
+
+        # Capture for E2E testing
+        global LAST_SENT_EMAIL
+        LAST_SENT_EMAIL = {
+            "to": recipient_email,
+            "subject": subject,
+            "body": body
+        }
 
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
@@ -386,8 +404,12 @@ def send_completion_email(ticket_data):
                 <td style="border: 1px solid #e2e8f0; white-space:pre-wrap;">{ticket_data.get('description', '')}</td>
               </tr>
               <tr>
+                <td style="border: 1px solid #e2e8f0;"><strong>Resolved By</strong></td>
+                <td style="border: 1px solid #e2e8f0;">{ticket_data.get('assignee', 'Support Team')}</td>
+              </tr>
+              <tr>
                 <td style="border: 1px solid #e2e8f0;"><strong>Resolution Comments</strong></td>
-                <td style="border: 1px solid #e2e8f0; font-style: italic;">{ticket_data.get('resolution_comments', 'No comments provided.')}</td>
+                <td style="border: 1px solid #e2e8f0; font-style: italic;">{ticket_data.get('resolutionComments', 'No comments provided.')}</td>
               </tr>
             </table>
 
@@ -415,6 +437,14 @@ def send_completion_email(ticket_data):
         msg['To'] = to_email
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'html'))
+
+        # Capture for E2E testing
+        global LAST_SENT_EMAIL
+        LAST_SENT_EMAIL = {
+            "to": to_email,
+            "subject": subject,
+            "body": body
+        }
 
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
@@ -795,6 +825,23 @@ def verify_security_answer_route():
         return jsonify({"error": "Invalid email, security question, or answer.", "success": False}), 401
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/test/last-email', methods=['GET'])
+def get_last_email():
+    """Internal endpoint for E2E testing to verify email content."""
+    if os.environ.get('APP_ENV') != 'local':
+        return jsonify({"error": "Unauthorized"}), 403
+    return jsonify(LAST_SENT_EMAIL or {}), 200
+
+@app.route('/api/test/clear-last-email', methods=['POST'])
+def clear_last_email():
+    """Internal endpoint for E2E testing to clear email state."""
+    if os.environ.get('APP_ENV') != 'local':
+        return jsonify({"error": "Unauthorized"}), 403
+    global LAST_SENT_EMAIL
+    LAST_SENT_EMAIL = None
+    return jsonify({"success": True}), 200
 
 
 @app.route('/api/reset_password', methods=['POST'])
@@ -1226,9 +1273,44 @@ def process_approval(ticket_id, role):
         return f"Error: {str(e)}", 500
 
 
-@app.route('/api/tickets/<ticket_id>', methods=['DELETE'])
+@app.route('/api/bulk-delete-tickets', methods=['POST'])
+def bulk_delete_tickets():
+    try:
+        data = request.get_json()
+        admin_email = data.get('admin_email', '')
+        if admin_email != 'admin@support.com':
+            return jsonify({"error": "Unauthorized. Only super-admin can delete tickets."}), 403
+            
+        ticket_ids = data.get('ticket_ids', [])
+        if not ticket_ids:
+            return jsonify({"error": "No ticket IDs provided"}), 400
+        
+        success_count = 0
+        errors = []
+        for tid in ticket_ids:
+            res = soft_delete_ticket(tid)
+            if res.get('success'):
+                success_count = success_count + 1
+            else:
+                errors.append({"ticket_id": tid, "error": res.get('error')})
+        
+        return jsonify({
+            "message": f"Successfully deleted {success_count} tickets",
+            "success_count": success_count,
+            "errors": errors
+        }), 200
+    except Exception as e:
+        print(f"ERROR bulk deleting tickets: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/tickets/<ticket_id>', methods=['POST']) # Changed from DELETE to POST for consistency and body support
 def delete_ticket_route(ticket_id):
     try:
+        data = request.get_json() or {}
+        admin_email = data.get('admin_email', '')
+        if admin_email != 'admin@support.com':
+            return jsonify({"error": "Unauthorized. Only super-admin can delete tickets."}), 403
+            
         result = soft_delete_ticket(ticket_id)
         if result['success']:
             return jsonify({"message": "Ticket deleted successfully"}), 200

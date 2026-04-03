@@ -29,9 +29,42 @@ def _get_conn():
     return psycopg2.connect(DATABASE_URL)
 
 
+_MANAGER_NAME_CACHE = None
+
+def get_cached_manager_name():
+    global _MANAGER_NAME_CACHE
+    if _MANAGER_NAME_CACHE is not None:
+        return _MANAGER_NAME_CACHE
+    try:
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT name FROM admin_users WHERE receiver_position = 'Manager' LIMIT 1")
+            row = cur.fetchone()
+        conn.close()
+        if row:
+            _MANAGER_NAME_CACHE = row[0]
+        else:
+            _MANAGER_NAME_CACHE = "Manager"
+    except Exception as e:
+        print(f"DEBUG: Error fetching manager name: {e}")
+        _MANAGER_NAME_CACHE = "Manager"
+    return _MANAGER_NAME_CACHE
+
 def _row_to_ticket(row: dict) -> dict:
     """Convert a DB row (RealDictRow) to the API-facing dict."""
     attachment_name = row.get("attachment_name") or ""
+    
+    # Try to extract manager name from comments, else use cached name
+    manager_comments = row.get("admin_manager_comments") or ""
+    manager_name = "Manager"
+    import re
+    match = re.match(r'^([^\[]+)\s*\[(?:APPROVED|REJECTED|HOLD)\]', manager_comments.strip(), re.I)
+    if match:
+        manager_name = match.group(1).strip()
+    else:
+        # Fallback to the current manager in DB if no name in comments
+        manager_name = get_cached_manager_name()
+
     return {
         "ticket_id":              row.get("ticket_id", ""),
         "timestamp":              row["created_at"].strftime("%d-%m-%Y %I:%M %p") if row.get("created_at") else "",
@@ -47,8 +80,9 @@ def _row_to_ticket(row: dict) -> dict:
         "adminDescription":       row.get("admin_description") or "",
         "admin_description":      row.get("admin_description") or "",
         "adminManagerStatus":     row.get("admin_manager_status") or "",
+        "managerName":            manager_name,
         "managementStatus":       row.get("management_status") or "",
-        "adminManagerComments":   row.get("admin_manager_comments") or "",
+        "adminManagerComments":   manager_comments,
         "managementComments":     row.get("management_comments") or "",
         "branch":                 row.get("branch") or "",
         "department":             row.get("department") or "",
@@ -69,6 +103,7 @@ def _row_to_ticket(row: dict) -> dict:
         "inProgressTime":         row["in_progress_time"].strftime("%d-%m-%Y %I:%M %p") if row.get("in_progress_time") else "",
         "email":                  row.get("email") or "",
     }
+
 
 
 def normalize_mobile(mobile: str) -> str:
