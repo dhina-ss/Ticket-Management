@@ -22,33 +22,59 @@ const StatusStepper = ({ currentStatus, isRejected }) => {
         else currentStepIndex = 0;
     }
 
+    // Color mapping based on current status
+    const colorThemes = {
+        0: { bg: 'bg-rose-500', text: 'text-rose-500', shadow: 'shadow-rose-500/20', border: 'border-rose-100' },    // Not Started
+        1: { bg: 'bg-blue-500', text: 'text-blue-500', shadow: 'shadow-blue-500/20', border: 'border-blue-100' },    // In Progress
+        2: { bg: 'bg-amber-500', text: 'text-amber-500', shadow: 'shadow-amber-500/20', border: 'border-amber-100' }, // Pending
+        3: { bg: 'bg-emerald-500', text: 'text-emerald-500', shadow: 'shadow-emerald-500/20', border: 'border-emerald-100' } // Completed
+    };
+
+    const theme = colorThemes[currentStepIndex] || colorThemes[0];
+
     return (
-        <div className="w-full py-8 text-center">
-            <div className="relative flex items-center justify-between max-w-2xl mx-auto">
-                <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-slate-200 dark:bg-slate-700"></div>
+        <div className="w-full py-8 text-center mt-4">
+            <div className="relative flex items-center justify-between max-w-2xl mx-auto px-4">
+                {/* Background Line */}
+                <div className="absolute left-4 right-4 top-1/2 transform -translate-y-1/2 h-[2px] bg-slate-200 dark:bg-slate-700 z-0"></div>
+                
+                {/* Progress Line */}
                 <div
-                    className="absolute left-0 top-1/2 transform -translate-y-1/2 h-1 bg-primary transition-all duration-500"
-                    style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
+                    className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-[2px] ${theme.bg} transition-all duration-500 z-0`}
+                    style={{ width: `calc(${(currentStepIndex / (steps.length - 1)) * 100}% - ${(currentStepIndex === 3 ? 32 : 16)}px)` }}
                 ></div>
+
                 {steps.map((step, index) => {
-                    const isCompleted = index <= currentStepIndex;
+                    const isCompleted = index < currentStepIndex;
                     const isCurrent = index === currentStepIndex;
+                    const isFuture = index > currentStepIndex;
+
                     return (
-                        <div key={index} className="relative flex flex-col items-center group">
-                            <div className={`w-6 h-6 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-[2px] sm:border-4 transition-all duration-300 z-10 bg-white dark:bg-slate-900 
-                                ${isCompleted ? 'border-primary text-primary' : 'border-slate-300 dark:border-slate-600 text-slate-300 dark:text-slate-600'}
-                                ${isCurrent ? 'scale-110' : ''}`}
+                        <div key={index} className="relative flex flex-col items-center z-10">
+                            {/* Circle */}
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 
+                                ${isCompleted || isCurrent 
+                                    ? `${theme.bg} text-white shadow-lg ${theme.shadow}` 
+                                    : 'bg-white dark:bg-slate-900 border-2 border-slate-300 text-slate-300'}`}
                             >
-                                {index <= currentStepIndex ? (
-                                    <div className="w-2.5 h-2.5 sm:w-4 sm:h-4 rounded-full bg-primary"></div>
+                                {isCompleted ? (
+                                    <span className="material-symbols-outlined text-base font-bold scale-110">check</span>
                                 ) : (
-                                    <span className="text-[10px] sm:text-xs font-bold">{index + 1}</span>
+                                    <span className="text-xs font-bold">{index + 1}</span>
+                                )}
+                                
+                                {/* Caret Arrow for Current Step */}
+                                {isCurrent && (
+                                    <span className={`material-symbols-outlined absolute -top-7 text-slate-400 text-lg animate-bounce-subtle`}>
+                                        expand_more
+                                    </span>
                                 )}
                             </div>
+
+                            {/* Label */}
                             <div
-                                className={`absolute top-8 sm:top-14 text-[9px] sm:text-sm font-bold uppercase tracking-[0.05em] sm:tracking-wider transition-colors duration-300 whitespace-nowrap
-                                    ${isCompleted ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}
-                                    ${isCurrent ? 'opacity-100' : 'opacity-70'}`}
+                                className={`absolute top-10 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-colors duration-300 whitespace-nowrap
+                                    ${index <= currentStepIndex ? theme.text : 'text-slate-400 dark:text-slate-500'}`}
                                 style={{ left: '50%', transform: 'translateX(-50%)' }}
                             >
                                 {step.label}
@@ -57,7 +83,7 @@ const StatusStepper = ({ currentStatus, isRejected }) => {
                     );
                 })}
             </div>
-            <div className="h-10"></div>
+            <div className="h-6"></div>
         </div>
     );
 };
@@ -93,6 +119,22 @@ const CopyButton = ({ text, className = "" }) => {
 // Single ticket card used for both search modes
 const TicketCard = ({ ticketData, onUpdateTicket }) => {
     const [isConfirming, setIsConfirming] = useState(false);
+
+    // Derive who handled the ticket status updates
+    const adminComments = ticketData.adminComments || [];
+    
+    // Prioritize actual assignee name over generic history entries
+    const handlerName = ticketData.assignee || 'Admin';
+
+    const completedEntry = [...adminComments].reverse().find(c => c.status === 'Completed');
+    const completedTime = completedEntry?.timestamp || ticketData.completedTime;
+
+    const pendingEntry = [...adminComments].reverse().find(c => c.status === 'Pending');
+    const pendingTime = pendingEntry?.timestamp || ticketData.pendingTime;
+
+    const isCompleted = ticketData.status === 'Completed';
+    const isPending = ticketData.status === 'Pending';
+    const themeColor = isCompleted ? 'emerald' : isPending ? 'amber' : 'slate';
 
     const handleConfirmation = async (status) => {
         setIsConfirming(true);
@@ -141,17 +183,17 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-6">
                     <div>
                         <h3 className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Department</h3>
-                        <p className="text-slate-800 dark:text-slate-200 font-medium text-sm sm:text-lg">{ticketData.department || '-'}</p>
+                        <p className="text-slate-800 dark:text-slate-200 font-medium text-xs sm:text-sm">{ticketData.department || '-'}</p>
                     </div>
                     <div>
                         <h3 className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Category</h3>
-                        <p className="text-slate-800 dark:text-slate-200 font-medium text-sm sm:text-lg hover:break-words whitespace-normal break-words sm:break-normal">
+                        <p className="text-slate-800 dark:text-slate-200 font-medium text-xs sm:text-sm hover:break-words whitespace-normal break-words sm:break-normal">
                             {ticketData.category}
                         </p>
                     </div>
                     <div className="col-span-2 md:col-span-1">
                         <h3 className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Support Type</h3>
-                        <p className="text-slate-800 dark:text-slate-200 font-medium text-sm sm:text-lg">
+                        <p className="text-slate-800 dark:text-slate-200 font-medium text-xs sm:text-sm">
                             {ticketData.supportType || '-'}
                         </p>
                     </div>
@@ -195,167 +237,177 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
 
                 <div className="space-y-6">
 
-                    {/* Manager & Management Approval Statuses */}
-                    {(ticketData.adminManagerStatus || ticketData.managementStatus) && (
-                        <div className="space-y-3">
-                            {/* Manager Status */}
-                            {ticketData.adminManagerStatus && (() => {
-                                const parseManagerName = (comments) => {
-                                    if (!comments) return ticketData.managerName || "Manager";
-                                    const match = comments.trim().match(/^([^[]+)\s*\[(?:APPROVED|REJECTED|HOLD)\]/i);
-                                    return match ? match[1].trim() : (ticketData.managerName || "Manager");
-                                };
-                                const managerName = parseManagerName(ticketData.adminManagerComments);
-                                return (
-                                    <div className={`flex items-start gap-3 px-4 py-3 border rounded-xl 
-                                    ${ticketData.adminManagerStatus === 'Approved' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' :
-                                            ticketData.adminManagerStatus === 'Rejected' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' :
-                                                'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700'}`}>
-                                        <span className={`material-symbols-outlined text-xl mt-0.5 shrink-0 
-                                        ${ticketData.adminManagerStatus === 'Approved' ? 'text-green-500' :
-                                                ticketData.adminManagerStatus === 'Rejected' ? 'text-red-500' :
-                                                    'text-amber-500'}`}>
-                                            {ticketData.adminManagerStatus === 'Approved' ? 'check_circle' :
-                                                ticketData.adminManagerStatus === 'Rejected' ? 'cancel' : 'hourglass_top'}
-                                        </span>
-                                        <div>
-                                            <p className={`text-sm font-semibold 
-                                            ${ticketData.adminManagerStatus === 'Approved' ? 'text-green-700 dark:text-green-400' :
-                                                    ticketData.adminManagerStatus === 'Rejected' ? 'text-red-700 dark:text-red-400' :
-                                                        'text-amber-700 dark:text-amber-400'}`}>
-                                                {managerName}: {ticketData.adminManagerStatus}
-                                            </p>
-                                            <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
-                                                {ticketData.adminManagerMailTime && (
-                                                    <span className="text-[11px] text-slate-500">
-                                                        <strong>Sent To {managerName}:</strong> {ticketData.adminManagerMailTime}
-                                                    </span>
-                                                )}
-                                                {ticketData.adminManagerStatusTime && (
-                                                    <span className="text-[11px] text-slate-500">
-                                                        <strong>Decision Made:</strong> {ticketData.adminManagerStatusTime}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
+                    {/* Unified Status Updates Card */}
+                    {(ticketData.resolutionComments || ticketData.pendingComments) && (
+                        <div className={`bg-${themeColor}-50/60 dark:bg-${themeColor}-900/20 border border-${themeColor}-100 dark:border-${themeColor}-800/50 rounded-2xl p-4 sm:p-6 shadow-sm`}>
+                            <div className={`flex items-center justify-between mb-6 border-b border-${themeColor}-200/50 dark:border-${themeColor}-800/50 pb-3`}>
+                                <div className="flex items-center gap-2">
+                                    <span className={`material-symbols-outlined text-${themeColor}-600 dark:text-${themeColor}-400 text-xl`}>
+                                        {isCompleted ? 'check_circle' : isPending ? 'pause_circle' : 'history_edu'}
+                                    </span>
+                                    <h3 className={`text-sm font-bold text-${themeColor}-800 dark:text-${themeColor}-100 uppercase tracking-tight`}>
+                                        Status Update
+                                    </h3>
+                                </div>
+                                <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md bg-${themeColor}-100 text-${themeColor}-700 dark:bg-${themeColor}-900/40 dark:text-${themeColor}-400`}>
+                                    {ticketData.status}
+                                </span>
+                            </div>
 
-                            {/* Management Status - Only show if not rejected by Manager and explicitly mailed out*/}
-                            {ticketData.managementStatus && ticketData.managementMailTime && (!ticketData.adminManagerStatus || ticketData.adminManagerStatus.trim().toLowerCase() !== 'rejected') && (() => {
-                                const parseManagementNames = (comments) => {
-                                    if (!comments) return "Management";
-                                    const lines = comments.split('\n').filter(l => l.trim());
-                                    const names = lines.map(line => {
-                                        const content = line.includes('|||') ? line.split('|||')[1] : line;
-                                        const match = content.trim().match(/^([^[]+)\s*\[(?:APPROVED|REJECTED|HOLD)\]/i);
-                                        return match ? match[1].trim() : null;
-                                    }).filter(Boolean);
-                                    const uniqueNames = [...new Set(names)];
-                                    return uniqueNames.length > 0 ? uniqueNames.join(', ') : "Management";
-                                };
-                                const managementNames = parseManagementNames(ticketData.managementComments);
-                                return (
-                                    <div className={`flex items-start gap-3 px-4 py-3 border rounded-xl 
-                                    ${ticketData.managementStatus === 'Approved' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700' :
-                                            ticketData.managementStatus === 'Rejected' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' :
-                                                'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700'}`}>
-                                        <span className={`material-symbols-outlined text-xl mt-0.5 shrink-0 
-                                        ${ticketData.managementStatus === 'Approved' ? 'text-green-500' :
-                                                ticketData.managementStatus === 'Rejected' ? 'text-red-500' :
-                                                    ticketData.managementStatus === 'Hold' ? 'text-orange-500' :
-                                                        'text-amber-500'}`}>
-                                            {ticketData.managementStatus === 'Approved' ? 'verified' :
-                                                ticketData.managementStatus === 'Rejected' ? 'block' :
-                                                    ticketData.managementStatus === 'Hold' ? 'pause_circle' : 'pending'}
-                                        </span>
-                                        <div>
-                                            <p className={`text-sm font-semibold 
-                                            ${ticketData.managementStatus === 'Approved' ? 'text-green-700 dark:text-green-400' :
-                                                    ticketData.managementStatus === 'Rejected' ? 'text-red-700 dark:text-red-400' :
-                                                        ticketData.managementStatus === 'Hold' ? 'text-orange-700 dark:text-orange-400' :
-                                                            'text-amber-700 dark:text-amber-400'}`}>
-                                                {managementNames}: {ticketData.managementStatus}
-                                            </p>
-                                            <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
-                                                {ticketData.managementMailTime && (
-                                                    <span className="text-[11px] text-slate-500">
-                                                        <strong>Sent To {managementNames}:</strong> {ticketData.managementMailTime}
-                                                    </span>
-                                                )}
-                                                {ticketData.managementStatusTime && (
-                                                    <span className="text-[11px] text-slate-500">
-                                                        <strong>Decision Made:</strong> {ticketData.managementStatusTime}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-                        </div>
-                    )}
+                            <div className="flex flex-col gap-5">
+                                <div className="flex flex-col gap-1">
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Handled By</p>
+                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase">{handlerName}</p>
+                                </div>
 
-                    {/* Admin Comments Timeline */}
-                    {(ticketData.inProgressTime || ticketData.pendingTime || ticketData.completedTime) && (
-                        <div className="mb-6">
-                            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-base">history</span>
-                                Admin Comments {ticketData.assignee ? `— ${ticketData.assignee}` : ''}
-                            </h3>
-                            <div className="relative pl-6 space-y-4">
-                                {/* Vertical line */}
-                                <div className="absolute left-2 top-0 bottom-0 w-px bg-slate-200 dark:bg-slate-700"></div>
-
-                                {/* Resolved / Completed entry — newest first */}
-                                {ticketData.completedTime && (
-                                    <div className="relative">
-                                        <span className="absolute -left-4 top-1 w-3 h-3 rounded-full bg-emerald-400 dark:bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
-                                        <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl px-4 py-3">
-                                            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide mb-1">
-                                                Resolved at: <span className="font-normal normal-case">{ticketData.completedTime}</span>
-                                            </p>
-                                            {ticketData.resolutionComments && (
-                                                <p className="text-sm text-emerald-800 dark:text-emerald-300 italic leading-relaxed">
-                                                    "{ticketData.resolutionComments}"
-                                                </p>
-                                            )}
+                                {/* Resolution Content */}
+                                {ticketData.resolutionComments && (
+                                    <div className={`p-4 bg-white/60 dark:bg-slate-800/60 rounded-xl border border-${themeColor}-100 dark:border-${themeColor}-800/50`}>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className={`text-[10px] font-bold text-${themeColor}-600 dark:text-${themeColor}-400 uppercase tracking-widest`}>Resolution Details</p>
+                                            {completedTime && <span className="text-[10px] text-slate-400 font-medium">{completedTime}</span>}
                                         </div>
+                                        <p className={`text-xs sm:text-sm text-${themeColor}-900 dark:text-${themeColor}-100 leading-relaxed whitespace-pre-line font-medium`}>
+                                            {ticketData.resolutionComments}
+                                        </p>
                                     </div>
                                 )}
 
-                                {/* Pending entry */}
-                                {ticketData.pendingTime && (
-                                    <div className="relative">
-                                        <span className="absolute -left-4 top-1 w-3 h-3 rounded-full bg-amber-400 dark:bg-amber-500 border-2 border-white dark:border-slate-900"></span>
-                                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3">
-                                            <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide mb-1">
-                                                Pending at: <span className="font-normal normal-case">{ticketData.pendingTime}</span>
-                                            </p>
-                                            {ticketData.pendingComments && (
-                                                <p className="text-sm text-amber-800 dark:text-amber-300 italic leading-relaxed">
-                                                    "{ticketData.pendingComments}"
-                                                </p>
-                                            )}
+                                {/* Pending Content */}
+                                {ticketData.pendingComments && (
+                                    <div className="p-4 bg-white/40 dark:bg-slate-800/40 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Pending Reason</p>
+                                            {pendingTime && <span className="text-[10px] text-slate-400 font-medium">{pendingTime}</span>}
                                         </div>
-                                    </div>
-                                )}
-
-                                {/* In Progress entry — oldest, at bottom */}
-                                {ticketData.inProgressTime && (
-                                    <div className="relative">
-                                        <span className="absolute -left-4 top-1 w-3 h-3 rounded-full bg-blue-400 dark:bg-blue-500 border-2 border-white dark:border-slate-900"></span>
-                                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3">
-                                            <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-0.5">
-                                                In Progress at: <span className="font-normal normal-case">{ticketData.inProgressTime}</span>
-                                            </p>
-                                        </div>
+                                        <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line font-medium italic">
+                                            "{ticketData.pendingComments}"
+                                        </p>
                                     </div>
                                 )}
                             </div>
                         </div>
                     )}
+
+                    {/* Manager & Management Approval Statuses */}
+                    {(ticketData.adminManagerStatus || ticketData.managementStatus) && (
+                        <div className="space-y-6 px-1">
+                            <div className="flex items-center justify-between mb-4 border-b border-slate-200 dark:border-slate-700 pb-2">
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight">APPROVAL HISTORY</h3>
+                            </div>
+
+                            {/* MANAGER SECTION */}
+                            {ticketData.adminManagerStatus && (
+                                <div className="mb-6">
+                                    <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-2 ml-1">MANAGER</h4>
+                                    <div className={`border rounded-xl p-4 relative transition-colors duration-200 shadow-sm ${ticketData.adminManagerStatus.toLowerCase().includes('approved')
+                                        ? 'bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/50'
+                                        : ticketData.adminManagerStatus.toLowerCase().includes('pending')
+                                            ? 'bg-amber-50/60 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800/50'
+                                            : 'bg-rose-50/60 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/50'
+                                        }`}>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase">
+                                                {ticketData.managerName || 'Manager'}
+                                            </span>
+                                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${ticketData.adminManagerStatus.toLowerCase().includes('approved')
+                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                : ticketData.adminManagerStatus.toLowerCase().includes('pending')
+                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                                }`}>
+                                                {(ticketData.adminManagerStatus.includes(':') ? ticketData.adminManagerStatus.split(':').pop() : ticketData.adminManagerStatus).trim().toUpperCase()}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex flex-col gap-1.5 border-t border-slate-200/60 dark:border-slate-700/60 pt-3">
+                                            {ticketData.adminManagerMailTime && (
+                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>send</span> Request Sent: {ticketData.adminManagerMailTime}
+                                                </p>
+                                            )}
+                                            {ticketData.adminManagerStatusTime && (
+                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>event_available</span> Status Updated: {ticketData.adminManagerStatusTime}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* MANAGEMENT SECTION */}
+                            {ticketData.managementStatus && ticketData.managementMailTime && (!ticketData.adminManagerStatus || ticketData.adminManagerStatus.trim().toLowerCase() !== 'rejected') && (() => {
+                                let arrivals = [];
+                                if (ticketData.managementApprovals && Array.isArray(ticketData.managementApprovals) && ticketData.managementApprovals.length > 0) {
+                                    arrivals = ticketData.managementApprovals;
+                                } else {
+                                    const rawStatusText = ticketData.managementStatus || '';
+                                    const parts = rawStatusText.split(',').map(s => s.trim()).filter(Boolean);
+                                    const seen = new Map();
+                                    parts.forEach(part => {
+                                        if (part.includes(':')) {
+                                            const [name, stat] = part.split(':').map(s => s.trim());
+                                            seen.set(name, {
+                                                name,
+                                                mail_receive: ticketData.managementMailTime,
+                                                decision_made: stat !== 'Pending' ? ticketData.managementStatusTime : null,
+                                                status: stat
+                                            });
+                                        }
+                                    });
+                                    arrivals = Array.from(seen.values());
+                                }
+                                if (arrivals.length === 0) return null;
+
+                                return (
+                                    <div className="mb-6">
+                                        <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-2 ml-1">MANAGEMENT</h4>
+                                        <div className="space-y-4">
+                                            {arrivals.map((entry, idx) => {
+                                                const rawStatus = (entry.status || (entry.decision_made ? 'Approved' : 'Pending')).toLowerCase();
+
+                                                return (
+                                                    <div key={`mgmt-box-${idx}`} className={`border rounded-xl p-4 relative transition-colors duration-200 shadow-sm ${rawStatus.includes('approved')
+                                                        ? 'bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/50'
+                                                        : rawStatus.includes('pending')
+                                                            ? 'bg-amber-50/60 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800/50'
+                                                            : 'bg-rose-50/60 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/50'
+                                                        }`}>
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase">{entry.name}</span>
+                                                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${rawStatus.includes('approved')
+                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                                : rawStatus.includes('pending')
+                                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                                                }`}>
+                                                                {rawStatus.toUpperCase()}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="flex flex-col gap-1.5 border-t border-slate-200/60 dark:border-slate-700/60 pt-3">
+                                                            {entry.mail_receive && (
+                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>send</span> Request Sent: {entry.mail_receive}
+                                                                </p>
+                                                            )}
+                                                            {entry.decision_made && (
+                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>event_available</span> Status Updated: {entry.decision_made}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    )}
+
 
 
                     {/* --- USER CONFIRMATION UI --- */}
@@ -405,18 +457,18 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                                 {ticketData.userConfirmation === 'Pending' && (
                                     <div className="flex items-center gap-3 shrink-0">
                                         <button
-                                            onClick={() => handleConfirmation('Yes')}
-                                            disabled={isConfirming}
-                                            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-semibold rounded-lg transition-all shadow-sm shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
-                                            <span className="material-symbols-outlined text-sm">thumb_up</span>
-                                            Yes, fixed
-                                        </button>
-                                        <button
                                             onClick={() => handleConfirmation('No')}
                                             disabled={isConfirming}
                                             className="flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-900/20 dark:hover:text-red-400 dark:hover:border-red-800 text-slate-700 dark:text-slate-300 active:scale-95 text-sm font-semibold rounded-lg transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                                             <span className="material-symbols-outlined text-sm">thumb_down</span>
                                             No, not fixed
+                                        </button>
+                                        <button
+                                            onClick={() => handleConfirmation('Yes')}
+                                            disabled={isConfirming}
+                                            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-semibold rounded-lg transition-all shadow-sm shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                                            <span className="material-symbols-outlined text-sm">thumb_up</span>
+                                            Yes, fixed
                                         </button>
                                     </div>
                                 )}
@@ -443,17 +495,17 @@ const CheckStatus = () => {
     useEffect(() => {
         const queryParams = new URLSearchParams(location.search);
         const ticketIdFromUrl = queryParams.get('ticketId');
-        
+
         if (ticketIdFromUrl) {
             setSearchType('ticket');
             setTicketId(ticketIdFromUrl);
-            
+
             const fetchTicketFromUrl = async () => {
                 setLoading(true);
                 setError('');
                 setTicketData(null);
                 setMobileTickets([]);
-                
+
                 try {
                     const response = await api.get(`/api/status/${ticketIdFromUrl.trim()}`);
                     setTicketData(response.data);
@@ -467,7 +519,7 @@ const CheckStatus = () => {
                     setLoading(false);
                 }
             };
-            
+
             fetchTicketFromUrl();
         }
     }, [location.search]);
@@ -519,7 +571,7 @@ const CheckStatus = () => {
                 <div className="p-5 sm:p-8">
                     <div className="text-center mb-6 sm:mb-8">
                         <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-primary/10 rounded-full mb-3 sm:mb-4">
-                            <span className="material-symbols-outlined text-primary text-3xl">search_check</span>
+                            <span className="material-symbols-outlined text-primary" style={{ fontSize: '32px' }}>assignment_turned_in</span>
                         </div>
                         <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">Check Ticket Status</h1>
                         <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-1 sm:mt-2">

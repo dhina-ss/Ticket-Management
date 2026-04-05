@@ -1323,17 +1323,17 @@ const AdminDashboard = () => {
         try {
             let url = '/api/tickets?';
             const params = new URLSearchParams();
-            
+
             if (user?.support_type) {
                 params.append('support_type', user.support_type);
             }
-            
+
             // If not super-admin and not management/manager, filter by tickets assigned to current user or unassigned
 
             if (!isSuperAdmin && !isPowerUser && user?.name) {
                 params.append('assignee', user.name);
             }
-            
+
             url += params.toString();
             const response = await api.get(url);
             if (response.status !== 200) {
@@ -1455,6 +1455,7 @@ const AdminDashboard = () => {
         setBillFileError('');
         setVendorName(ticket.vendorName || '');
         setIsModalOpen(true);
+        setShowApprovalForm(false); // Reset approval form on row click
     };
 
     const closeModal = () => {
@@ -1468,6 +1469,7 @@ const AdminDashboard = () => {
         setBillFile(null);
         setBillFileError('');
         setVendorName('');
+        setShowApprovalForm(false); // Reset approval form on close
     };
 
     const handleSaveChanges = async () => {
@@ -1515,13 +1517,15 @@ const AdminDashboard = () => {
                 if (billFile) {
                     formData.append('bill_attachment', billFile);
                 }
+                formData.append('admin_name', user?.name || 'Admin');
                 res = await api.put(`/api/tickets/${selectedTicket.ticket_id}`, formData);
             } else {
                 res = await api.put(`/api/tickets/${selectedTicket.ticket_id}`, {
                     status: updateStatus,
                     assignee: updateAssignee,
                     resolution_comments: resolutionComments,
-                    pending_comments: pendingComments
+                    pending_comments: pendingComments,
+                    admin_name: user?.name || 'Admin'
                 });
             }
 
@@ -1629,7 +1633,10 @@ const AdminDashboard = () => {
         setIsUpdating(true);
         try {
             // 1. Save status & assignee to DB first
-            await api.put(`/api/tickets/${ticketId}`, { status: updateStatus, assignee: updateAssignee });
+            await api.put(`/api/tickets/${ticketId}`, { 
+                status: updateStatus,
+                assignee: updateAssignee 
+            });
 
             // 2. Send approval email
             const formData = new FormData();
@@ -2434,9 +2441,11 @@ const AdminDashboard = () => {
                                                 </p>
                                             </div>
                                         </div>
-                                        {selectedTicket.adminDescription && (
+                                        {/* Admin History / Material Details */}
+                                        {/* Legacy Admin Description (for compatibility with very old tickets) */}
+                                        {selectedTicket.adminDescription && (!selectedTicket.adminComments || selectedTicket.adminComments.length === 0) && (
                                             <div>
-                                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Material Details (Admin)</label>
+                                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Technical Details / Material Specs (Admin)</label>
                                                 <div className="bg-amber-50/50 dark:bg-amber-900/10 rounded-lg p-4 border border-amber-100/50 dark:border-amber-800/50">
                                                     <p className="text-sm text-slate-700 dark:text-amber-200/80 leading-relaxed whitespace-pre-wrap">
                                                         {selectedTicket.adminDescription}
@@ -2467,147 +2476,181 @@ const AdminDashboard = () => {
 
                                     {/* Approval Status */}
                                     {(selectedTicket.adminManagerStatus || selectedTicket.managementStatus) && (
-                                        <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Approval History</h3>
+                                        <div className="border-t border-slate-100 dark:border-slate-800 pt-6 px-1">
+                                            <div className="flex items-center justify-between mb-5 border-b border-slate-200 dark:border-slate-700 pb-2">
+                                                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight">APPROVAL HISTORY</h3>
                                             </div>
+
+                                            {/* MANAGER SECTION */}
                                             {selectedTicket.adminManagerStatus && (
-                                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-100 dark:border-slate-800">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Manager</span>
-                                                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${selectedTicket.adminManagerStatus.toLowerCase() === 'approved'
-                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                                            : selectedTicket.adminManagerStatus.toLowerCase() === 'pending'
-                                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                                                : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                                                            }`}>
-                                                            {selectedTicket.adminManagerStatus}
-                                                        </span>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        {selectedTicket.adminManagerComments && (
-                                                            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed italic">
-                                                                "{selectedTicket.adminManagerComments}"
+                                                <div className="mb-6">
+                                                    <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-2 ml-1">MANAGER</h4>
+                                                    <div className={`border rounded-xl p-4 relative transition-colors duration-200 ${selectedTicket.adminManagerStatus.toLowerCase().includes('approved')
+                                                        ? 'bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/50'
+                                                        : selectedTicket.adminManagerStatus.toLowerCase().includes('pending')
+                                                            ? 'bg-amber-50/60 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800/50'
+                                                            : 'bg-rose-50/60 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/50'
+                                                        }`}>
+                                                        <div className="flex items-center justify-between mb-4">
+                                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase">
+                                                                {selectedTicket.managerName || 'Manager'}
+                                                            </span>
+                                                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${selectedTicket.adminManagerStatus.toLowerCase().includes('approved')
+                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                                : selectedTicket.adminManagerStatus.toLowerCase().includes('pending')
+                                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                                                }`}>
+                                                                {(selectedTicket.adminManagerStatus.includes(':') ? selectedTicket.adminManagerStatus.split(':').pop() : selectedTicket.adminManagerStatus).trim()}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="mb-4">
+                                                            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                                                                Comments: <span className="normal-case text-slate-700 dark:text-slate-300 ml-1">{selectedTicket.adminManagerComments || '-'}</span>
                                                             </p>
-                                                        )}
-                                                        <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
+                                                        </div>
+
+                                                        {/* ADMIN DESCRIPTION Box */}
+                                                        <div className="bg-white/60 dark:bg-slate-900/40 border border-white dark:border-slate-800/40 p-3 mb-4 rounded-lg shadow-sm">
+                                                            <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase leading-relaxed mb-1">ADMIN DESCRIPTION</p>
+                                                            <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                                                                {selectedTicket.adminComments && selectedTicket.adminComments.find(c => c.target_role === 'Manager')?.comment || selectedTicket.adminManagerAdminDesc || selectedTicket.adminDescription || '-'}
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="flex flex-col gap-1 mt-2">
                                                             {selectedTicket.adminManagerMailTime && (
-                                                                <span className="text-[11px] text-slate-500">
-                                                                    <strong>Request Sent:</strong> {selectedTicket.adminManagerMailTime}
-                                                                </span>
+                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>send</span> Request Sent: {selectedTicket.adminManagerMailTime}
+                                                                </p>
                                                             )}
                                                             {selectedTicket.adminManagerStatusTime && (
-                                                                <span className="text-[11px] text-slate-500">
-                                                                    <strong>Status Updated:</strong> {selectedTicket.adminManagerStatusTime}
-                                                                </span>
+                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>event_available</span> Status Updated: {selectedTicket.adminManagerStatusTime}
+                                                                </p>
                                                             )}
                                                         </div>
                                                     </div>
                                                 </div>
                                             )}
 
-                                            {selectedTicket.managementStatus && (!selectedTicket.adminManagerStatus || selectedTicket.adminManagerStatus.trim().toLowerCase() !== 'rejected') && (
-                                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-100 dark:border-slate-800">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Management</span>
-                                                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${selectedTicket.managementStatus.toLowerCase() === 'approved'
-                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                                            : selectedTicket.managementStatus.toLowerCase() === 'pending' || selectedTicket.managementStatus.toLowerCase() === 'hold'
-                                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                                                : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                                                            }`}>
-                                                            {selectedTicket.managementStatus}
-                                                        </span>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        {selectedTicket.managementComments && (
-                                                            <div className="space-y-2.5">
-                                                                {selectedTicket.managementComments.split('\n').filter(comment => comment.trim()).map((comment, index) => {
-                                                                    let displayComment = comment.trim();
-                                                                    let displayTime = null;
-                                                                    if (displayComment.includes('|||')) {
-                                                                        const parts = displayComment.split('|||');
-                                                                        displayTime = parts[0].trim();
-                                                                        displayComment = parts[1].trim();
-                                                                    }
+                                            {/* MANAGEMENT SECTION */}
+                                            {selectedTicket.managementStatus && (!selectedTicket.adminManagerStatus || !selectedTicket.adminManagerStatus.trim().toLowerCase().includes('rejected')) && (() => {
+                                                let arrivals = [];
+                                                if (selectedTicket.managementApprovals && Array.isArray(selectedTicket.managementApprovals) && selectedTicket.managementApprovals.length > 0) {
+                                                    arrivals = selectedTicket.managementApprovals;
+                                                } else {
+                                                    const parts = (selectedTicket.managementStatus || '').split(',').map(s => s.trim()).filter(Boolean);
+                                                    const seen = new Map();
+                                                    parts.forEach(part => {
+                                                        if (part.includes(':')) {
+                                                            const [name, stat] = part.split(':').map(s => s.trim());
+                                                            seen.set(name, {
+                                                                name,
+                                                                mail_receive: selectedTicket.managementMailTime,
+                                                                decision_made: stat !== 'Pending' ? selectedTicket.managementStatusTime : null,
+                                                                comments: stat !== 'Pending' ? stat : null,
+                                                                status: stat
+                                                            });
+                                                        }
+                                                    });
+                                                    arrivals = Array.from(seen.values());
+                                                }
+                                                if (arrivals.length === 0) return null;
 
-                                                                    let individualStatus = null;
-                                                                    const statusMatch = displayComment.match(/\[(APPROVED|REJECTED)\]/i);
-                                                                    if (statusMatch) {
-                                                                        individualStatus = statusMatch[1].toUpperCase();
-                                                                        // Remove the tag and clean up any double spaces/colons
-                                                                        displayComment = displayComment.replace(statusMatch[0], '').replace(/\s+:/, ':').trim();
-                                                                    }
+                                                return (
+                                                    <div className="mb-6">
+                                                        <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-2 ml-1">MANAGEMENT</h4>
+                                                        <div className="space-y-4">
+                                                            {arrivals.map((entry, idx) => {
+                                                                const rawStatus = (entry.status || (entry.decision_made ? 'Approved' : 'Pending')).toLowerCase();
+                                                                const adminNoteMatch = selectedTicket.adminComments && selectedTicket.adminComments.find(c => c.target_role === 'Management' && c.recipients && c.recipients.includes(entry.name));
+                                                                const adminNote = entry.admin_description || entry.admin_desc || (adminNoteMatch ? adminNoteMatch.comment : (selectedTicket.adminComments && selectedTicket.adminComments.find(c => c.target_role === 'Management' && (!c.recipients || c.recipients.length === 0))?.comment || selectedTicket.adminDescription || 'Need your approval'));
 
-                                                                    return (
-                                                                        <div key={index} className="p-3 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/50 rounded-lg shadow-sm flex flex-col gap-2 relative">
-                                                                            <div className="flex items-start gap-2 pr-16">
-                                                                                <span className="material-symbols-outlined text-slate-400 dark:text-slate-500 text-sm mt-0.5">chat</span>
-                                                                                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium whitespace-pre-wrap">
-                                                                                    {displayComment}
+                                                                return (
+                                                                    <div key={`mgmt-box-${idx}`} className={`border rounded-xl p-4 relative transition-colors duration-200 ${rawStatus.includes('approved')
+                                                                        ? 'bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/50'
+                                                                        : rawStatus.includes('pending')
+                                                                            ? 'bg-amber-50/60 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800/50'
+                                                                            : 'bg-rose-50/60 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/50'
+                                                                        }`}>
+                                                                        <div className="flex items-center justify-between mb-4">
+                                                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase">{entry.name}</span>
+                                                                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${rawStatus.includes('approved')
+                                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                                                : rawStatus.includes('pending')
+                                                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                                                                }`}>
+                                                                                {rawStatus.toUpperCase()}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        <div className="mb-4">
+                                                                            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                                                                                Comments: <span className="normal-case text-slate-700 dark:text-slate-300 ml-1">{entry.comments || '-'}</span>
+                                                                            </p>
+                                                                        </div>
+
+                                                                        {/* ADMIN DESCRIPTION Box */}
+                                                                        <div className="bg-white/60 dark:bg-slate-900/40 border border-white dark:border-slate-800/40 p-3 mb-4 rounded-lg shadow-sm">
+                                                                            <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase leading-relaxed mb-1">ADMIN DESCRIPTION</p>
+                                                                            <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                                                                                {adminNote}
+                                                                            </p>
+                                                                        </div>
+
+                                                                        <div className="flex flex-col gap-1 mt-2">
+                                                                            {entry.mail_receive && (
+                                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>send</span> Request Sent: {entry.mail_receive}
                                                                                 </p>
-                                                                            </div>
-
-                                                                            {individualStatus && (
-                                                                                <div className="absolute top-2.5 right-2.5">
-                                                                                    <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded border ${individualStatus === 'APPROVED'
-                                                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800/50'
-                                                                                        : 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800/50'
-                                                                                        }`}>
-                                                                                        {individualStatus}
-                                                                                    </span>
-                                                                                </div>
                                                                             )}
-
-                                                                            {displayTime && (
-                                                                                <div className="flex items-center gap-1.5 ml-6">
-                                                                                    <span className="material-symbols-outlined text-[12px] text-slate-400">schedule</span>
-                                                                                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                                                                                        {displayTime}
-                                                                                    </span>
-                                                                                </div>
+                                                                            {entry.decision_made && (
+                                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>event_available</span> Status Updated: {entry.decision_made}
+                                                                                </p>
                                                                             )}
                                                                         </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        )}
-                                                        <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col gap-1">
-                                                            {selectedTicket.managementMailTime && (
-                                                                <span className="text-[11px] text-slate-500">
-                                                                    <strong>Request Sent:</strong> {selectedTicket.managementMailTime}
-                                                                </span>
-                                                            )}
-                                                            {selectedTicket.managementStatusTime && !selectedTicket.managementComments?.includes('|||') && (
-                                                                <span className="text-[11px] text-slate-500">
-                                                                    <strong>Status Updated:</strong> {selectedTicket.managementStatusTime}
-                                                                </span>
-                                                            )}
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            {/* Final Processing History */}
+                                            {selectedTicket.adminComments && selectedTicket.adminComments.some(c => c.target_role === 'StatusUpdate') && (
+                                                <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
+                                                    <h3 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-4 tracking-widest flex items-center gap-2">
+                                                        <span className="material-symbols-outlined text-sm">assignment_turned_in</span>
+                                                        Processing History
+                                                    </h3>
+                                                    <div className="space-y-3">
+                                                        {selectedTicket.adminComments
+                                                            .filter(c => c.target_role === 'StatusUpdate')
+                                                            .map((note, idx) => (
+                                                                <div key={`status-hist-${idx}`} className="flex items-start gap-4 p-4 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-100 dark:border-slate-800">
+                                                                    <div className={`mt-1.5 w-2 h-2 rounded-full ${note.status === 'Completed' ? 'bg-emerald-500' : 'bg-amber-500'}`} title={note.status}></div>
+                                                                    <div className="flex-1">
+                                                                        <div className="flex items-center justify-between mb-1">
+                                                                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">
+                                                                                {note.status}:
+                                                                            </span>
+                                                                            <span className="text-[10px] text-slate-500 dark:text-slate-400">{note.timestamp}</span>
+                                                                        </div>
+                                                                        <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-snug">
+                                                                            {note.comment}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            ))
+                                                        }
                                                     </div>
                                                 </div>
                                             )}
-                                        </div>
-                                    )}
-
-                                    {/* Lifecycle Tracking */}
-                                    {(selectedTicket.pendingTime || selectedTicket.completedTime) && (
-                                        <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
-                                            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Core Lifecycle</h3>
-                                            <div className="flex gap-4">
-                                                {selectedTicket.pendingTime && (
-                                                    <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/30 px-3 py-2 rounded-lg flex-1">
-                                                        <p className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-500 mb-0.5">Marked Pending</p>
-                                                        <p className="text-xs font-medium text-amber-800 dark:text-amber-300">{selectedTicket.pendingTime}</p>
-                                                    </div>
-                                                )}
-                                                {selectedTicket.completedTime && (
-                                                    <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 px-3 py-2 rounded-lg flex-1">
-                                                        <p className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-500 mb-0.5">Marked Completed</p>
-                                                        <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300">{selectedTicket.completedTime}</p>
-                                                    </div>
-                                                )}
-                                            </div>
                                         </div>
                                     )}
 
@@ -2700,7 +2743,7 @@ const AdminDashboard = () => {
                                             )}
 
                                             {/* Input form if adding expense currently */}
-                                            {addExpense && updateStatus === 'Completed' && !(selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved' || selectedTicket.status === 'Rejected') && (
+                                            {addExpense && updateStatus === 'Completed' && !(selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved') && (
                                                 <div className="mt-4 animate-fade-in">
                                                     <div className="mb-4">
                                                         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Vendor Name <span className="text-red-500">*</span></label>
@@ -2782,7 +2825,7 @@ const AdminDashboard = () => {
                                     {/* Row 5: Footer Actions */}
                                     <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
                                         {/* Pending Comments — mandatory when setting to Pending */}
-                                        {updateStatus === 'Pending' && !(selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved' || selectedTicket.status === 'Rejected') && (
+                                        {updateStatus === 'Pending' && !(selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved') && (
                                             <div className="mb-4">
                                                 <label className="block text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">
                                                     Pending Comments <span className="text-red-500">*</span>
@@ -2846,13 +2889,14 @@ const AdminDashboard = () => {
                                                     <select
                                                         value={updateStatus}
                                                         onChange={(e) => setUpdateStatus(e.target.value)}
-                                                        disabled={!(isSuperAdmin || isPowerUser || user?.name === selectedTicket.assignee || (user.access && user.access.includes('Edit'))) || ['Completed', 'Resolved', 'Rejected'].includes(selectedTicket.status)}
-                                                        className={`w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none transition-shadow ${['Completed', 'Resolved', 'Rejected'].includes(selectedTicket.status) || !(isSuperAdmin || isPowerUser || user?.name === selectedTicket.assignee || (user.access && user.access.includes('Edit'))) ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
+                                                        disabled={['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit'))}
+                                                        className={`w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none transition-shadow ${['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit')) ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
                                                     >
-                                                        <option value="Not Started">Not Started</option>
+                                                         <option value="Not Started">Not Started</option>
                                                         <option value="In Progress">In Progress</option>
                                                         <option value="Pending">Pending</option>
                                                         <option value="Completed">Completed</option>
+
                                                     </select>
                                                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
                                                 </div>
@@ -2862,8 +2906,8 @@ const AdminDashboard = () => {
                                                     <select
                                                         value={updateAssignee}
                                                         onChange={(e) => setUpdateAssignee(e.target.value)}
-                                                        disabled={(user.access && !user.access.includes('Edit')) || ['Completed', 'Resolved', 'Rejected'].includes(selectedTicket.status) || (selectedTicket.assignee && user?.email !== 'admin@support.com')}
-                                                        className={`w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none transition-shadow ${['Completed', 'Resolved', 'Rejected'].includes(selectedTicket.status) || (user.access && !user.access.includes('Edit')) || (selectedTicket.assignee && user?.email !== 'admin@support.com') ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
+                                                        disabled={['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit'))}
+                                                        className={`w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none transition-shadow ${['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit')) ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
                                                     >
                                                         <option value="">Assignee</option>
                                                         {Array.isArray(assignees) && assignees
@@ -2875,7 +2919,7 @@ const AdminDashboard = () => {
                                                     </select>
                                                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
                                                 </div>
-                                                {!(['Completed', 'Resolved', 'Rejected'].includes(selectedTicket.status)) && (isSuperAdmin || isPowerUser || user?.name === selectedTicket.assignee || (user.access && user.access.includes('Edit'))) && (
+                                                {!(['Completed', 'Resolved'].includes(selectedTicket.status)) && (isSuperAdmin || isPowerUser || user?.name === selectedTicket.assignee || (user.access && user.access.includes('Edit'))) && (
                                                     <button
                                                         onClick={handleSaveChanges}
                                                         disabled={isUpdating}
@@ -2916,12 +2960,8 @@ const AdminDashboard = () => {
 
                                                     const isAlreadyInProgress = selectedTicket.status === 'In Progress';
                                                     const isDisabled = !updateAssignee || !updateStatus
-                                                        || (updateStatus === selectedTicket.status && !isAlreadyInProgress)
-                                                        || (updateStatus === 'Not Started' && !isAlreadyInProgress)
                                                         || selectedTicket.status === 'Completed'
                                                         || selectedTicket.status === 'Resolved'
-                                                        || selectedTicket.status === 'Rejected'
-                                                        || allMembersResponded
                                                         || (user.access && !user.access.includes('Edit'));
 
                                                     return (
@@ -2947,121 +2987,121 @@ const AdminDashboard = () => {
                                                                     Status received from all members
                                                                 </p>
                                                             )}
+
+                                                            {/* Inline approval form — only visible if NOT disabled */}
+                                                            {showApprovalForm && !isDisabled && (
+                                                                <div className="mt-4 space-y-4">
+                                                                    {/* Receiver Name */}
+                                                                    <div>
+                                                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                                                            Receiver Name <span className="text-red-500">*</span>
+                                                                        </label>
+                                                                        <div className="min-h-[42px] w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg flex flex-wrap gap-1.5 items-center">
+                                                                            {approvalData.receivers.length === 0 && (
+                                                                                <span className="text-sm text-slate-400">Select receivers below…</span>
+                                                                            )}
+                                                                            {approvalData.receivers.map((name) => (
+                                                                                <span key={name} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                                                                                    {name}
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => setApprovalData({
+                                                                                            ...approvalData,
+                                                                                            receivers: approvalData.receivers.filter(r => r !== name)
+                                                                                        })}
+                                                                                        className="hover:text-primary/60 ml-0.5"
+                                                                                    >
+                                                                                        <span className="material-icons" style={{ fontSize: '13px' }}>close</span>
+                                                                                    </button>
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                        {(() => {
+                                                                            // Parse names that have already responded from managementComments
+                                                                            const alreadyNotified = new Set();
+                                                                            if (selectedTicket.managementComments) {
+                                                                                selectedTicket.managementComments.split('\n').forEach(line => {
+                                                                                    const commentPart = line.includes('|||') ? line.split('|||')[1] : line;
+                                                                                    const match = commentPart?.trim().match(/^([^[]+)\s*\[(?:APPROVED|REJECTED)\]/i);
+                                                                                    if (match) alreadyNotified.add(match[1].trim());
+                                                                                });
+                                                                            }
+                                                                            // Also exclude Manager if already approved
+                                                                            if (selectedTicket.adminManagerStatus?.toLowerCase().includes('approved')) {
+                                                                                users.filter(u => u.receiver_position === 'Manager').forEach(u => alreadyNotified.add(u.name));
+                                                                            }
+
+                                                                            const available = users.filter(u => u.can_receive_mail).map(u => u.name)
+                                                                                .filter(n => !approvalData.receivers.includes(n))
+                                                                                .filter(n => !alreadyNotified.has(n));
+
+                                                                            return available.length > 0 ? (
+                                                                                <div className="flex flex-wrap gap-2 mt-2">
+                                                                                    {available.map((name) => (
+                                                                                        <button
+                                                                                            key={name}
+                                                                                            type="button"
+                                                                                            onClick={() => setApprovalData({
+                                                                                                ...approvalData,
+                                                                                                receivers: [...approvalData.receivers, name]
+                                                                                            })}
+                                                                                            className="px-3 py-1 rounded-full text-xs font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-primary hover:text-primary transition-all"
+                                                                                        >
+                                                                                            + {name}
+                                                                                        </button>
+                                                                                    ))}
+                                                                                </div>
+                                                                            ) : null;
+                                                                        })()}
+                                                                    </div>
+
+                                                                    {/* Material Description */}
+                                                                    <div>
+                                                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                                                            {selectedTicket.category === 'Material request' ? 'Material Description' : 'Approval Justification'} {selectedTicket.adminManagerStatus?.toLowerCase() !== 'approved' && <span className="text-red-500">*</span>}
+                                                                        </label>
+                                                                        <textarea
+                                                                            rows="3"
+                                                                            placeholder={selectedTicket.category === 'Material request' ? "Describe the material details" : "Provide justification for this approval request"}
+                                                                            value={approvalData.description}
+                                                                            onChange={(e) => setApprovalData({ ...approvalData, description: e.target.value })}
+                                                                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary resize-none outline-none"
+                                                                        />
+                                                                    </div>
+
+                                                                    {/* Attachment */}
+                                                                    <div>
+                                                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Attachment (Optional)</label>
+                                                                        <input
+                                                                            type="file"
+                                                                            onChange={(e) => setApprovalData({ ...approvalData, file: e.target.files[0] })}
+                                                                            className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                                                                        />
+                                                                    </div>
+
+                                                                    {/* Send button */}
+                                                                    <div className="flex justify-end gap-3 pt-1">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setShowApprovalForm(false)}
+                                                                            className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                                                                        >
+                                                                            Cancel
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={isUpdating}
+                                                                            onClick={(e) => submitApprovalRequest(e, selectedTicket.ticket_id)}
+                                                                            className="px-4 py-2 bg-primary hover:bg-blue-600 text-white text-sm font-medium rounded-lg shadow-sm shadow-blue-500/30 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                                                        >
+                                                                            {isUpdating ? 'Sending…' : 'Send Request'}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </>
                                                     );
                                                 })()}
-
-                                                {/* Inline approval form */}
-                                                {showApprovalForm && (
-                                                    <div className="mt-4 space-y-4">
-                                                        {/* Receiver Name */}
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                                                Receiver Name <span className="text-red-500">*</span>
-                                                            </label>
-                                                            <div className="min-h-[42px] w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg flex flex-wrap gap-1.5 items-center">
-                                                                {approvalData.receivers.length === 0 && (
-                                                                    <span className="text-sm text-slate-400">Select receivers below…</span>
-                                                                )}
-                                                                {approvalData.receivers.map((name) => (
-                                                                    <span key={name} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
-                                                                        {name}
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => setApprovalData({
-                                                                                ...approvalData,
-                                                                                receivers: approvalData.receivers.filter(r => r !== name)
-                                                                            })}
-                                                                            className="hover:text-primary/60 ml-0.5"
-                                                                        >
-                                                                            <span className="material-icons" style={{ fontSize: '13px' }}>close</span>
-                                                                        </button>
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                            {(() => {
-                                                                // Parse names that have already responded from managementComments
-                                                                const alreadyNotified = new Set();
-                                                                if (selectedTicket.managementComments) {
-                                                                    selectedTicket.managementComments.split('\n').forEach(line => {
-                                                                        const commentPart = line.includes('|||') ? line.split('|||')[1] : line;
-                                                                        const match = commentPart?.trim().match(/^([^[]+)\s*\[(?:APPROVED|REJECTED)\]/i);
-                                                                        if (match) alreadyNotified.add(match[1].trim());
-                                                                    });
-                                                                }
-                                                                // Also exclude Manager if already approved
-                                                                if (selectedTicket.adminManagerStatus?.toLowerCase() === 'approved') {
-                                                                    alreadyNotified.add('Manager');
-                                                                }
-
-                                                                const available = users.filter(u => u.can_receive_mail).map(u => u.name)
-                                                                    .filter(n => !approvalData.receivers.includes(n))
-                                                                    .filter(n => !alreadyNotified.has(n));
-
-                                                                return available.length > 0 ? (
-                                                                    <div className="flex flex-wrap gap-2 mt-2">
-                                                                        {available.map((name) => (
-                                                                            <button
-                                                                                key={name}
-                                                                                type="button"
-                                                                                onClick={() => setApprovalData({
-                                                                                    ...approvalData,
-                                                                                    receivers: [...approvalData.receivers, name]
-                                                                                })}
-                                                                                className="px-3 py-1 rounded-full text-xs font-semibold border bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-primary hover:text-primary transition-all"
-                                                                            >
-                                                                                + {name}
-                                                                            </button>
-                                                                        ))}
-                                                                    </div>
-                                                                ) : null;
-                                                            })()}
-                                                        </div>
-
-                                                        {/* Material Description */}
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                                                {selectedTicket.category === 'Material request' ? 'Material Description' : 'Approval Justification'} {selectedTicket.adminManagerStatus?.toLowerCase() !== 'approved' && <span className="text-red-500">*</span>}
-                                                            </label>
-                                                            <textarea
-                                                                rows="3"
-                                                                placeholder={selectedTicket.category === 'Material request' ? "Describe the material details" : "Provide justification for this approval request"}
-                                                                value={approvalData.description}
-                                                                onChange={(e) => setApprovalData({ ...approvalData, description: e.target.value })}
-                                                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-primary resize-none outline-none"
-                                                            />
-                                                        </div>
-
-                                                        {/* Attachment */}
-                                                        <div>
-                                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Attachment (Optional)</label>
-                                                            <input
-                                                                type="file"
-                                                                onChange={(e) => setApprovalData({ ...approvalData, file: e.target.files[0] })}
-                                                                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                                                            />
-                                                        </div>
-
-                                                        {/* Send button */}
-                                                        <div className="flex justify-end gap-3 pt-1">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setShowApprovalForm(false)}
-                                                                className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
-                                                            >
-                                                                Cancel
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                disabled={isUpdating}
-                                                                onClick={(e) => submitApprovalRequest(e, selectedTicket.ticket_id)}
-                                                                className="px-4 py-2 bg-primary hover:bg-blue-600 text-white text-sm font-medium rounded-lg shadow-sm shadow-blue-500/30 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                                                            >
-                                                                {isUpdating ? 'Sending…' : 'Send Request'}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
                                             </div>
                                         )}
                                     </div>

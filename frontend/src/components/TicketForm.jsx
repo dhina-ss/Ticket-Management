@@ -248,14 +248,14 @@ const TicketForm = () => {
 
                 {/* ── Success Modal Overlay ── */}
                 {status === 'success' && ticketId && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                        <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-2xl mx-4 p-8 text-center">
+                    <div className="fixed top-0 left-0 w-full h-[100dvh] z-50 flex items-center justify-center bg-black/50 backdrop-blur-md">
+                        <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md mx-4 p-8 text-center text-slate-800 dark:text-white">
                             {/* Icon */}
-                            <div className="flex items-center justify-center w-24 h-24 rounded-full bg-green-50 dark:bg-green-900/20 mx-auto mb-5">
-                                <span className="material-icons text-green-500" style={{ fontSize: '50px' }}>check_circle</span>
+                            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-50 dark:bg-green-900/20 mx-auto mb-4">
+                                <span className="material-icons text-green-500" style={{ fontSize: '32px' }}>check_circle</span>
                             </div>
 
-                            <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Ticket Successfully Created!</h3>
+                            <h3 className="text-xl font-bold mb-2">Ticket Successfully Created!</h3>
                             <p className="text-slate-500 dark:text-slate-400 mb-7">Our admin team will contact you shortly.</p>
 
                             {/* Ticket ID + Copy */}

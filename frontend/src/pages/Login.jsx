@@ -225,6 +225,15 @@ const Login = () => {
                             {loading && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
                             {loading ? 'Signing in…' : 'Sign In'}
                         </button>
+
+                        <button
+                            type="button"
+                            onClick={() => navigate('/')}
+                            className="w-full py-3.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+                        >
+                            <span className="material-symbols-outlined text-lg">home</span>
+                            Go to Home
+                        </button>
                     </form>
                 </div>
                 <p className="mt-8 text-center text-slate-400 dark:text-slate-500 text-xs">

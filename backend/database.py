@@ -46,7 +46,6 @@ def get_cached_manager_name():
         else:
             _MANAGER_NAME_CACHE = "Manager"
     except Exception as e:
-        print(f"DEBUG: Error fetching manager name: {e}")
         _MANAGER_NAME_CACHE = "Manager"
     return _MANAGER_NAME_CACHE
 
@@ -65,6 +64,13 @@ def _row_to_ticket(row: dict) -> dict:
         # Fallback to the current manager in DB if no name in comments
         manager_name = get_cached_manager_name()
 
+    # Overall status calculation: if any tier rejected, overall is Rejected
+    mgr_status = row.get("admin_manager_status") or ""
+    mgmt_status = row.get("management_status") or ""
+    overall_status = row.get("status", "Not Started")
+    if "Rejected" in mgr_status or "Rejected" in mgmt_status:
+        overall_status = "Rejected"
+
     return {
         "ticket_id":              row.get("ticket_id", ""),
         "timestamp":              row["created_at"].strftime("%d-%m-%Y %I:%M %p") if row.get("created_at") else "",
@@ -75,13 +81,13 @@ def _row_to_ticket(row: dict) -> dict:
         "description":            row.get("description", ""),
         "attachment":             attachment_name,          # just the filename for URL building
         "assignee":               row.get("assignee", ""),
-        "status":                 "Rejected" if (row.get("admin_manager_status") == "Rejected" or row.get("management_status") == "Rejected") else row.get("status", "Not Started"),
+        "status":                 overall_status,
         "subCategory":            row.get("sub_category") or "",
         "adminDescription":       row.get("admin_description") or "",
         "admin_description":      row.get("admin_description") or "",
-        "adminManagerStatus":     row.get("admin_manager_status") or "",
+        "adminManagerStatus":     mgr_status,
         "managerName":            manager_name,
-        "managementStatus":       row.get("management_status") or "",
+        "managementStatus":       mgmt_status,
         "adminManagerComments":   manager_comments,
         "managementComments":     row.get("management_comments") or "",
         "branch":                 row.get("branch") or "",
@@ -102,6 +108,10 @@ def _row_to_ticket(row: dict) -> dict:
         "userConfirmation":       row.get("user_confirmation") or "Pending",
         "inProgressTime":         row["in_progress_time"].strftime("%d-%m-%Y %I:%M %p") if row.get("in_progress_time") else "",
         "email":                  row.get("email") or "",
+        "managementApprovals":    row.get("management_approvals") or [],
+        "adminComments":          row.get("admin_comments") or [],
+        "admin_comments":         row.get("admin_comments") or [],
+        "adminManagerAdminDesc":  row.get("admin_manager_admin_desc") or "",
     }
 
 
@@ -176,7 +186,11 @@ def init_db():
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS department TEXT;",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS support_type TEXT;",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS user_confirmation TEXT DEFAULT 'Pending';",
-            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email TEXT;"
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS email TEXT;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS management_approvals JSONB DEFAULT '[]'::JSONB;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_delete BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_comments JSONB DEFAULT '[]'::JSONB;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_manager_admin_desc TEXT;",
         ]
         try:
             conn = _get_conn()
@@ -186,11 +200,11 @@ def init_db():
                         cur.execute(stmt)
             conn.close()
         except Exception as e:
-            print(f"ERROR: init_db ALTER failed: {e}")
+            pass
 
         print("DEBUG: DB initialised.")
     except Exception as e:
-        print(f"ERROR: init_db failed: {e}")
+        pass
 
     # ---- admin_users table ----
     try:
@@ -230,7 +244,7 @@ def init_db():
         conn.close()
         print("DEBUG: admin_users table ready.")
     except Exception as e:
-        print(f"ERROR: admin_users init failed: {e}")
+        pass
 
     # ---- assignees table ----
     try:
@@ -250,7 +264,7 @@ def init_db():
         conn.close()
         print("DEBUG: assignees table ready.")
     except Exception as e:
-        print(f"ERROR: assignees init failed: {e}")
+        pass
 
     # ---- departments table ----
     try:
@@ -292,7 +306,7 @@ def init_db():
         conn.close()
         print("DEBUG: departments table ready.")
     except Exception as e:
-        print(f"ERROR: departments init failed: {e}")
+        pass
 
     # ---- categories table ----
     try:
@@ -312,7 +326,7 @@ def init_db():
         conn.close()
         print("DEBUG: categories table ready.")
     except Exception as e:
-        print(f"ERROR: categories init failed: {e}")
+        pass
 
     try:
         conn = _get_conn()
@@ -343,7 +357,7 @@ def init_db():
         conn.close()
         print("DEBUG: categories seeded.")
     except Exception as e:
-        print(f"ERROR: categories seeding failed: {e}")
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -527,7 +541,6 @@ def get_existing_ids() -> list:
         conn.close()
         return ids
     except Exception as e:
-        print(f"ERROR: get_existing_ids: {e}")
         return []
 
 
@@ -563,7 +576,6 @@ def get_max_sequential_id(prefix: str, suffix: str = "") -> int:
                         max_num = num
             return max_num
     except Exception as e:
-        print(f"ERROR: get_max_sequential_id: {e}")
         return 0
 
 
@@ -576,7 +588,6 @@ def get_ticket_by_id(ticket_id: str) -> dict | None:
         conn.close()
         return _row_to_ticket(row) if row else None
     except Exception as e:
-        print(f"ERROR: get_ticket_by_id: {e}")
         return None
 
 def get_attachment(ticket_id: str) -> dict | None:
@@ -594,7 +605,6 @@ def get_attachment(ticket_id: str) -> dict | None:
             }
         return None
     except Exception as e:
-        print(f"ERROR: get_attachment: {e}")
         return None
 
 
@@ -619,7 +629,6 @@ def get_all_tickets(support_types: list = None, assignee: str = None) -> list:
         conn.close()
         return [_row_to_ticket(r) for r in rows]
     except Exception as e:
-        print(f"ERROR: get_all_tickets: {e}")
         return []
 
 
@@ -641,6 +650,7 @@ def update_ticket_details(ticket_id: str, updates: dict) -> dict:
         "expense_amount": "expense_amount",
         "bill_attachment_name": "bill_attachment_name",
         "user_confirmation": "user_confirmation",
+        "admin_comments": "admin_comments",
     }
     # If user rejects the resolution, move back to Pending
     if updates.get("user_confirmation") == "No" and "status" not in updates:
@@ -651,8 +661,12 @@ def update_ticket_details(ticket_id: str, updates: dict) -> dict:
 
     for key, col in COLUMN_MAP.items():
         if key in updates:
+            val = updates[key]
+            # Wrap JSON types in psycopg2.extras.Json for correct adaptation
+            if isinstance(val, (list, dict)):
+                val = psycopg2.extras.Json(val)
             set_clauses.append(f"{col} = %s")
-            values.append(updates[key])
+            values.append(val)
 
     # Binary attachment update
     if "attachment_bytes" in updates:
@@ -688,11 +702,17 @@ def update_ticket_details(ticket_id: str, updates: dict) -> dict:
         return {"success": False, "error": str(e)}
 
 
-def update_approval_status(ticket_id: str, role: str, status: str, comments: str = "") -> dict:
+
+def update_approval_status(ticket_id: str, role: str, status: str, comments: str = "", responder_name: str = "Unknown", admin_description: str = None) -> dict:
     """
     role:   "Admin-Manager" | "Management" | "Admin"
     Updates the correct columns based on role.
+    For Management, all data is persisted as a structured JSON array in management_approvals.
     """
+
+    import json as _json
+    from datetime import datetime as _dt
+
     ROLE_STATUS_COL   = {
         "Admin-Manager": "admin_manager_status",
         "Management":    "management_status",
@@ -711,58 +731,101 @@ def update_approval_status(ticket_id: str, role: str, status: str, comments: str
 
     col = ROLE_STATUS_COL.get(role)
     comment_col = ROLE_COMMENT_COL.get(role)
+    ist_now = _dt.now().strftime("%d-%m-%Y %I:%M %p")
 
-    # For Management voting logic, we need to inspect the current comments first
-    final_status = status
-    if role == "Management" and status in ["Approved", "Rejected"]:
+    # ── Management: JSON-array approach ──────────────────────────────────────
+    if role == "Management":
         try:
             conn = _get_conn()
             with conn.cursor() as cur:
-                cur.execute(f"SELECT {comment_col} FROM tickets WHERE ticket_id = %s", (ticket_id,))
+                cur.execute(
+                    "SELECT management_approvals, management_status FROM tickets WHERE ticket_id = %s",
+                    (ticket_id,)
+                )
                 row = cur.fetchone()
-                existing_comments = row[0] if row else ""
             conn.close()
 
-            approved_count = existing_comments.count("[APPROVED]") if existing_comments else 0
-            rejected_count = existing_comments.count("[REJECTED]") if existing_comments else 0
-            
-            if status == "Approved":
-                approved_count += 1
-            else:
-                rejected_count += 1
+            approvals = row[0] if (row and row[0]) else []
+            if isinstance(approvals, str):
+                try:
+                    approvals = _json.loads(approvals)
+                except Exception:
+                    approvals = []
+            existing_statuses = row[1] if row else ""
 
-            if approved_count > rejected_count:
-                final_status = "Approved"
-            elif rejected_count > approved_count:
-                final_status = "Rejected"
+            # Find or create the entry for this responder
+            entry = next((e for e in approvals if e.get("name") == responder_name), None)
+            if entry is None:
+                entry = {"name": responder_name, "mail_receive": None, "decision_made": None, "comments": None, "admin_description": admin_description}
+                approvals.append(entry)
+
+            if admin_description:
+                entry["admin_description"] = admin_description
+                # Backward compatibility for 'admin_desc' as requested in JSON example
+                entry["admin_desc"] = admin_description
+
+            if status == "Pending":
+                entry["mail_receive"] = ist_now
+                entry["decision_made"] = None
+                entry["comments"] = None
+                entry["status"] = "Pending"
             else:
-                final_status = "Hold"
+                entry["decision_made"] = ist_now
+                entry["comments"] = (comments or status).strip()
+                entry["status"] = status
+
+            set_clauses.append("management_approvals = %s")
+            values.append(_json.dumps(approvals))
+
+            # Keep legacy management_status text in sync for backward compat
+            # Rebuild: "Name: Status, Name2: Status2"
+            status_parts = []
+            for e in approvals:
+                s = "Pending"
+                if e.get("decision_made"):
+                    c = (e.get("comments") or "").strip().lower()
+                    if "approved" in c:
+                        s = "Approved"
+                    elif "rejected" in c:
+                        s = "Rejected"
+                    elif "hold" in c:
+                        s = "Hold"
+                    else:
+                        s = "Approved"  # default when decision_made is set
+                status_parts.append(f"{e['name']}: {s}")
+            set_clauses.append("management_status = %s")
+            values.append(", ".join(status_parts))
+
+            # Update status time when a final decision lands
+            if status in ["Approved", "Rejected", "Hold"]:
+                set_clauses.append("management_status_time = NOW()")
+
+
+
         except Exception as e:
-            print(f"Error calculating management voting logic: {e}")
+            return {"success": False, "error": str(e)}
 
-    if col:
-        set_clauses.append(f"{col} = %s")
-        values.append(final_status)
-        # Update matching status timestamp purely natively, ONLY upon final decision (Approved/Rejected/Hold)
-        status_time_col = ROLE_STATUS_TIME_COL.get(role)
-        if status_time_col and final_status in ["Approved", "Rejected", "Hold"]:
-            set_clauses.append(f"{status_time_col} = NOW()")
-            
-        # Terminal "Rejected" status check
-        if final_status.strip().lower() == "rejected":
-            set_clauses.append("status = %s")
-            values.append("Rejected")
+    else:
+        # ── Admin-Manager: unchanged text-based logic ─────────────────────────
+        named_status = f"{responder_name}: {status}"
 
-    if comment_col and comments:
-        if role == "Management":
-             # Append new comments with a special separator containing the timestamp
-             # Natively passing NOW() formatted to the string concatenation
-             timestamp_expr = "to_char(NOW() AT TIME ZONE 'Asia/Kolkata', 'DD-MM-YYYY HH12:MI AM')"
-             set_clauses.append(f"{comment_col} = COALESCE({comment_col} || E'\\n' || {timestamp_expr} || '|||' || %s, {timestamp_expr} || '|||' || %s)")
-             values.extend([comments, comments])
-        else:
-             set_clauses.append(f"{comment_col} = %s")
-             values.append(comments)
+        if col:
+            set_clauses.append(f"{col} = %s")
+            values.append(named_status)
+
+            status_time_col = ROLE_STATUS_TIME_COL.get(role)
+            if status_time_col and status in ["Approved", "Rejected", "Hold"]:
+                set_clauses.append(f"{status_time_col} = NOW()")
+
+
+
+        if comment_col and comments:
+            set_clauses.append(f"{comment_col} = %s")
+            values.append(comments)
+
+        if role == "Admin-Manager" and admin_description:
+            set_clauses.append("admin_manager_admin_desc = %s")
+            values.append(admin_description)
 
     # "Admin" role — only update admin_description, no status cols
     if role == "Admin" and comments:
@@ -775,7 +838,7 @@ def update_approval_status(ticket_id: str, role: str, status: str, comments: str
     values.append(ticket_id)
     sql = f"UPDATE tickets SET {', '.join(set_clauses)} WHERE ticket_id = %s"
 
-    print(f"DEBUG: update_approval_status SQL={sql}, VALUES={values}")
+
 
     try:
         conn = _get_conn()
@@ -783,12 +846,11 @@ def update_approval_status(ticket_id: str, role: str, status: str, comments: str
             with conn.cursor() as cur:
                 cur.execute(sql, values)
                 if cur.rowcount == 0:
-                    print(f"WARNING: update_approval_status updated 0 rows for {ticket_id}")
+                    pass
                     return {"success": False, "error": f"No ticket found with ID: {ticket_id}"}
         conn.close()
         return {"success": True}
     except Exception as e:
-        print(f"ERROR: update_approval_status: {e}")
         return {"success": False, "error": str(e)}
 
 
@@ -812,7 +874,6 @@ def update_ticket_mail_time(ticket_id: str, role: str) -> dict:
         conn.close()
         return {"success": True}
     except Exception as e:
-        print(f"ERROR: update_ticket_mail_time: {e}")
         return {"success": False, "error": str(e)}
 
 
@@ -837,7 +898,6 @@ def get_assignees(support_type: str = None) -> list:
         conn.close()
         return [dict(r) for r in rows]
     except Exception as e:
-        print(f"ERROR: get_assignees: {e}")
         return []
 
 
@@ -867,7 +927,6 @@ def delete_assignee(assignee_id: int) -> bool:
         conn.close()
         return deleted
     except Exception as e:
-        print(f"ERROR: delete_assignee: {e}")
         return False
 
 def delete_assignee_by_name(name: str) -> bool:
@@ -881,7 +940,6 @@ def delete_assignee_by_name(name: str) -> bool:
         conn.close()
         return updated
     except Exception as e:
-        print(f"ERROR: delete_assignee_by_name: {e}")
         return False
 
 
@@ -898,7 +956,6 @@ def update_assignee(assignee_id: int, name: str, support_type: str) -> bool:
         conn.close()
         return updated
     except Exception as e:
-        print(f"ERROR: update_assignee: {e}")
         return False
         return False
 
@@ -924,7 +981,6 @@ def get_categories(support_type: str = None) -> list:
         conn.close()
         return [dict(r) for r in rows]
     except Exception as e:
-        print(f"ERROR: get_categories: {e}")
         return []
 
 def create_category(name: str, support_type: str) -> dict:
@@ -955,7 +1011,6 @@ def update_category(category_id: int, name: str, support_type: str) -> bool:
         conn.close()
         return updated
     except Exception as e:
-        print(f"ERROR: update_category: {e}")
         return False
 
 def delete_category(category_id: int) -> bool:
@@ -968,7 +1023,6 @@ def delete_category(category_id: int) -> bool:
         conn.close()
         return deleted
     except Exception as e:
-        print(f"ERROR: delete_category: {e}")
         return False
 
 
@@ -987,7 +1041,6 @@ def get_departments(support_type: str = None) -> list:
         conn.close()
         return [dict(r) for r in rows]
     except Exception as e:
-        print(f"ERROR: get_departments: {e}")
         return []
 
 def create_department(name: str, support_type: str) -> dict:
@@ -1018,7 +1071,6 @@ def update_department(department_id: int, name: str, support_type: str) -> bool:
         conn.close()
         return updated
     except Exception as e:
-        print(f"ERROR: update_department: {e}")
         return False
 
 def delete_department(department_id: int) -> bool:
@@ -1031,7 +1083,6 @@ def delete_department(department_id: int) -> bool:
         conn.close()
         return deleted
     except Exception as e:
-        print(f"ERROR: delete_department: {e}")
         return False
 
 
@@ -1057,7 +1108,6 @@ def soft_delete_ticket(ticket_id: str) -> dict:
         conn.close()
         return {"success": True}
     except Exception as e:
-        print(f"ERROR soft deleting ticket {ticket_id}: {e}")
         return {"success": False, "error": str(e)}
 
 def auto_confirm_stale_tickets() -> dict:
@@ -1077,11 +1127,10 @@ def auto_confirm_stale_tickets() -> dict:
                 cur.execute(sql)
                 count = cur.rowcount
                 if count > 0:
-                    print(f"DEBUG: Auto-confirmed {count} stale tickets.")
+                    pass
         conn.close()
         return {"success": True, "count": count}
     except Exception as e:
-        print(f"ERROR: Failed to auto-confirm stale tickets: {e}")
         return {"success": False, "error": str(e)}
 
 def delete_expired_attachments() -> dict:
@@ -1114,9 +1163,8 @@ def delete_expired_attachments() -> dict:
                 cur.execute(sql_bills)
                 bill_count = cur.rowcount
                 if req_count > 0 or bill_count > 0:
-                    print(f"DEBUG: Cleaned up {req_count} requester attachments and {bill_count} bill attachments.")
+                    pass
         conn.close()
         return {"success": True, "requester_count": req_count, "bill_count": bill_count}
     except Exception as e:
-        print(f"ERROR: Failed to delete expired attachments: {e}")
         return {"success": False, "error": str(e)}

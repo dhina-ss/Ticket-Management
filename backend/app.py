@@ -66,7 +66,6 @@ def send_approval_email(ticket_data, to_email, receiver_name, role="Management")
     if not all([EMAIL_SENDER, EMAIL_PASSWORD]):
         return
     if not to_email:
-        print(f"DEBUG: No email address for {receiver_name}. Skipping.")
         return
 
     try:
@@ -90,69 +89,144 @@ def send_approval_email(ticket_data, to_email, receiver_name, role="Management")
         # Gather approval history
         history_html = ""
         history_rows = []
+        admin_comments_history = ticket_data.get('admin_comments') or []
 
         # 1. Manager Approval
         mgr_status = ticket_data.get('adminManagerStatus', '')
+        actual_name = ""
+        actual_status = mgr_status or "Approved"
+        if ":" in mgr_status:
+            parts = mgr_status.split(":", 1)
+            actual_name = parts[0].strip()
+            actual_status = parts[1].strip()
+
         mgr_comments = ticket_data.get('adminManagerComments', '')
+        actual_comments = mgr_comments
+        # Remove name prefix from comments if it exists
+        if actual_name and actual_comments.startswith(actual_name + ":"):
+            actual_comments = actual_comments[len(actual_name)+1:].strip()
+
+        # Find Admin Description sent to Manager
+        mgr_admin_desc = ticket_data.get('adminManagerAdminDesc') or next((c['comment'] for c in reversed(admin_comments_history) if c.get('target_role') == 'Manager'), ticket_data.get('admin_description', ''))
+
         mgr_time = ticket_data.get('adminManagerStatusTime', '')
         if mgr_status or mgr_comments:
             history_rows.append({
-                "name": "Manager",
-                "status": mgr_status or "Approved",
-                "comments": mgr_comments or "No comments provided.",
+                "user_label": "Manager",
+                "name": actual_name,
+                "status": actual_status,
+                "comments": actual_comments or "No comments provided.",
+                "admin_description": mgr_admin_desc,
                 "time": mgr_time
             })
 
-        # 2. Management Approvals (from managementComments string)
-        mgmt_raw = ticket_data.get('managementComments', '')
-        if mgmt_raw:
-            import re
-            lines = [l.strip() for l in mgmt_raw.split('\n') if l.strip()]
-            for line in lines:
-                # Format: Timestamp ||| Name [STATUS]: Comment
-                parts = line.split('|||')
-                time_str = parts[0].strip() if len(parts) > 0 else ""
-                content = parts[1].strip() if len(parts) > 1 else line
-                
-                # Extract Name [STATUS]: Comment
-                match = re.match(r"^([^[]+)\s*\[(APPROVED|REJECTED|HOLD)\]:\s*(.*)$", content, re.IGNORECASE)
-                if match:
-                    history_rows.append({
-                        "name": match.group(1).strip(),
-                        "status": match.group(2).strip().capitalize(),
-                        "comments": match.group(3).strip(),
-                        "time": time_str
-                    })
-                else:
-                    # Fallback for unparsed lines
-                    history_rows.append({
-                        "name": "Management",
-                        "status": "Recorded",
-                        "comments": content,
-                        "time": time_str
-                    })
+        # 2. Management Approvals
+        mgmt_approvals = ticket_data.get('managementApprovals')
+        if mgmt_approvals and isinstance(mgmt_approvals, list) and len(mgmt_approvals) > 0:
+            for entry in mgmt_approvals:
+                if entry.get("decision_made"):
+                    raw_comments = entry.get("comments") or ""
+                    status = "Approved"
+                    if "rejected" in raw_comments.lower():
+                        status = "Rejected"
+                    elif "hold" in raw_comments.lower():
+                        status = "Hold"
+                    
+                    # Find Admin Description sent to this specific Management person
+                    approver_name = entry.get("name", "Unknown")
+                    mgmt_admin_desc = entry.get("admin_description") or entry.get("admin_desc") or \
+                                      next((c['comment'] for c in reversed(admin_comments_history) if c.get('target_role') == 'Management' and c.get('recipients') and approver_name in c.get('recipients', [])), 
+                                           next((c['comment'] for c in reversed(admin_comments_history) if c.get('target_role') == 'Management' and not c.get('recipients')), 
+                                                ticket_data.get('admin_description', '')))
 
-        if history_rows:
+                    history_rows.append({
+                        "user_label": "Management",
+                        "name": approver_name,
+                        "status": status,
+                        "comments": raw_comments or "No comments provided.",
+                        "admin_description": mgmt_admin_desc,
+                        "time": entry.get("decision_made")
+                    })
+        else:
+            # Legacy fallback
+            mgmt_raw = ticket_data.get('managementComments', '')
+            if mgmt_raw:
+                import re
+                lines = [l.strip() for l in mgmt_raw.split('\n') if l.strip()]
+                for line in lines:
+                    parts = line.split('|||')
+                    time_str = parts[0].strip() if len(parts) > 0 else ""
+                    content = parts[1].strip() if len(parts) > 1 else line
+                    
+                    match = re.match(r"^([^[]+)\s*\[(APPROVED|REJECTED|HOLD)\]:\s*(.*)$", content, re.IGNORECASE)
+                    if match:
+                        f_name = match.group(1).strip()
+                        # Fallback admin desc for legacy
+                        f_admin_desc = next((c['comment'] for c in admin_comments_history if c.get('target_role') == 'Management'), ticket_data.get('admin_description', ''))
+                        history_rows.append({
+                            "user_label": "Management",
+                            "name": f_name,
+                            "status": match.group(2).strip().capitalize(),
+                            "comments": match.group(3).strip(),
+                            "admin_description": f_admin_desc,
+                            "time": time_str
+                        })
+                    else:
+                        fallback_name = ""
+                        fallback_comments = content
+                        if ":" in content:
+                            fparts = content.split(":", 1)
+                            fallback_name = fparts[0].strip()
+                            fallback_comments = fparts[1].strip()
+
+                        mgmt_status = ticket_data.get('managementStatus', '')
+                        actual_stat = "Recorded"
+                        if fallback_name and mgmt_status:
+                            if f"{fallback_name}: Approved" in mgmt_status:
+                                actual_stat = "Approved"
+                            elif f"{fallback_name}: Rejected" in mgmt_status:
+                                actual_stat = "Rejected"
+                            elif f"{fallback_name}: Hold" in mgmt_status:
+                                actual_stat = "Hold"
+                            elif f"{fallback_name}: Pending" in mgmt_status:
+                                actual_stat = "Pending"
+                        
+                        f_admin_desc = next((c['comment'] for c in admin_comments_history if c.get('target_role') == 'Management'), ticket_data.get('admin_description', ''))
+                        history_rows.append({
+                            "user_label": "Management",
+                            "name": fallback_name,
+                            "status": actual_stat,
+                            "comments": fallback_comments,
+                            "admin_description": f_admin_desc,
+                            "time": time_str
+                        })
+
+        has_history = any(row['status'].lower() not in ['pending', 'recorded', ''] for row in history_rows)
+        if history_rows and has_history:
             rows_html = ""
             for row in history_rows:
                 status_color = "#16a34a" if row['status'].lower() == "approved" else "#dc2626" if row['status'].lower() == "rejected" else "#333"
                 rows_html += f"""
                 <tr>
-                  <td style="border: 1px solid #e2e8f0; padding: 8px;"><strong>{row['name']}</strong><br><small style="color:#64748b;">{row['time']}</small></td>
+                  <td style="border: 1px solid #e2e8f0; padding: 8px;"><strong>{row['user_label']}</strong><br><small style="color:#64748b;">{row['time']}</small></td>
+                  <td style="border: 1px solid #e2e8f0; padding: 8px; font-weight: 500;">{row['name']}</td>
                   <td style="border: 1px solid #e2e8f0; padding: 8px; color: {status_color}; font-weight: bold;">{row['status']}</td>
-                  <td style="border: 1px solid #e2e8f0; padding: 8px; font-style: italic;">{row['comments']}</td>
+                  <td style="border: 1px solid #e2e8f0; padding: 8px; font-style: italic; color: #475569;">{row['comments']}</td>
+                  <td style="border: 1px solid #e2e8f0; padding: 8px; background-color: #f8fafc; font-size: 12px; color: #64748b;">{row['admin_description']}</td>
                 </tr>
                 """
 
             history_html = f"""
             <h3 style="color:#2563eb;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-top:24px;">Approval History</h3>
             <table border="0" cellpadding="0" cellspacing="0" 
-                   style="border-collapse:collapse;width:100%;max-width:600px;margin-bottom:24px;font-size:13px;border: 1px solid #e2e8f0;">
+                   style="border-collapse:collapse;width:100%;max-width:700px;margin-bottom:24px;font-size:13px;border: 1px solid #e2e8f0;">
               <thead>
                 <tr style="background:#f8fafc;">
-                  <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left; width: 30%;">User</th>
-                  <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left; width: 20%;">Status</th>
-                  <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">Comments</th>
+                  <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left; width: 20%;">User</th>
+                  <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left; width: 15%;">Name</th>
+                  <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left; width: 10%;">Status</th>
+                  <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left; width: 25%;">Comments</th>
+                  <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left; width: 30%;">Admin Justification</th>
                 </tr>
               </thead>
               <tbody>
@@ -217,7 +291,7 @@ def send_approval_email(ticket_data, to_email, receiver_name, role="Management")
                 <td>{admin_name}</td>
               </tr>
               <tr>
-                <td><strong>Material Description</strong></td>
+                <td><strong>Admin Justification</strong></td>
                 <td style="white-space:pre-wrap;">{admin_desc}</td>
               </tr>
             </table>
@@ -284,8 +358,8 @@ def send_approval_email(ticket_data, to_email, receiver_name, role="Management")
         server.sendmail(EMAIL_SENDER, to_email, msg.as_string())
         server.quit()
 
-    except Exception as e:
-        print(f"ERROR: Failed to send email to {to_email}: {e}")
+    except Exception:
+        pass
 
 
 def send_new_ticket_notification(ticket_data, recipient_email):
@@ -348,8 +422,8 @@ def send_new_ticket_notification(ticket_data, recipient_email):
         server.sendmail(EMAIL_SENDER, recipient_email, msg.as_string())
         server.quit()
 
-    except Exception as e:
-        print(f"ERROR: Failed to send notification to {recipient_email}: {e}")
+    except Exception:
+        pass
 
 
 def send_completion_email(ticket_data):
@@ -452,8 +526,8 @@ def send_completion_email(ticket_data):
         server.sendmail(EMAIL_SENDER, to_email, msg.as_string())
         server.quit()
 
-    except Exception as e:
-        print(f"ERROR: Failed to send completion email to {to_email}: {e}")
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -869,6 +943,7 @@ def reset_password_route():
 @app.route('/api/tickets/<ticket_id>', methods=['PUT'])
 def update_ticket(ticket_id):
     try:
+        ticket_id = str(ticket_id).upper()
         # Check if request has form data (multipart)
         if request.content_type and request.content_type.startswith('multipart/form-data'):
             data = request.form
@@ -889,7 +964,31 @@ def update_ticket(ticket_id):
             bill_file = files['bill_attachment']
             if bill_file.filename != '':
                 updates['bill_attachment_bytes'] = bill_file.read()
+
+        # Capture Status Update Comments in Admin History
+        if 'status' in updates:
+            current_ticket = get_ticket_by_id(ticket_id)
+            if current_ticket:
+                existing_comments = current_ticket.get('admin_comments') or current_ticket.get('adminComments') or []
+                new_status = updates['status']
+                status_comment = ""
+                if new_status == 'Pending':
+                    status_comment = data.get('pending_comments', '')
+                elif new_status == 'Completed':
+                    status_comment = data.get('resolution_comments', '')
                 
+                if status_comment:
+                    admin_name = data.get('admin_name', 'Admin')
+                    import datetime
+                    existing_comments.append({
+                        "name": admin_name,
+                        "comment": status_comment,
+                        "timestamp": datetime.datetime.now().strftime("%d-%m-%Y %I:%M %p"),
+                        "target_role": "StatusUpdate",
+                        "status": new_status
+                    })
+                    updates['admin_comments'] = existing_comments
+
         if not updates:
             return jsonify({"error": "No fields to update"}), 400
             
@@ -1053,6 +1152,8 @@ def initiate_approval_flow(ticket_id):
     RECEIVER_POSITION_MAP = {u['name']: u.get('receiver_position', 'Management') for u in receivers_from_db}
 
     try:
+        import datetime
+        now = datetime.datetime.now()
         current_ticket = get_ticket_by_id(ticket_id)
         if not current_ticket:
             return jsonify({"error": "Ticket not found"}), 404
@@ -1074,12 +1175,26 @@ def initiate_approval_flow(ticket_id):
             attachment_bytes = file.read()
 
         # Get current time for approval_request_time
-        import datetime
-        now = datetime.datetime.now()
+        # Determine the target role for this request
+        is_manager_request = any(RECEIVER_POSITION_MAP.get(r) == "Manager" for r in receivers_list)
+        target_role = "Manager" if is_manager_request else "Management"
+
+        # Persist admin comments history
+        existing_admin_comments = current_ticket.get('admin_comments') or []
+        if description:
+            new_admin_entry = {
+                "name": admin_name,
+                "comment": description,
+                "timestamp": now.strftime("%d-%m-%Y %I:%M %p"),
+                "target_role": target_role,
+                "recipients": receivers_list
+            }
+            existing_admin_comments.append(new_admin_entry)
 
         # Persist admin description + attachment + approval request time
         ticket_updates = {
-            'approval_request_time': now
+            'approval_request_time': now,
+            'admin_comments': existing_admin_comments
         }
         if description:
             ticket_updates['admin_description'] = description
@@ -1107,35 +1222,38 @@ def initiate_approval_flow(ticket_id):
         }
 
         # Send one personalised email per receiver (Manager goes first)
+        # --- Perform DB-side updates synchronously (must finish before we respond) ---
         sent_to = []
         for receiver_name in ordered:
             to_email = RECEIVER_EMAIL_MAP.get(receiver_name, "")
-            # Role determined by DB receiver_position
             db_pos = RECEIVER_POSITION_MAP.get(receiver_name, "Management")
             role = "Admin-Manager" if db_pos == "Manager" else "Management"
-            send_approval_email(ticket_data, to_email=to_email, receiver_name=receiver_name, role=role)
-            
-            # Log exact timestamp of mail sent into PostgreSQL natively
+
+            # Log exact timestamp of mail sent into PostgreSQL
             update_ticket_mail_time(ticket_id, role)
-            
-            sent_to.append(receiver_name)
 
-        # Determine which status columns to update based on selected receivers' positions
-        update_admin_mgr = any(RECEIVER_POSITION_MAP.get(r) == "Manager" for r in ordered)
-        update_mgmt = any(RECEIVER_POSITION_MAP.get(r) == "Management" for r in ordered)
+            # Update approval status individually per receiver
+            update_approval_status(ticket_id, role, "Pending", responder_name=receiver_name, admin_description=final_admin_desc)
 
-        # Mark approval statuses as Pending
-        if update_admin_mgr:
-            update_approval_status(ticket_id, "Admin-Manager", "Pending")
-            update_ticket_details(ticket_id, {"admin_manager_has_mail": True})
+            if role == "Admin-Manager":
+                update_ticket_details(ticket_id, {"admin_manager_has_mail": True})
 
-        if update_mgmt:
-            update_approval_status(ticket_id, "Management", "Pending")
+            sent_to.append((receiver_name, to_email, role))
 
-        msg = f"Approval request sent to: {', '.join(sent_to)}."
+        # --- Fire SMTP sends asynchronously so the response is immediate ---
+        def _send_emails_bg(items, td):
+            for r_name, r_email, r_role in items:
+                try:
+                    send_approval_email(td, to_email=r_email, receiver_name=r_name, role=r_role)
+                except Exception as mail_err:
+                    pass
+
+        t = threading.Thread(target=_send_emails_bg, args=(sent_to, ticket_data), daemon=True)
+        t.start()
+
+        msg = f"Approval request sent to: {', '.join(n for n, _, _ in sent_to)}."
         return jsonify({"message": msg}), 200
     except Exception as e:
-        print(f"ERROR in initiate_approval_flow: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1148,6 +1266,31 @@ def approval_action_page(ticket_id, role):
         if not ticket:
             return "Ticket not found", 404
 
+        # --- Link Expiry Check ---
+        already_decided = False
+        if role == "Admin-Manager":
+            mgr_status = ticket.get('adminManagerStatus') or ""
+            if "Approved" in mgr_status or "Rejected" in mgr_status:
+                already_decided = True
+        elif role == "Management":
+            approvals = ticket.get('managementApprovals') or []
+            if isinstance(approvals, list):
+                responder_entry = next((e for e in approvals if e.get('name') == receiver_name), None)
+                if responder_entry and responder_entry.get('decision_made'):
+                    already_decided = True
+
+        if already_decided:
+            return f"""
+            <html><body style="font-family:sans-serif; background:#f4f6f8; display:flex; justify-content:center; align-items:center; height:100vh; margin:0;">
+                <div style="background:white; padding:40px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.12); text-align:center;">
+                    <h2 style="color:#64748b; margin-top:0;">Link Expired</h2>
+                    <p style="color:#333; font-size:16px;">You have already submitted a decision for this request.</p>
+                    <p style="color:#666; font-size:14px; margin-top:20px;">You can close this window now.</p>
+                </div>
+            </body></html>
+            """
+        # -------------------------
+
         # Attachment links
         requester_attachment_html = ""
         if ticket.get('attachment'):
@@ -1158,6 +1301,85 @@ def approval_action_page(ticket_id, role):
                     <a href="/api/tickets/{ticket_id}/attachment" target="_blank">View Image</a>
                 </span>
             </div>'''
+            
+        # Construct Management History Block
+        history_table_html = ""
+        history_rows = []
+        admin_comments_history = ticket.get('admin_comments') or []
+
+        # 1. Manager Approval
+        mgr_status = ticket.get('adminManagerStatus', '')
+        if mgr_status or ticket.get('adminManagerComments'):
+            mgr_actual_name = ""
+            mgr_actual_status = mgr_status
+            if ":" in mgr_status:
+                mgr_parts = mgr_status.split(":", 1)
+                mgr_actual_name = mgr_parts[0].strip()
+                mgr_actual_status = mgr_parts[1].strip()
+            
+            mgr_comments = ticket.get('adminManagerComments', '')
+            mgr_admin_desc = ticket.get('admin_manager_admin_desc') or next((c['comment'] for c in reversed(admin_comments_history) if c.get('target_role') == 'Manager'), ticket.get('admin_description', ''))
+            
+            history_rows.append({
+                "role": "Manager",
+                "name": mgr_actual_name or "Manager",
+                "status": mgr_actual_status,
+                "comments": mgr_comments or "-",
+                "admin_desc": mgr_admin_desc,
+                "time": ticket.get('adminManagerStatusTime', '')
+            })
+
+        # 2. Management Approvals
+        mgmt_approvals = ticket.get('managementApprovals') or []
+        for entry in mgmt_approvals:
+            if entry.get('decision_made'):
+                m_name = entry.get('name', 'Unknown')
+                m_status = entry.get('status') or "Approved"
+                m_comments = entry.get('comments') or "-"
+                m_admin_desc = entry.get('admin_desc') or entry.get('admin_description') or \
+                               next((c['comment'] for c in reversed(admin_comments_history) if c.get('target_role') == 'Management' and c.get('recipients') and m_name in c.get('recipients', [])), 
+                                    next((c['comment'] for c in reversed(admin_comments_history) if c.get('target_role') == 'Management' and not c.get('recipients')), 
+                                         ticket.get('admin_description', '')))
+                history_rows.append({
+                    "role": "Management",
+                    "name": m_name,
+                    "status": m_status,
+                    "comments": m_comments,
+                    "admin_desc": m_admin_desc,
+                    "time": entry.get('decision_made')
+                })
+
+        has_history = any(r['status'].lower() not in ['pending', 'recorded', ''] for r in history_rows)
+        history_table_html = ""
+        if history_rows and has_history:
+            rows_html = ""
+            for r in history_rows:
+                s_color = "#16a34a" if r['status'].lower() == "approved" else "#dc2626" if r['status'].lower() == "rejected" else "#333"
+                rows_html += f"""
+                <tr>
+                    <td style='border:1px solid #e2e8f0;padding:8px;'><strong>{r['role']}</strong><br><small style='color:#64748b;'>{r['time']}</small></td>
+                    <td style='border:1px solid #e2e8f0;padding:8px;'>{r['name']}</td>
+                    <td style='border:1px solid #e2e8f0;padding:8px;color:{s_color};font-weight:bold;'>{r['status']}</td>
+                    <td style='border:1px solid #e2e8f0;padding:8px;font-style:italic;'>{r['comments']}</td>
+                    <td style='border:1px solid #e2e8f0;padding:8px;background:#f8fafc;font-size:12px;'>{r['admin_desc']}</td>
+                </tr>
+                """
+            history_table_html = f"""
+            <div class='field'>
+                <span class='label'>Approval History:</span>
+                <table style='width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;border:1px solid #e2e8f0;'>
+                    <tr style='background:#f8fafc;'>
+                        <th style='border:1px solid #e2e8f0;padding:8px;text-align:left;'>User</th>
+                        <th style='border:1px solid #e2e8f0;padding:8px;text-align:left;'>Name</th>
+                        <th style='border:1px solid #e2e8f0;padding:8px;text-align:left;'>Status</th>
+                        <th style='border:1px solid #e2e8f0;padding:8px;text-align:left;'>Comments</th>
+                        <th style='border:1px solid #e2e8f0;padding:8px;text-align:left;'>Admin Description</th>
+                    </tr>
+                    {rows_html}
+                </table>
+            </div>
+            <hr>
+            """
 
         return f"""
         <html>
@@ -1201,19 +1423,9 @@ def approval_action_page(ticket_id, role):
 
                 <hr>
                 <div class="field"><span class="label">Admin Justification:</span>
-                    <span class="value">{ticket.get('adminDescription', '') or '—'}</span></div>
+                    <span class="value">{ticket.get('adminDescription') or ticket.get('admin_description') or ticket.get('adminManagerAdminDesc') or '—'}</span></div>
                 <hr>
-                {"".join([f'''
-                <div class="field"><span class="label">Manager Status:</span>
-                    <span class="value" style="font-weight:bold; color:{'#16a34a' if ticket.get('adminManagerStatus') == 'Approved' else '#dc2626'}">
-                        {ticket.get('adminManagerStatus', 'Pending')}
-                    </span>
-                </div>
-                <div class="field"><span class="label">Manager Comments:</span>
-                    <span class="value" style="font-style:italic;">{ticket.get('adminManagerComments', '') or 'No comments provided.'}</span>
-                </div>
-                <hr>
-                ''' if role == "Management" else ""])}
+                {history_table_html}
 
                 <form method="POST" action="/api/approval/action/{ticket_id}/{role}">
                     <input type="hidden" name="receiver_name" value="{receiver_name}" />
@@ -1234,20 +1446,47 @@ def approval_action_page(ticket_id, role):
 @app.route('/api/approval/action/<ticket_id>/<role>', methods=['POST'])
 def process_approval(ticket_id, role):
     try:
+        from database import get_ticket_by_id
         action   = request.form.get('action')
         comments = request.form.get('comments', '').strip()
         receiver = request.form.get('receiver_name', 'Unknown')
         status   = "Approved" if action == "Approve" else "Rejected"
         
-        # Prepend the name to the comments for all roles
-        if receiver != 'Unknown':
-            if comments:
-                comments = f"{receiver} [{status.upper()}]: {comments}"
-            else:
-                comments = f"{receiver} [{status.upper()}]: No comments provided."
+        ticket = get_ticket_by_id(ticket_id)
+        if not ticket:
+            return "Ticket not found", 404
 
-        print(f"DEBUG: process_approval: ticket_id={ticket_id}, role={role}, status={status}")
-        result = update_approval_status(ticket_id, role, status, comments)
+        # --- Link Expiry Check ---
+        already_decided = False
+        if role == "Admin-Manager":
+            mgr_status = ticket.get('adminManagerStatus') or ""
+            if "Approved" in mgr_status or "Rejected" in mgr_status:
+                already_decided = True
+        elif role == "Management":
+            approvals = ticket.get('managementApprovals') or []
+            if isinstance(approvals, list):
+                responder_entry = next((e for e in approvals if e.get('name') == receiver), None)
+                if responder_entry and responder_entry.get('decision_made'):
+                    already_decided = True
+
+        if already_decided:
+            return f"""
+            <html><body style="font-family:sans-serif; background:#f4f6f8; display:flex; justify-content:center; align-items:center; height:100vh; margin:0;">
+                <div style="background:white; padding:40px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.12); text-align:center;">
+                    <h2 style="color:#64748b; margin-top:0;">Link Expired</h2>
+                    <p style="color:#333; font-size:16px;">You have already submitted a decision for this request.</p>
+                    <p style="color:#666; font-size:14px; margin-top:20px;">You can close this window now.</p>
+                </div>
+            </body></html>
+            """
+        # -------------------------
+
+        # The name is stored as a separate key in the JSON, so we just save raw comments.
+        if not comments:
+            comments = "No comments provided."
+
+    
+        result = update_approval_status(ticket_id, role, status, comments, responder_name=receiver)
         if not result.get('success'):
             raise Exception(f"Database update failed: {result.get('error')}")
 
@@ -1278,7 +1517,7 @@ def bulk_delete_tickets():
     try:
         data = request.get_json()
         admin_email = data.get('admin_email', '')
-        if admin_email != 'admin@support.com':
+        if not admin_email or admin_email.strip().lower() != 'admin@support.com':
             return jsonify({"error": "Unauthorized. Only super-admin can delete tickets."}), 403
             
         ticket_ids = data.get('ticket_ids', [])
@@ -1300,7 +1539,6 @@ def bulk_delete_tickets():
             "errors": errors
         }), 200
     except Exception as e:
-        print(f"ERROR bulk deleting tickets: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/tickets/<ticket_id>', methods=['POST']) # Changed from DELETE to POST for consistency and body support
@@ -1308,7 +1546,7 @@ def delete_ticket_route(ticket_id):
     try:
         data = request.get_json() or {}
         admin_email = data.get('admin_email', '')
-        if admin_email != 'admin@support.com':
+        if not admin_email or admin_email.strip().lower() != 'admin@support.com':
             return jsonify({"error": "Unauthorized. Only super-admin can delete tickets."}), 403
             
         result = soft_delete_ticket(ticket_id)
@@ -1331,7 +1569,6 @@ def download_attachment(ticket_id):
             )
         return jsonify({"error": "Attachment not found"}), 404
     except Exception as e:
-        print(f"ERROR downloading attachment: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/', defaults={'path': ''})
