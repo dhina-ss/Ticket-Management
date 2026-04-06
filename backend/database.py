@@ -168,7 +168,7 @@ def init_db():
                 cur.execute(sql)
         conn.close()
 
-        # Safely add new timestamp tracking columns to existing table
+        # List of ALL columns to ensure they exist (for schema evolution)
         alter_statements = [
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_manager_mail_time TIMESTAMPTZ;",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_manager_status_time TIMESTAMPTZ;",
@@ -183,6 +183,7 @@ def init_db():
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS expense_amount NUMERIC(15,2);",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS bill_attachment BYTEA;",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS bill_attachment_name TEXT;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS branch TEXT;",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS department TEXT;",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS support_type TEXT;",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS user_confirmation TEXT DEFAULT 'Pending';",
@@ -191,6 +192,13 @@ def init_db():
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_delete BOOLEAN DEFAULT FALSE;",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_comments JSONB DEFAULT '[]'::JSONB;",
             "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_manager_admin_desc TEXT;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS sub_category TEXT;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_description TEXT;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_manager_status TEXT;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS management_status TEXT;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_manager_comments TEXT;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS management_comments TEXT;",
+            "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS approval_request_time TIMESTAMPTZ;"
         ]
         try:
             conn = _get_conn()
@@ -199,7 +207,7 @@ def init_db():
                     for stmt in alter_statements:
                         cur.execute(stmt)
             conn.close()
-        except Exception as e:
+        except Exception:
             pass
 
         print("DEBUG: DB initialised.")
