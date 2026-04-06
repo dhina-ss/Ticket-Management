@@ -1034,7 +1034,8 @@ def check_status_by_mobile(mobile):
         conn.close()
         if not rows:
             return jsonify({"error": "No tickets found for this mobile number"}), 404
-        return jsonify([_row_to_ticket(r) for r in rows]), 200
+        tickets = [_row_to_ticket(r) for r in rows]
+        return jsonify(tickets), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

@@ -55,14 +55,12 @@ def _row_to_ticket(row: dict) -> dict:
     
     # Try to extract manager name from comments, else use cached name
     manager_comments = row.get("admin_manager_comments") or ""
+    manager_status = row.get("admin_manager_status") or ""
     manager_name = "Manager"
     import re
-    match = re.match(r'^([^\[]+)\s*\[(?:APPROVED|REJECTED|HOLD)\]', manager_comments.strip(), re.I)
+    match = re.match(r'^([^:]+)\s*:\s*(APPROVED|REJECTED|HOLD)', manager_status.strip(), re.I)
     if match:
         manager_name = match.group(1).strip()
-    else:
-        # Fallback to the current manager in DB if no name in comments
-        manager_name = get_cached_manager_name()
 
     # Overall status calculation: if any tier rejected, overall is Rejected
     mgr_status = row.get("admin_manager_status") or ""
