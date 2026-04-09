@@ -617,7 +617,7 @@ def get_attachment(ticket_id: str) -> dict | None:
         return None
 
 
-def get_all_tickets(support_types: list = None, branch: str = None) -> list:
+def get_all_tickets(support_types: list = None, branches: list = None) -> list:
     try:
         conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -628,9 +628,9 @@ def get_all_tickets(support_types: list = None, branch: str = None) -> list:
                 query += " AND (support_type = ANY(%s::text[]) OR support_type IS NULL OR support_type = '')"
                 params.append(support_types)
             
-            if branch and branch != 'All':
-                query += " AND (branch = %s OR branch IS NULL OR branch = '')"
-                params.append(branch)
+            if branches and 'All' not in branches:
+                query += " AND (branch = ANY(%s::text[]))"
+                params.append(branches)
 
             query += " ORDER BY created_at DESC"
             cur.execute(query, params)
@@ -965,7 +965,6 @@ def update_assignee(assignee_id: int, name: str, support_type: str) -> bool:
         conn.close()
         return updated
     except Exception as e:
-        return False
         return False
 
 

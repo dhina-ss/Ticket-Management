@@ -51,6 +51,15 @@ const supportBadgeColor = (type) => {
 
 const SUPPORT_TYPE_OPTIONS = ['IT Support', 'Admin Support'];
 
+const BRANCH_OPTIONS = [
+    'All',
+    'Cotton Concepts HO, Coimbatore',
+    'Doctor Towels HO',
+    'Cotton Concepts, Vengamedu',
+    'Cotton Concepts, Karur',
+    'Doctor Towels, Karur'
+];
+
 const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser }) => {
     const [newUser, setNewUser] = useState({
         name: '', email: '', password: '',
@@ -59,7 +68,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
         add_as_assignee: false,
         can_receive_mail: false,
         receiver_position: '',
-        branch: 'All'
+        branch: ['All']
     });
     const [addError, setAddError] = useState('');
     const [addLoading, setAddLoading] = useState(false);
@@ -85,6 +94,18 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
         }));
     };
 
+    const toggleBranch = (branch) => {
+        setNewUser(p => {
+            if (branch === 'All') {
+                return { ...p, branch: ['All'] };
+            }
+            const newBranches = p.branch.includes(branch)
+                ? p.branch.filter(b => b !== branch)
+                : [...p.branch.filter(b => b !== 'All'), branch];
+            return { ...p, branch: newBranches.length ? newBranches : ['All'] };
+        });
+    };
+
     const closeModal = () => {
         setShowAddUser(false);
         setEditingUser(null);
@@ -96,7 +117,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
             add_as_assignee: false,
             can_receive_mail: false,
             receiver_position: '',
-            branch: 'All'
+            branch: ['All']
         });
     };
 
@@ -111,7 +132,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
             add_as_assignee: !!user.is_assignee,
             can_receive_mail: !!user.can_receive_mail,
             receiver_position: user.receiver_position || '',
-            branch: user.branch || 'All'
+            branch: (user.branch || 'All').split(',').map(s => s.trim())
         });
         setAddError('');
         setShowAddUser(true);
@@ -129,7 +150,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
             const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users';
             const method = editingUser ? 'PUT' : 'POST';
 
-            const payload = { ...newUser, access: newUser.access.join(','), support_type: newUser.support_type.join(',') };
+            const payload = { ...newUser, access: newUser.access.join(','), support_type: newUser.support_type.join(','), branch: newUser.branch.join(',') };
 
             const res = await (method === 'PUT' ? api.put(url, payload) : api.post(url, payload));
             const data = await res.data;
@@ -145,7 +166,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                     can_receive_mail: newUser.can_receive_mail,
                     receiver_position: newUser.receiver_position,
                     is_assignee: newUser.add_as_assignee,
-                    branch: newUser.branch
+                    branch: newUser.branch.join(',')
                 } : u));
             } else {
                 setUsers(prev => [...prev, {
@@ -158,7 +179,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                     can_receive_mail: newUser.can_receive_mail,
                     receiver_position: newUser.receiver_position,
                     is_assignee: newUser.add_as_assignee,
-                    branch: newUser.branch
+                    branch: newUser.branch.join(',')
                 }]);
             }
             closeModal();
@@ -342,46 +363,43 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                 </div>
                             )}
 
-                            {/* Branch Selection and Password */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                                        Branch <span className="text-red-400">*</span>
-                                    </label>
-                                    <div className="relative">
-                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">location_on</span>
-                                        <select
-                                            value={newUser.branch}
-                                            onChange={e => setNewUser(p => ({ ...p, branch: e.target.value }))}
-                                            className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-primary text-slate-800 dark:text-white appearance-none transition-shadow"
-                                            required
-                                        >
-                                            <option value="All">All Branches</option>
-                                            <option value="Cotton Concepts HO, Coimbatore">Cotton Concepts HO, Coimbatore</option>
-                                            <option value="Doctor Towels HO">Doctor Towels HO</option>
-                                            <option value="Cotton Concepts, Vengamedu">Cotton Concepts, Vengamedu</option>
-                                            <option value="Cotton Concepts, Karur">Cotton Concepts, Karur Factory</option>
-                                            <option value="Doctor Towels, Karur">Doctor Towels, Karur</option>
-                                        </select>
-                                        <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
-                                    </div>
+                            {/* Branch Selection */}
+                            <div className="mb-4">
+                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
+                                    Branch <span className="text-red-400">*</span>
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                    {BRANCH_OPTIONS.map(branch => (
+                                        <label key={branch}
+                                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 cursor-pointer transition-all select-none text-xs font-semibold ${newUser.branch.includes(branch)
+                                                ? 'border-primary bg-primary/10 text-primary'
+                                                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-primary/40'}`}>
+                                            <input type="checkbox" className="sr-only" checked={newUser.branch.includes(branch)}
+                                                onChange={() => toggleBranch(branch)} />
+                                            <span className={`h-3.5 w-3.5 rounded flex items-center justify-center shrink-0 border-2 transition-colors ${newUser.branch.includes(branch) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                {newUser.branch.includes(branch) && <span className="material-symbols-outlined text-white font-bold" style={{ fontSize: '10px' }}>check</span>}
+                                            </span>
+                                            {branch === 'All' ? 'All Branches' : branch}
+                                        </label>
+                                    ))}
                                 </div>
+                            </div>
 
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                                        Password {editingUser ? <span className="text-slate-400 font-normal">(Leave blank to keep current)</span> : <span className="text-red-400">*</span>}
-                                    </label>
-                                    <div className="relative">
-                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">lock</span>
-                                        <input required={!editingUser} type={showPwd ? 'text' : 'password'} value={newUser.password}
-                                            onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))}
-                                            className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-primary text-slate-800 dark:text-white"
-                                            placeholder="••••••••" />
-                                        <button type="button" onClick={() => setShowPwd(p => !p)}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                                            <span className="material-symbols-outlined text-base">{showPwd ? 'visibility_off' : 'visibility'}</span>
-                                        </button>
-                                    </div>
+                            {/* Password */}
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                    Password {editingUser ? <span className="text-slate-400 font-normal">(Leave blank to keep current)</span> : <span className="text-red-400">*</span>}
+                                </label>
+                                <div className="relative">
+                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">lock</span>
+                                    <input required={!editingUser} type={showPwd ? 'text' : 'password'} value={newUser.password}
+                                        onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))}
+                                        className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-primary text-slate-800 dark:text-white"
+                                        placeholder="••••••••" />
+                                    <button type="button" onClick={() => setShowPwd(p => !p)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                        <span className="material-symbols-outlined text-base">{showPwd ? 'visibility_off' : 'visibility'}</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1364,8 +1382,14 @@ const AdminDashboard = () => {
                 params.append('support_type', user.support_type);
             }
 
+            // user.branch is comma-separated: e.g. "Doctor Towels HO,Cotton Concepts, Karur"
+            // 'All' means no branch filter needed
             if (!isSuperAdmin && !isPowerUser && user?.branch && user.branch !== 'All') {
-                params.append('branch', user.branch);
+                // Only add filter if not all branches selected
+                const userBranches = user.branch.split(',').map(b => b.trim()).filter(Boolean);
+                if (userBranches.length > 0 && !userBranches.includes('All')) {
+                    params.append('branch', user.branch);
+                }
             }
 
             url += params.toString();

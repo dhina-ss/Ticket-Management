@@ -538,11 +538,14 @@ def send_completion_email(ticket_data):
 def get_tickets():
     try:
         support_type_arg = request.args.get("support_type")
-        branch = request.args.get("branch")
+        branch_arg = request.args.get("branch")
         support_types = None
+        branches = None
         if support_type_arg:
             support_types = [s.strip() for s in support_type_arg.split(',') if s.strip()]
-        return jsonify(get_all_tickets(support_types, branch)), 200
+        if branch_arg:
+            branches = [b.strip() for b in branch_arg.split(',') if b.strip()]
+        return jsonify(get_all_tickets(support_types, branches)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
