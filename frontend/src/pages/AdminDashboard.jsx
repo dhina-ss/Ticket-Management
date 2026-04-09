@@ -58,7 +58,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
         support_type: ['IT Support', 'Admin Support'],
         add_as_assignee: false,
         can_receive_mail: false,
-        receiver_position: ''
+        receiver_position: '',
+        branch: 'All'
     });
     const [addError, setAddError] = useState('');
     const [addLoading, setAddLoading] = useState(false);
@@ -94,7 +95,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
             support_type: ['IT Support', 'Admin Support'],
             add_as_assignee: false,
             can_receive_mail: false,
-            receiver_position: ''
+            receiver_position: '',
+            branch: 'All'
         });
     };
 
@@ -108,7 +110,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
             support_type: (user.support_type || 'IT Support,Admin Support').split(',').map(s => s.trim()),
             add_as_assignee: !!user.is_assignee,
             can_receive_mail: !!user.can_receive_mail,
-            receiver_position: user.receiver_position || ''
+            receiver_position: user.receiver_position || '',
+            branch: user.branch || 'All'
         });
         setAddError('');
         setShowAddUser(true);
@@ -141,7 +144,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                     support_type: newUser.support_type.join(','),
                     can_receive_mail: newUser.can_receive_mail,
                     receiver_position: newUser.receiver_position,
-                    is_assignee: newUser.add_as_assignee
+                    is_assignee: newUser.add_as_assignee,
+                    branch: newUser.branch
                 } : u));
             } else {
                 setUsers(prev => [...prev, {
@@ -153,7 +157,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                     created_at: 'Just now',
                     can_receive_mail: newUser.can_receive_mail,
                     receiver_position: newUser.receiver_position,
-                    is_assignee: newUser.add_as_assignee
+                    is_assignee: newUser.add_as_assignee,
+                    branch: newUser.branch
                 }]);
             }
             closeModal();
@@ -189,7 +194,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                     </span>
                                 </div>
                                 <h2 className="text-base font-bold text-slate-800 dark:text-white">
-                                    {editingUser ? 'Edit Admin User' : 'Add Admin User'}
+                                    {editingUser ? 'Edit User' : 'Add User'}
                                 </h2>
                             </div>
                             <button type="button" onClick={closeModal}
@@ -263,7 +268,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
                                     Support Type <span className="text-red-400">*</span>
                                 </label>
-                                <div className="flex gap-3">
+                                <div className="flex flex-wrap gap-3">
                                     {SUPPORT_TYPE_OPTIONS.map(type => (
                                         <label key={type}
                                             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all select-none text-sm font-semibold ${newUser.support_type.includes(type)
@@ -337,21 +342,46 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                 </div>
                             )}
 
-                            {/* Password */}
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                                    Password {editingUser ? <span className="text-slate-400 font-normal">(Leave blank to keep current)</span> : <span className="text-red-400">*</span>}
-                                </label>
-                                <div className="relative">
-                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">lock</span>
-                                    <input required={!editingUser} type={showPwd ? 'text' : 'password'} value={newUser.password}
-                                        onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))}
-                                        className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-primary text-slate-800 dark:text-white"
-                                        placeholder="••••••••" />
-                                    <button type="button" onClick={() => setShowPwd(p => !p)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                                        <span className="material-symbols-outlined text-base">{showPwd ? 'visibility_off' : 'visibility'}</span>
-                                    </button>
+                            {/* Branch Selection and Password */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                        Branch <span className="text-red-400">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">location_on</span>
+                                        <select
+                                            value={newUser.branch}
+                                            onChange={e => setNewUser(p => ({ ...p, branch: e.target.value }))}
+                                            className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-primary text-slate-800 dark:text-white appearance-none transition-shadow"
+                                            required
+                                        >
+                                            <option value="All">All Branches</option>
+                                            <option value="Cotton Concepts HO, Coimbatore">Cotton Concepts HO, Coimbatore</option>
+                                            <option value="Doctor Towels HO">Doctor Towels HO</option>
+                                            <option value="Cotton Concepts, Vengamedu">Cotton Concepts, Vengamedu</option>
+                                            <option value="Cotton Concepts, Karur">Cotton Concepts, Karur Factory</option>
+                                            <option value="Doctor Towels, Karur">Doctor Towels, Karur</option>
+                                        </select>
+                                        <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                        Password {editingUser ? <span className="text-slate-400 font-normal">(Leave blank to keep current)</span> : <span className="text-red-400">*</span>}
+                                    </label>
+                                    <div className="relative">
+                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">lock</span>
+                                        <input required={!editingUser} type={showPwd ? 'text' : 'password'} value={newUser.password}
+                                            onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))}
+                                            className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-primary text-slate-800 dark:text-white"
+                                            placeholder="••••••••" />
+                                        <button type="button" onClick={() => setShowPwd(p => !p)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                            <span className="material-symbols-outlined text-base">{showPwd ? 'visibility_off' : 'visibility'}</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -405,7 +435,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                     Loading users…
                 </div>
             ) : users.length === 0 ? (
-                <div className="text-center py-20 text-slate-400">No admin users found.</div>
+                <div className="text-center py-20 text-slate-400">No users found.</div>
             ) : (
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                     <table className="w-full text-sm">
@@ -416,6 +446,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Email</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Access</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Support Type</th>
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Branch</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Created At</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Mail</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Actions</th>
@@ -451,6 +482,11 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                                 </span>
                                             ))}
                                         </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300 text-xs">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                            {user.branch || 'All'}
+                                        </span>
                                     </td>
                                     <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{user.created_at || '—'}</td>
                                     <td className="px-6 py-4">
@@ -1328,10 +1364,8 @@ const AdminDashboard = () => {
                 params.append('support_type', user.support_type);
             }
 
-            // If not super-admin and not management/manager, filter by tickets assigned to current user or unassigned
-
-            if (!isSuperAdmin && !isPowerUser && user?.name) {
-                params.append('assignee', user.name);
+            if (!isSuperAdmin && !isPowerUser && user?.branch && user.branch !== 'All') {
+                params.append('branch', user.branch);
             }
 
             url += params.toString();

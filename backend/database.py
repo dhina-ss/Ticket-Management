@@ -240,12 +240,14 @@ def init_db():
                 # Add mail receiver settings
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS can_receive_mail BOOLEAN DEFAULT FALSE;")
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS receiver_position TEXT;")
+                # Add branch field for user filtering
+                cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS branch TEXT;")
                 # Seed default admin if table is empty
                 cur.execute("SELECT COUNT(*) FROM admin_users;")
                 if cur.fetchone()[0] == 0:
                     cur.execute(
-                        "INSERT INTO admin_users (name, email, password, access, support_type) VALUES (%s, %s, %s, %s, %s)",
-                        ("Admin User", "admin@support.com", "Admin@123", "View,Edit,Export", "IT Support,Admin Support")
+                        "INSERT INTO admin_users (name, email, password, access, support_type, branch) VALUES (%s, %s, %s, %s, %s, %s)",
+                        ("Admin User", "admin@support.com", "Admin@123", "View,Edit,Export", "IT Support,Admin Support", "All")
                     )
         conn.close()
         print("DEBUG: admin_users table ready.")
@@ -377,7 +379,7 @@ def get_admin_users() -> list:
         # We match by name and ensured it's not soft-deleted.
         cur.execute("""
             SELECT 
-                u.id, u.name, u.email, u.access, u.support_type, u.is_first_login, u.created_at, u.can_receive_mail, u.receiver_position,
+                u.id, u.name, u.email, u.access, u.support_type, u.is_first_login, u.created_at, u.can_receive_mail, u.receiver_position, u.branch,
                 EXISTS (SELECT 1 FROM assignees a WHERE a.name = u.name AND a.is_delete = false) as is_assignee
             FROM admin_users u
             ORDER BY u.created_at ASC;
@@ -391,32 +393,32 @@ def get_admin_users() -> list:
     return rows
 
 
-def create_admin_user(name: str, email: str, password: str, access: str = "View", support_type: str = "IT Support,Admin Support", can_receive_mail: bool = False, receiver_position: str = None) -> dict:
+def create_admin_user(name: str, email: str, password: str, access: str = "View", support_type: str = "IT Support,Admin Support", can_receive_mail: bool = False, receiver_position: str = None, branch: str = "") -> dict:
     conn = _get_conn()
     with conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, receiver_position) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;",
-                (name, email, password, access, support_type, can_receive_mail, receiver_position)
+                "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, receiver_position, branch) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
+                (name, email, password, access, support_type, can_receive_mail, receiver_position, branch)
             )
             new_id = cur.fetchone()[0]
     conn.close()
     return {"id": new_id}
 
 
-def update_admin_user(user_id: int, name: str, email: str, password: str, access: str, support_type: str, can_receive_mail: bool = False, receiver_position: str = None) -> bool:
+def update_admin_user(user_id: int, name: str, email: str, password: str, access: str, support_type: str, can_receive_mail: bool = False, receiver_position: str = None, branch: str = "") -> bool:
     conn = _get_conn()
     with conn:
         with conn.cursor() as cur:
             if password:
                 cur.execute(
-                    "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, receiver_position = %s WHERE id = %s;",
-                    (name, email, password, access, support_type, can_receive_mail, receiver_position, user_id)
+                    "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, receiver_position = %s, branch = %s WHERE id = %s;",
+                    (name, email, password, access, support_type, can_receive_mail, receiver_position, branch, user_id)
                 )
             else:
                 cur.execute(
-                    "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, receiver_position = %s WHERE id = %s;",
-                    (name, email, access, support_type, can_receive_mail, receiver_position, user_id)
+                    "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, receiver_position = %s, branch = %s WHERE id = %s;",
+                    (name, email, access, support_type, can_receive_mail, receiver_position, branch, user_id)
                 )
             updated = cur.rowcount > 0
     conn.close()
@@ -437,7 +439,7 @@ def verify_admin_login(email: str, password: str) -> dict | None:
     conn = _get_conn()
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT id, name, email, access, support_type, is_first_login, receiver_position FROM admin_users WHERE email = %s AND password = %s;",
+            "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch FROM admin_users WHERE email = %s AND password = %s;",
             (email, password)
         )
         row = cur.fetchone()
@@ -450,7 +452,8 @@ def verify_admin_login(email: str, password: str) -> dict | None:
             "access": row[3], 
             "support_type": row[4], 
             "is_first_login": row[5] if len(row) > 5 else True,
-            "receiver_position": row[6] if len(row) > 6 else None
+            "receiver_position": row[6] if len(row) > 6 else None,
+            "branch": row[7] if len(row) > 7 else ""
         }
     return None
 
@@ -614,7 +617,7 @@ def get_attachment(ticket_id: str) -> dict | None:
         return None
 
 
-def get_all_tickets(support_types: list = None, assignee: str = None) -> list:
+def get_all_tickets(support_types: list = None, branch: str = None) -> list:
     try:
         conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -625,9 +628,9 @@ def get_all_tickets(support_types: list = None, assignee: str = None) -> list:
                 query += " AND (support_type = ANY(%s::text[]) OR support_type IS NULL OR support_type = '')"
                 params.append(support_types)
             
-            if assignee:
-                query += " AND (assignee = %s OR assignee IS NULL OR assignee = '')"
-                params.append(assignee)
+            if branch and branch != 'All':
+                query += " AND (branch = %s OR branch IS NULL OR branch = '')"
+                params.append(branch)
 
             query += " ORDER BY created_at DESC"
             cur.execute(query, params)

@@ -538,11 +538,11 @@ def send_completion_email(ticket_data):
 def get_tickets():
     try:
         support_type_arg = request.args.get("support_type")
-        assignee = request.args.get("assignee")
+        branch = request.args.get("branch")
         support_types = None
         if support_type_arg:
             support_types = [s.strip() for s in support_type_arg.split(',') if s.strip()]
-        return jsonify(get_all_tickets(support_types, assignee)), 200
+        return jsonify(get_all_tickets(support_types, branch)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -570,12 +570,13 @@ def create_user():
         support_type = data.get("support_type", "IT Support,Admin Support").strip()
         can_receive_mail = data.get("can_receive_mail", False)
         receiver_position = data.get("receiver_position", "").strip() or None
+        branch = data.get("branch", "All").strip()
 
         if not name or not email or not password:
             return jsonify({"error": "Name, email and password are required."}), 400
         if len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
-        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, receiver_position)
+        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, receiver_position, branch)
         logging.info(f"Admin Action: Created new user - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
         
         # Optionally add as assignee
@@ -604,13 +605,14 @@ def edit_user(user_id):
         support_type = data.get("support_type", "IT Support,Admin Support").strip()
         can_receive_mail = data.get("can_receive_mail", False)
         receiver_position = data.get("receiver_position", "").strip() or None
+        branch = data.get("branch", "All").strip()
 
         if not name or not email:
             return jsonify({"error": "Name and email are required."}), 400
         if password and len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
         
-        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, receiver_position)
+        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, receiver_position, branch)
         if updated:
             logging.info(f"Admin Action: Edited user {user_id} - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
             
