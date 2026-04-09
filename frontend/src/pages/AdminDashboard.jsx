@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { DateRangePicker } from 'react-date-range';
@@ -1256,6 +1256,92 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
     );
 };
 
+const MultiSelectFilter = ({ label, icon, options, selected, onChange }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const toggleOption = (option) => {
+        if (option === 'All') {
+            onChange(['All']);
+        } else {
+            let next = selected.includes(option)
+                ? selected.filter(o => o !== option)
+                : [...selected.filter(o => o !== 'All'), option];
+            if (next.length === 0) next = ['All'];
+            onChange(next);
+        }
+    };
+
+    const isSelected = (option) => selected.includes(option);
+
+    const getDisplayValue = () => {
+        if (selected.includes('All')) return `All ${label}`;
+        if (selected.length === 1) return selected[0];
+        return `${selected.length} Selected`;
+    };
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className={`flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700 outline-none cursor-pointer ${isOpen ? 'ring-2 ring-primary border-primary bg-white dark:bg-slate-900 shadow-sm' : ''}`}
+            >
+                {icon && <span className="material-symbols-outlined text-slate-400 text-lg">{icon}</span>}
+                <span className={`truncate max-w-[100px] font-medium ${selected.includes('All') ? 'text-slate-500 dark:text-slate-400' : 'text-primary'}`}>
+                    {getDisplayValue()}
+                </span>
+                <span className={`material-symbols-outlined text-slate-400 text-base transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
+            </button>
+
+            {isOpen && (
+                <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] py-2 overflow-hidden animate-in fade-in zoom-in duration-150">
+                    <div className="max-h-72 overflow-y-auto custom-scrollbar">
+                        {options.map((option) => (
+                            <label
+                                key={option}
+                                className={`flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer group ${isSelected(option) ? 'bg-primary/5' : ''}`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    className="sr-only"
+                                    checked={isSelected(option)}
+                                    onChange={() => toggleOption(option)}
+                                />
+                                <div className={`h-5 w-5 rounded flex items-center justify-center border-2 transition-all ${isSelected(option) ? 'bg-primary border-primary shadow-sm shadow-primary/20' : 'border-slate-300 dark:border-slate-600 group-hover:border-primary/50'}`}>
+                                    {isSelected(option) && <span className="material-symbols-outlined text-white text-sm font-bold">check</span>}
+                                </div>
+                                <span className={`text-[13px] font-medium transition-colors ${isSelected(option) ? 'text-primary' : 'text-slate-600 dark:text-slate-300'}`}>
+                                    {option === 'All' ? `All ${label}` : option}
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                    {selected.length > 0 && !selected.includes('All') && (
+                        <div className="border-t border-slate-100 dark:border-slate-800 mt-1 pt-1 px-2">
+                            <button
+                                onClick={() => onChange(['All'])}
+                                className="w-full py-1.5 text-[11px] font-bold text-slate-400 hover:text-primary transition-colors uppercase tracking-wider"
+                            >
+                                Reset to All
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const AdminDashboard = () => {
     const navigate = useNavigate();
     const [tickets, setTickets] = useState([]);
@@ -1287,11 +1373,11 @@ const AdminDashboard = () => {
     const [departments, setDepartments] = useState([]);
     const [departmentsLoading, setDepartmentsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState('All');
-    const [branchFilter, setBranchFilter] = useState('All');
-    const [departmentFilter, setDepartmentFilter] = useState('All');
-    const [categoryFilter, setCategoryFilter] = useState('All');
-    const [assigneeFilter, setAssigneeFilter] = useState('All');
+    const [statusFilter, setStatusFilter] = useState(['All']);
+    const [branchFilter, setBranchFilter] = useState(['All']);
+    const [departmentFilter, setDepartmentFilter] = useState(['All']);
+    const [categoryFilter, setCategoryFilter] = useState(['All']);
+    const [assigneeFilter, setAssigneeFilter] = useState(['All']);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [isDateFilterActive, setIsDateFilterActive] = useState(false);
     const [dateRange, setDateRange] = useState([
@@ -1864,10 +1950,10 @@ const AdminDashboard = () => {
             (ticket.assignee && ticket.assignee.toLowerCase().includes(searchQuery.toLowerCase())) ||
             (ticket.category && ticket.category.toLowerCase().includes(searchQuery.toLowerCase()));
 
-        const matchesDepartment = departmentFilter === 'All' || ticket.department === departmentFilter;
-        const matchesBranch = branchFilter === 'All' || ticket.branch === branchFilter;
-        const matchesCategory = categoryFilter === 'All' || ticket.category === categoryFilter;
-        const matchesAssignee = assigneeFilter === 'All' || ticket.assignee === assigneeFilter;
+        const matchesDepartment = departmentFilter.includes('All') || departmentFilter.includes(ticket.department);
+        const matchesBranch = branchFilter.includes('All') || branchFilter.includes(ticket.branch);
+        const matchesCategory = categoryFilter.includes('All') || categoryFilter.includes(ticket.category);
+        const matchesAssignee = assigneeFilter.includes('All') || assigneeFilter.includes(ticket.assignee);
 
         let matchesDate = true;
         if (isDateFilterActive) {
@@ -1895,7 +1981,7 @@ const AdminDashboard = () => {
         return matchesSearch && matchesBranch && matchesDepartment && matchesCategory && matchesAssignee && matchesDate;
     });
 
-    const filteredTickets = baseFilteredTickets.filter(ticket => statusFilter === 'All' || ticket.status === statusFilter);
+    const filteredTickets = baseFilteredTickets.filter(ticket => statusFilter.includes('All') || statusFilter.includes(ticket.status));
 
     // Calculate Summary Stats based on current base filters (date, search, etc.)
     const totalTickets = baseFilteredTickets.length;
@@ -2015,69 +2101,41 @@ const AdminDashboard = () => {
                                 type="text" />
                         </div>
                         <div className="flex items-center gap-2 mx-4">
-                            <div className="relative w-[150px]">
-                                <select
-                                    value={branchFilter}
-                                    onChange={(e) => setBranchFilter(e.target.value)}
-                                    className="appearance-none w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary pl-3 pr-7 py-2.5 outline-none cursor-pointer"
-                                >
-                                    {uniqueBranches.map(branch => (
-                                        <option key={branch} value={branch}>{branch === 'All' ? 'All Branches' : branch}</option>
-                                    ))}
-                                </select>
-                                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-base">expand_more</span>
-                            </div>
-                            <div className="relative w-[150px]">
-                                <select
-                                    value={departmentFilter}
-                                    onChange={(e) => setDepartmentFilter(e.target.value)}
-                                    className="appearance-none w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary pl-3 pr-7 py-2.5 outline-none cursor-pointer"
-                                >
-                                    {uniqueDepartments.map(dept => (
-                                        <option key={dept} value={dept}>{dept === 'All' ? 'All Departments' : dept}</option>
-                                    ))}
-                                </select>
-                                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-base">expand_more</span>
-                            </div>
-                            <div className="relative w-[150px]">
-                                <select
-                                    value={categoryFilter}
-                                    onChange={(e) => setCategoryFilter(e.target.value)}
-                                    className="appearance-none w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary pl-3 pr-7 py-2.5 outline-none cursor-pointer"
-                                >
-                                    {uniqueCategories.map(cat => (
-                                        <option key={cat} value={cat}>{cat === 'All' ? 'All Categories' : cat}</option>
-                                    ))}
-                                </select>
-                                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-base">expand_more</span>
-                            </div>
-                            <div className="relative w-[150px]">
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="appearance-none w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary pl-3 pr-7 py-2.5 outline-none cursor-pointer"
-                                >
-                                    <option value="All">All Status</option>
-                                    <option value="Not Started">Not Started</option>
-                                    <option value="In Progress">In Progress</option>
-                                    <option value="Pending">Pending</option>
-                                    <option value="Completed">Completed</option>
-                                    <option value="Rejected">Rejected</option>
-                                </select>
-                                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-base">expand_more</span>
-                            </div>
-                            <div className="relative w-[150px]">
-                                <select
-                                    value={assigneeFilter}
-                                    onChange={(e) => setAssigneeFilter(e.target.value)}
-                                    className="appearance-none w-full bg-slate-100 dark:bg-sidebar-dark border-none rounded-lg text-sm focus:ring-2 focus:ring-primary pl-3 pr-7 py-2.5 outline-none cursor-pointer"
-                                >
-                                    {uniqueAssignees.map(assignee => (
-                                        <option key={assignee} value={assignee}>{assignee === 'All' ? 'All Assignees' : assignee}</option>
-                                    ))}
-                                </select>
-                                <span className="material-symbols-outlined pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-base">expand_more</span>
-                            </div>
+                            <MultiSelectFilter
+                                label="Branch"
+                                icon="location_on"
+                                options={uniqueBranches}
+                                selected={branchFilter}
+                                onChange={setBranchFilter}
+                            />
+                            <MultiSelectFilter
+                                label="Dept"
+                                icon="corporate_fare"
+                                options={uniqueDepartments}
+                                selected={departmentFilter}
+                                onChange={setDepartmentFilter}
+                            />
+                            <MultiSelectFilter
+                                label="Category"
+                                icon="category"
+                                options={uniqueCategories}
+                                selected={categoryFilter}
+                                onChange={setCategoryFilter}
+                            />
+                            <MultiSelectFilter
+                                label="Status"
+                                icon="checklist"
+                                options={['All', 'Not Started', 'In Progress', 'Pending', 'Completed', 'Rejected']}
+                                selected={statusFilter}
+                                onChange={setStatusFilter}
+                            />
+                            <MultiSelectFilter
+                                label="Assignee"
+                                icon="person"
+                                options={uniqueAssignees}
+                                selected={assigneeFilter}
+                                onChange={setAssigneeFilter}
+                            />
                             <button
                                 onClick={() => setShowDatePicker(!showDatePicker)}
                                 aria-label="Toggle date filter"
