@@ -2221,21 +2221,21 @@ const AdminDashboard = () => {
                             </button>
 
                             {/* Clear Filters Button */}
-                            {(searchQuery !== '' || statusFilter !== 'All' || branchFilter !== 'All' || departmentFilter !== 'All' || categoryFilter !== 'All' || assigneeFilter !== 'All' || isDateFilterActive) && (
+                            {(searchQuery !== '' || !statusFilter.includes('All') || !branchFilter.includes('All') || !departmentFilter.includes('All') || !categoryFilter.includes('All') || !assigneeFilter.includes('All') || isDateFilterActive) && (
                                 <button
                                     onClick={() => {
                                         setSearchQuery('');
-                                        setStatusFilter('All');
-                                        setBranchFilter('All');
-                                        setDepartmentFilter('All');
-                                        setCategoryFilter('All');
-                                        setAssigneeFilter('All');
+                                        setStatusFilter(['All']);
+                                        setBranchFilter(['All']);
+                                        setDepartmentFilter(['All']);
+                                        setCategoryFilter(['All']);
+                                        setAssigneeFilter(['All']);
                                         setIsDateFilterActive(false);
                                         setDateRange([{ startDate: new Date(), endDate: new Date(), key: 'selection' }]);
                                     }}
                                     aria-label="Clear all filters"
                                     title="Clear all filters"
-                                    className="flex items-center justify-center w-9 h-9 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm"
+                                    className="flex items-center justify-center w-9 h-9 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm animate-in fade-in zoom-in duration-200"
                                 >
                                     <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
                                 </button>
