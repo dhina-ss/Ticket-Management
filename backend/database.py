@@ -249,10 +249,20 @@ def init_db():
                         "INSERT INTO admin_users (name, email, password, access, support_type, branch) VALUES (%s, %s, %s, %s, %s, %s)",
                         ("Admin User", "admin@support.com", "Admin@123", "View,Edit,Export", "IT Support,Admin Support", "All")
                     )
+
+                # Migration: Replace ', ' in branch names with '_ '
+                cur.execute("UPDATE tickets SET branch = REPLACE(branch, ', ', '_ ') WHERE branch LIKE '%, %';")
+                cur.execute("UPDATE admin_users SET branch = REPLACE(branch, ', ', '_ ') WHERE branch LIKE '%, %';")
         conn.close()
+        
+        # Run auto-cleanup once per restart
+        delete_expired_attachments()
+        
         print("DEBUG: admin_users table ready.")
     except Exception as e:
+        print(f"DEBUG: init_db error: {e}")
         pass
+
 
     # ---- assignees table ----
     try:
@@ -1143,24 +1153,23 @@ def auto_confirm_stale_tickets() -> dict:
 
 def delete_expired_attachments() -> dict:
     """
-    Clears raw binary attachments older than 7 days to save space.
-    - Requester attachments: 7 days after created_at
-    - Bill attachments: 7 days after completed_at
+    Clears raw binary attachments older than 30 days to save space.
+    - Requester attachments: 30 days after created_at
+    - Bill attachments: 30 days after created_at (or completed_at if available)
     """
     sql_requester = """
         UPDATE tickets
         SET attachment = NULL,
-            attachment_name = attachment_name || ' (Deleted after 7 days)'
+            attachment_name = attachment_name || ' (Deleted after 30 days)'
         WHERE attachment IS NOT NULL
-          AND created_at < NOW() - INTERVAL '7 days';
+          AND created_at < NOW() - INTERVAL '30 days';
     """
     sql_bills = """
         UPDATE tickets
         SET bill_attachment = NULL,
-            bill_attachment_name = bill_attachment_name || ' (Deleted after 7 days)'
+            bill_attachment_name = bill_attachment_name || ' (Deleted after 30 days)'
         WHERE bill_attachment IS NOT NULL
-          AND completed_time IS NOT NULL
-          AND completed_time < NOW() - INTERVAL '7 days';
+          AND created_at < NOW() - INTERVAL '30 days';
     """
     try:
         conn = _get_conn()

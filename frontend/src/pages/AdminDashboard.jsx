@@ -53,12 +53,84 @@ const SUPPORT_TYPE_OPTIONS = ['IT Support', 'Admin Support'];
 
 const BRANCH_OPTIONS = [
     'All',
-    'Cotton Concepts HO, Coimbatore',
+    'Cotton Concepts HO_ Coimbatore',
     'Doctor Towels HO',
-    'Cotton Concepts, Vengamedu',
-    'Cotton Concepts, Karur',
-    'Doctor Towels, Karur'
+    'Cotton Concepts_ Vengamedu',
+    'Cotton Concepts_ Karur',
+    'Doctor Towels_ Karur'
 ];
+
+const MultiSelectFormDropdown = ({ label, icon, options, selected, onChange }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const toggleOption = (option) => {
+        if (option === 'All') {
+            onChange('All'); // For the toggleBranch logic in UsersView, it expects the branch name string
+        } else {
+            onChange(option);
+        }
+    };
+
+    const isSelected = (option) => selected.includes(option);
+
+    const getDisplayValue = () => {
+        if (selected.includes('All')) return `All ${label}`;
+        if (selected.length === 1) return selected[0];
+        return `${selected.length} Selected`;
+    };
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <div
+                onClick={() => setIsOpen(!isOpen)}
+                className={`flex items-center gap-3 w-full pl-3 pr-10 py-2.5 text-sm rounded-xl border cursor-pointer transition-all bg-slate-50 dark:bg-slate-800 ${isOpen ? 'ring-2 ring-primary border-primary bg-white dark:bg-slate-900 shadow-sm' : 'border-slate-200 dark:border-slate-700'}`}
+            >
+                {icon && <span className="material-symbols-outlined text-slate-400 text-lg">{icon}</span>}
+                <span className={`truncate font-medium ${selected.includes('All') ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`}>
+                    {getDisplayValue()}
+                </span>
+                <span className={`material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
+            </div>
+
+            {isOpen && (
+                <div className="absolute top-full left-0 mt-2 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] py-2 overflow-hidden animate-in fade-in zoom-in duration-150">
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                        {options.map((option) => (
+                            <label
+                                key={option}
+                                className={`flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer group ${isSelected(option) ? 'bg-primary/5' : ''}`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    className="sr-only"
+                                    checked={isSelected(option)}
+                                    onChange={() => toggleOption(option)}
+                                />
+                                <div className={`h-4.5 w-4.5 rounded flex items-center justify-center border-2 transition-all ${isSelected(option) ? 'bg-primary border-primary shadow-sm shadow-primary/20' : 'border-slate-300 dark:border-slate-600 group-hover:border-primary/50'}`}>
+                                    {isSelected(option) && <span className="material-symbols-outlined text-white text-[12px] font-bold">check</span>}
+                                </div>
+                                <span className={`text-[13px] font-medium transition-colors ${isSelected(option) ? 'text-primary' : 'text-slate-600 dark:text-slate-300'}`}>
+                                    {option === 'All' ? `All Branches` : option}
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser }) => {
     const [newUser, setNewUser] = useState({
@@ -261,6 +333,39 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                 </div>
                             </div>
 
+                            {/* Branch Selection and Password in same row */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                        Branch <span className="text-red-400">*</span>
+                                    </label>
+                                    <MultiSelectFormDropdown
+                                        label="Branches"
+                                        icon="location_on"
+                                        options={BRANCH_OPTIONS}
+                                        selected={newUser.branch}
+                                        onChange={toggleBranch}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                        Password {editingUser ? <span className="text-slate-400 font-normal">(Leave blank to keep current)</span> : <span className="text-red-400">*</span>}
+                                    </label>
+                                    <div className="relative">
+                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">lock</span>
+                                        <input required={!editingUser} type={showPwd ? 'text' : 'password'} value={newUser.password}
+                                            onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))}
+                                            className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-primary text-slate-800 dark:text-white"
+                                            placeholder="••••••••" />
+                                        <button type="button" onClick={() => setShowPwd(p => !p)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                            <span className="material-symbols-outlined text-base">{showPwd ? 'visibility_off' : 'visibility'}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Access */}
                             <div>
                                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
@@ -282,7 +387,6 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                     ))}
                                 </div>
                             </div>
-
 
                             {/* Support Type */}
                             <div>
@@ -362,46 +466,6 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                     </div>
                                 </div>
                             )}
-
-                            {/* Branch Selection */}
-                            <div className="mb-4">
-                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
-                                    Branch <span className="text-red-400">*</span>
-                                </label>
-                                <div className="flex flex-wrap gap-2">
-                                    {BRANCH_OPTIONS.map(branch => (
-                                        <label key={branch}
-                                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 cursor-pointer transition-all select-none text-xs font-semibold ${newUser.branch.includes(branch)
-                                                ? 'border-primary bg-primary/10 text-primary'
-                                                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-primary/40'}`}>
-                                            <input type="checkbox" className="sr-only" checked={newUser.branch.includes(branch)}
-                                                onChange={() => toggleBranch(branch)} />
-                                            <span className={`h-3.5 w-3.5 rounded flex items-center justify-center shrink-0 border-2 transition-colors ${newUser.branch.includes(branch) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'}`}>
-                                                {newUser.branch.includes(branch) && <span className="material-symbols-outlined text-white font-bold" style={{ fontSize: '10px' }}>check</span>}
-                                            </span>
-                                            {branch === 'All' ? 'All Branches' : branch}
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Password */}
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                                    Password {editingUser ? <span className="text-slate-400 font-normal">(Leave blank to keep current)</span> : <span className="text-red-400">*</span>}
-                                </label>
-                                <div className="relative">
-                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">lock</span>
-                                    <input required={!editingUser} type={showPwd ? 'text' : 'password'} value={newUser.password}
-                                        onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))}
-                                        className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-primary text-slate-800 dark:text-white"
-                                        placeholder="••••••••" />
-                                    <button type="button" onClick={() => setShowPwd(p => !p)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                                        <span className="material-symbols-outlined text-base">{showPwd ? 'visibility_off' : 'visibility'}</span>
-                                    </button>
-                                </div>
-                            </div>
                         </div>
 
                         {/* Footer */}
@@ -1468,9 +1532,9 @@ const AdminDashboard = () => {
                 params.append('support_type', user.support_type);
             }
 
-            // user.branch is comma-separated: e.g. "Doctor Towels HO,Cotton Concepts, Karur"
+            // user.branch is comma-separated: e.g. "Doctor Towels HO,Cotton Concepts_ Karur"
             // 'All' means no branch filter needed
-            if (!isSuperAdmin && !isPowerUser && user?.branch && user.branch !== 'All') {
+            if (!isSuperAdmin && user?.branch && user.branch !== 'All') {
                 // Only add filter if not all branches selected
                 const userBranches = user.branch.split(',').map(b => b.trim()).filter(Boolean);
                 if (userBranches.length > 0 && !userBranches.includes('All')) {
