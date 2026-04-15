@@ -3234,9 +3234,12 @@ const AdminDashboard = () => {
                                                                                     }
                                                                                 });
                                                                             }
-                                                                            // Also exclude Manager if mail is already sent
-                                                                            if (selectedTicket.adminManagerStatus || selectedTicket.adminManagerMailTime) {
-                                                                                users.filter(u => u.receiver_position === 'Manager').forEach(u => alreadyNotified.add(u.name));
+                                                                            // Exclude Managers who have already been notified (tracked in adminManagerStatus as "Name: Status")
+                                                                            if (selectedTicket.adminManagerStatus) {
+                                                                                selectedTicket.adminManagerStatus.split(',').forEach(part => {
+                                                                                    const namePart = part.split(':')[0].trim();
+                                                                                    if (namePart) alreadyNotified.add(namePart);
+                                                                                });
                                                                             }
 
                                                                             const available = users.filter(u => u.can_receive_mail && (!selectedTicket.supportType || (u.support_type && u.support_type.includes(selectedTicket.supportType))))
