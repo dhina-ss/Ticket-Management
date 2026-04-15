@@ -296,45 +296,83 @@ const TicketCard = ({ ticketData, onUpdateTicket }) => {
                                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight">APPROVAL HISTORY</h3>
                             </div>
 
-                            {/* MANAGER SECTION */}
-                            {ticketData.adminManagerStatus && (
-                                <div className="mb-6">
-                                    <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-2 ml-1">MANAGER</h4>
-                                    <div className={`border rounded-xl p-4 relative transition-colors duration-200 shadow-sm ${ticketData.adminManagerStatus.toLowerCase().includes('approved')
-                                        ? 'bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/50'
-                                        : ticketData.adminManagerStatus.toLowerCase().includes('pending')
-                                            ? 'bg-amber-50/60 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800/50'
-                                            : 'bg-rose-50/60 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/50'
-                                        }`}>
-                                        <div className="flex items-center justify-between mb-3">
-                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase">
-                                                {ticketData.managerName || 'Manager'}
-                                            </span>
-                                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${ticketData.adminManagerStatus.toLowerCase().includes('approved')
-                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                                : ticketData.adminManagerStatus.toLowerCase().includes('pending')
-                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                                                }`}>
-                                                {(ticketData.adminManagerStatus.includes(':') ? ticketData.adminManagerStatus.split(':').pop() : ticketData.adminManagerStatus).trim().toUpperCase()}
-                                            </span>
-                                        </div>
+                            {/* MANAGER SECTION — uses adminManagerApprovals for per-manager data */}
+                            {ticketData.adminManagerStatus && (() => {
+                                // Use adminManagerApprovals JSON if available, else fall back to text parsing
+                                let managerApprovals = [];
+                                if (ticketData.adminManagerApprovals && Array.isArray(ticketData.adminManagerApprovals) && ticketData.adminManagerApprovals.length > 0) {
+                                    managerApprovals = ticketData.adminManagerApprovals;
+                                } else {
+                                    // Fallback for legacy tickets without JSON
+                                    managerApprovals = ticketData.adminManagerStatus.split(',').map(part => {
+                                        const [name, ...rest] = part.split(':');
+                                        return { name: name?.trim(), status: rest.join(':').trim(), mail_receive: ticketData.adminManagerMailTime, decision_made: rest.join(':').trim().toLowerCase() !== 'pending' ? ticketData.adminManagerStatusTime : null };
+                                    }).filter(e => e.name);
+                                }
 
-                                        <div className="flex flex-col gap-1.5 border-t border-slate-200/60 dark:border-slate-700/60 pt-3">
-                                            {ticketData.adminManagerMailTime && (
-                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>send</span> Request Sent: {ticketData.adminManagerMailTime}
-                                                </p>
-                                            )}
-                                            {ticketData.adminManagerStatusTime && (
-                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>event_available</span> Status Updated: {ticketData.adminManagerStatusTime}
-                                                </p>
-                                            )}
+                                // Helper: is link expired? (mail sent & no decision & > 24h ago)
+                                const isLinkExpired = (entry) => {
+                                    if (!entry.mail_receive || entry.decision_made) return false;
+                                    const sent = new Date(entry.mail_receive.replace(/(\d{2})-(\d{2})-(\d{4})/, '$3-$2-$1'));
+                                    return !isNaN(sent) && (Date.now() - sent.getTime()) > 24 * 60 * 60 * 1000;
+                                };
+
+                                return (
+                                    <div className="mb-6">
+                                        <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-2 ml-1">MANAGER</h4>
+                                        <div className="space-y-3">
+                                            {managerApprovals.map((entry, idx) => {
+                                                const st = (entry.status || '').toLowerCase();
+                                                const isApproved = st.includes('approved');
+                                                const isPending = st.includes('pending');
+                                                const expired = isPending && isLinkExpired(entry);
+                                                const cardCls = isApproved
+                                                    ? 'bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/50'
+                                                    : isPending
+                                                        ? 'bg-amber-50/60 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800/50'
+                                                        : 'bg-rose-50/60 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/50';
+                                                const badgeCls = isApproved
+                                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                    : isPending
+                                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                        : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400';
+                                                return (
+                                                    <div key={idx} className={`border rounded-xl p-4 relative transition-colors duration-200 shadow-sm ${cardCls}`}>
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase">
+                                                                {entry.name || 'Manager'}
+                                                            </span>
+                                                            <div className="flex items-center gap-2">
+                                                                {expired && (
+                                                                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                                                                        Link Expired
+                                                                    </span>
+                                                                )}
+                                                                <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${badgeCls}`}>
+                                                                    {(entry.status || '-').toUpperCase()}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex flex-col gap-1.5 border-t border-slate-200/60 dark:border-slate-700/60 pt-3">
+                                                            {entry.mail_receive && (
+                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>send</span> Request Sent: {entry.mail_receive}
+                                                                </p>
+                                                            )}
+                                                            {entry.decision_made && (
+                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>event_available</span> Status Updated: {entry.decision_made}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {/* MANAGEMENT SECTION */}
                             {ticketData.managementStatus && ticketData.managementMailTime && (!ticketData.adminManagerStatus || ticketData.adminManagerStatus.trim().toLowerCase() !== 'rejected') && (() => {

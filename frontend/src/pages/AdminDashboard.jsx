@@ -2680,59 +2680,100 @@ const AdminDashboard = () => {
                                                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight">APPROVAL HISTORY</h3>
                                             </div>
 
-                                            {/* MANAGER SECTION */}
-                                            {selectedTicket.adminManagerStatus && (
-                                                <div className="mb-6">
-                                                    <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-2 ml-1">MANAGER</h4>
-                                                    <div className={`border rounded-xl p-4 relative transition-colors duration-200 ${selectedTicket.adminManagerStatus.toLowerCase().includes('approved')
-                                                        ? 'bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/50'
-                                                        : selectedTicket.adminManagerStatus.toLowerCase().includes('pending')
-                                                            ? 'bg-amber-50/60 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800/50'
-                                                            : 'bg-rose-50/60 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/50'
-                                                        }`}>
-                                                        <div className="flex items-center justify-between mb-4">
-                                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase">
-                                                                {selectedTicket.managerName || 'Manager'}
-                                                            </span>
-                                                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${selectedTicket.adminManagerStatus.toLowerCase().includes('approved')
-                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                                                : selectedTicket.adminManagerStatus.toLowerCase().includes('pending')
-                                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                                                                }`}>
-                                                                {(selectedTicket.adminManagerStatus.includes(':') ? selectedTicket.adminManagerStatus.split(':').pop() : selectedTicket.adminManagerStatus).trim()}
-                                                            </span>
-                                                        </div>
+                                            {/* MANAGER SECTION — supports multiple managers with per-manager data */}
+                                            {selectedTicket.adminManagerStatus && (() => {
+                                                // Use adminManagerApprovals JSON if available (new), else fall back to text parsing
+                                                let managerApprovals = [];
+                                                if (selectedTicket.adminManagerApprovals && Array.isArray(selectedTicket.adminManagerApprovals) && selectedTicket.adminManagerApprovals.length > 0) {
+                                                    managerApprovals = selectedTicket.adminManagerApprovals;
+                                                } else {
+                                                    // Fallback: parse from text fields for older tickets
+                                                    const commentsByManager = {};
+                                                    (selectedTicket.adminManagerComments || '').split('\n').forEach(line => {
+                                                        const colonIdx = line.indexOf(':');
+                                                        if (colonIdx > -1) {
+                                                            commentsByManager[line.substring(0, colonIdx).trim()] = line.substring(colonIdx + 1).trim();
+                                                        }
+                                                    });
+                                                    managerApprovals = selectedTicket.adminManagerStatus.split(',').map(part => {
+                                                        const [name, ...rest] = part.split(':');
+                                                        const n = name?.trim();
+                                                        return { name: n, status: rest.join(':').trim(), admin_description: selectedTicket.adminManagerAdminDesc || selectedTicket.adminDescription || '', mail_receive: selectedTicket.adminManagerMailTime, decision_made: selectedTicket.adminManagerStatusTime, comments: commentsByManager[n] || '' };
+                                                    }).filter(e => e.name);
+                                                }
 
-                                                        <div className="mb-4">
-                                                            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">
-                                                                Comments: <span className="normal-case text-slate-700 dark:text-slate-300 ml-1">{selectedTicket.adminManagerComments || '-'}</span>
-                                                            </p>
-                                                        </div>
+                                                // Comments from text field per manager (for both paths)
+                                                const commentsByManager = {};
+                                                (selectedTicket.adminManagerComments || '').split('\n').forEach(line => {
+                                                    const colonIdx = line.indexOf(':');
+                                                    if (colonIdx > -1) {
+                                                        commentsByManager[line.substring(0, colonIdx).trim()] = line.substring(colonIdx + 1).trim();
+                                                    }
+                                                });
 
-                                                        {/* ADMIN DESCRIPTION Box */}
-                                                        <div className="bg-white/60 dark:bg-slate-900/40 border border-white dark:border-slate-800/40 p-3 mb-4 rounded-lg shadow-sm">
-                                                            <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase leading-relaxed mb-1">ADMIN DESCRIPTION</p>
-                                                            <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                                                                {selectedTicket.adminComments && selectedTicket.adminComments.find(c => c.target_role === 'Manager')?.comment || selectedTicket.adminManagerAdminDesc || selectedTicket.adminDescription || '-'}
-                                                            </p>
-                                                        </div>
+                                                return (
+                                                    <div className="mb-6">
+                                                        <h4 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-2 ml-1">MANAGER</h4>
+                                                        <div className="flex flex-col gap-3">
+                                                            {managerApprovals.map((entry, idx) => {
+                                                                const st = (entry.status || '').toLowerCase();
+                                                                const isApproved = st.includes('approved');
+                                                                const isPending = st.includes('pending');
+                                                                const cardCls = isApproved
+                                                                    ? 'bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/50'
+                                                                    : isPending
+                                                                        ? 'bg-amber-50/60 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800/50'
+                                                                        : 'bg-rose-50/60 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/50';
+                                                                const badgeCls = isApproved
+                                                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                                    : isPending
+                                                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                                                        : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400';
+                                                                const managerComment = commentsByManager[entry.name] || entry.comments || '';
+                                                                return (
+                                                                    <div key={idx} className={`border rounded-xl p-4 relative transition-colors duration-200 ${cardCls}`}>
+                                                                        <div className="flex items-center justify-between mb-4">
+                                                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase">
+                                                                                {entry.name || 'Manager'}
+                                                                            </span>
+                                                                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${badgeCls}`}>
+                                                                                {entry.status || '-'}
+                                                                            </span>
+                                                                        </div>
 
-                                                        <div className="flex flex-col gap-1 mt-2">
-                                                            {selectedTicket.adminManagerMailTime && (
-                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>send</span> Request Sent: {selectedTicket.adminManagerMailTime}
-                                                                </p>
-                                                            )}
-                                                            {selectedTicket.adminManagerStatusTime && (
-                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>event_available</span> Status Updated: {selectedTicket.adminManagerStatusTime}
-                                                                </p>
-                                                            )}
+                                                                        <div className="mb-4">
+                                                                            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                                                                                Comments: <span className="normal-case text-slate-700 dark:text-slate-300 ml-1">{managerComment || '-'}</span>
+                                                                            </p>
+                                                                        </div>
+
+                                                                        {/* Per-manager admin description */}
+                                                                        <div className="bg-white/60 dark:bg-slate-900/40 border border-white dark:border-slate-800/40 p-3 mb-4 rounded-lg shadow-sm">
+                                                                            <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase leading-relaxed mb-1">ADMIN DESCRIPTION</p>
+                                                                            <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                                                                                {entry.admin_description || '-'}
+                                                                            </p>
+                                                                        </div>
+
+                                                                        <div className="flex flex-col gap-1 mt-2">
+                                                                            {entry.mail_receive && (
+                                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>send</span> Request Sent: {entry.mail_receive}
+                                                                                </p>
+                                                                            )}
+                                                                            {entry.decision_made && (
+                                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                                                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>event_available</span> Status Updated: {entry.decision_made}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
                                                     </div>
-                                                </div>
-                                            )}
+                                                );
+                                            })()}
 
                                             {/* MANAGEMENT SECTION */}
                                             {selectedTicket.managementStatus && (!selectedTicket.adminManagerStatus || !selectedTicket.adminManagerStatus.trim().toLowerCase().includes('rejected')) && (() => {

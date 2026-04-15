@@ -1277,9 +1277,21 @@ def approval_action_page(ticket_id, role):
         # --- Link Expiry Check ---
         already_decided = False
         if role == "Admin-Manager":
-            mgr_status = ticket.get('adminManagerStatus') or ""
-            if "Approved" in mgr_status or "Rejected" in mgr_status:
-                already_decided = True
+            # Check only THIS manager's decision, not any other manager (case-insensitive name match)
+            mgr_approvals = ticket.get('adminManagerApprovals') or []
+            if isinstance(mgr_approvals, list) and mgr_approvals:
+                this_entry = next((e for e in mgr_approvals if e.get('name', '').lower() == receiver_name.lower()), None)
+                if this_entry and this_entry.get('decision_made'):
+                    already_decided = True
+            else:
+                # Fallback for old tickets without JSON: check per-name in status string
+                mgr_status = ticket.get('adminManagerStatus') or ""
+                for part in mgr_status.split(','):
+                    if ':' in part:
+                        name_part, stat_part = part.split(':', 1)
+                        if name_part.strip().lower() == receiver_name.lower() and stat_part.strip() in ('Approved', 'Rejected', 'Hold'):
+                            already_decided = True
+                            break
         elif role == "Management":
             approvals = ticket.get('managementApprovals') or []
             if isinstance(approvals, list):
@@ -1315,27 +1327,50 @@ def approval_action_page(ticket_id, role):
         history_rows = []
         admin_comments_history = ticket.get('admin_comments') or []
 
-        # 1. Manager Approval
-        mgr_status = ticket.get('adminManagerStatus', '')
-        if mgr_status or ticket.get('adminManagerComments'):
-            mgr_actual_name = ""
-            mgr_actual_status = mgr_status
-            if ":" in mgr_status:
-                mgr_parts = mgr_status.split(":", 1)
-                mgr_actual_name = mgr_parts[0].strip()
-                mgr_actual_status = mgr_parts[1].strip()
-            
-            mgr_comments = ticket.get('adminManagerComments', '')
-            mgr_admin_desc = ticket.get('admin_manager_admin_desc') or next((c['comment'] for c in reversed(admin_comments_history) if c.get('target_role') == 'Manager'), ticket.get('admin_description', ''))
-            
-            history_rows.append({
-                "role": "Manager",
-                "name": mgr_actual_name or "Manager",
-                "status": mgr_actual_status,
-                "comments": mgr_comments or "-",
-                "admin_desc": mgr_admin_desc,
-                "time": ticket.get('adminManagerStatusTime', '')
-            })
+        # 1. Manager Approvals — one row per manager who has decided (use JSON array)
+        mgr_approvals_json = ticket.get('adminManagerApprovals') or []
+        if mgr_approvals_json:
+            # Parse per-manager comments from "Name: comment\nName2: comment2"
+            comments_by_manager = {}
+            for line in (ticket.get('adminManagerComments') or '').split('\n'):
+                if ':' in line:
+                    c_name, c_text = line.split(':', 1)
+                    comments_by_manager[c_name.strip().lower()] = c_text.strip()
+            # Use per-manager JSON (new approach)
+            for mgr_entry in mgr_approvals_json:
+                if mgr_entry.get('decision_made'):  # only show managers who have responded
+                    m_name = mgr_entry.get('name', 'Manager')
+                    history_rows.append({
+                        "role": "Manager",
+                        "name": m_name,
+                        "status": mgr_entry.get('status', ''),
+                        "comments": comments_by_manager.get(m_name.lower()) or mgr_entry.get('comments') or "-",
+                        "admin_desc": mgr_entry.get('admin_description', ''),
+                        "time": mgr_entry.get('decision_made', '')
+                    })
+        else:
+            # Fallback for old tickets: parse from text field (single-manager)
+            mgr_status = ticket.get('adminManagerStatus', '')
+            if mgr_status:
+                mgr_actual_name = ""
+                mgr_actual_status = mgr_status
+                if ":" in mgr_status:
+                    mgr_parts = mgr_status.split(":", 1)
+                    mgr_actual_name = mgr_parts[0].strip()
+                    mgr_actual_status = mgr_parts[1].strip()
+                mgr_comments = ticket.get('adminManagerComments', '')
+                mgr_admin_desc = ticket.get('admin_manager_admin_desc') or next(
+                    (c['comment'] for c in reversed(admin_comments_history) if c.get('target_role') == 'Manager'),
+                    ticket.get('admin_description', ''))
+                if mgr_actual_status.lower() not in ('pending', ''):
+                    history_rows.append({
+                        "role": "Manager",
+                        "name": mgr_actual_name or "Manager",
+                        "status": mgr_actual_status,
+                        "comments": mgr_comments or "-",
+                        "admin_desc": mgr_admin_desc,
+                        "time": ticket.get('adminManagerStatusTime', '')
+                    })
 
         # 2. Management Approvals
         mgmt_approvals = ticket.get('managementApprovals') or []
@@ -1467,9 +1502,21 @@ def process_approval(ticket_id, role):
         # --- Link Expiry Check ---
         already_decided = False
         if role == "Admin-Manager":
-            mgr_status = ticket.get('adminManagerStatus') or ""
-            if "Approved" in mgr_status or "Rejected" in mgr_status:
-                already_decided = True
+            # Check only THIS manager's decision, not any other manager (case-insensitive name match)
+            mgr_approvals = ticket.get('adminManagerApprovals') or []
+            if isinstance(mgr_approvals, list) and mgr_approvals:
+                this_entry = next((e for e in mgr_approvals if e.get('name', '').lower() == receiver.lower()), None)
+                if this_entry and this_entry.get('decision_made'):
+                    already_decided = True
+            else:
+                # Fallback for old tickets without JSON: check per-name in status string
+                mgr_status = ticket.get('adminManagerStatus') or ""
+                for part in mgr_status.split(','):
+                    if ':' in part:
+                        name_part, stat_part = part.split(':', 1)
+                        if name_part.strip().lower() == receiver.lower() and stat_part.strip() in ('Approved', 'Rejected', 'Hold'):
+                            already_decided = True
+                            break
         elif role == "Management":
             approvals = ticket.get('managementApprovals') or []
             if isinstance(approvals, list):

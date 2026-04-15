@@ -110,6 +110,7 @@ def _row_to_ticket(row: dict) -> dict:
         "adminComments":          row.get("admin_comments") or [],
         "admin_comments":         row.get("admin_comments") or [],
         "adminManagerAdminDesc":  row.get("admin_manager_admin_desc") or "",
+        "adminManagerApprovals":  row.get("admin_manager_approvals") or [],
     }
 
 
@@ -243,6 +244,8 @@ def init_db():
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS receiver_position TEXT;")
                 # Add branch field for user filtering
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS branch TEXT;")
+                # Add per-manager approvals tracking (like management_approvals)
+                cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_manager_approvals JSONB DEFAULT '[]'::jsonb;")
                 # Seed default admin if table is empty
                 cur.execute("SELECT COUNT(*) FROM admin_users;")
                 if cur.fetchone()[0] == 0:
@@ -826,22 +829,70 @@ def update_approval_status(ticket_id: str, role: str, status: str, comments: str
             return {"success": False, "error": str(e)}
 
     else:
-        # ── Admin-Manager: unchanged text-based logic ─────────────────────────
-        named_status = f"{responder_name}: {status}"
+        # ── Admin-Manager: append logic (supports multiple managers) ───────────
+        # Read existing status, comments, and per-manager approvals JSON
+        try:
+            _conn = _get_conn()
+            with _conn.cursor() as _cur:
+                _cur.execute(
+                    "SELECT admin_manager_status, admin_manager_comments, admin_manager_approvals FROM tickets WHERE ticket_id = %s",
+                    (ticket_id,)
+                )
+                _existing = _cur.fetchone()
+            _conn.close()
+        except Exception:
+            _existing = None
+
+        existing_status_str   = (_existing[0] if _existing and _existing[0] else "").strip()
+        existing_comments_str = (_existing[1] if _existing and _existing[1] else "").strip()
+        existing_approvals    = _existing[2] if (_existing and _existing[2]) else []
+        if isinstance(existing_approvals, str):
+            try:
+                existing_approvals = _json.loads(existing_approvals)
+            except Exception:
+                existing_approvals = []
+
+        # Merge: update existing entry for this manager or append new one
+        status_parts = {}
+        for s in existing_status_str.split(','):
+            s = s.strip()
+            if ':' in s:
+                k, v = s.split(':', 1)
+                status_parts[k.strip()] = v.strip()
+        status_parts[responder_name] = status
+        new_status_str = ", ".join(f"{k}: {v}" for k, v in status_parts.items())
+
+        # Per-manager approvals JSON — find or create entry
+        mgr_entry = next((e for e in existing_approvals if e.get('name') == responder_name), None)
+        if mgr_entry is None:
+            mgr_entry = {'name': responder_name, 'mail_receive': None, 'decision_made': None, 'status': 'Pending', 'admin_description': admin_description}
+            existing_approvals.append(mgr_entry)
+
+        if status == 'Pending':
+            mgr_entry['mail_receive'] = ist_now
+            mgr_entry['admin_description'] = admin_description or ''
+            mgr_entry['status'] = 'Pending'
+        else:
+            mgr_entry['decision_made'] = ist_now
+            mgr_entry['status'] = status
+
+        set_clauses.append("admin_manager_approvals = %s")
+        values.append(_json.dumps(existing_approvals))
 
         if col:
             set_clauses.append(f"{col} = %s")
-            values.append(named_status)
+            values.append(new_status_str)
 
             status_time_col = ROLE_STATUS_TIME_COL.get(role)
             if status_time_col and status in ["Approved", "Rejected", "Hold"]:
                 set_clauses.append(f"{status_time_col} = NOW()")
 
-
-
         if comment_col and comments:
+            # Append new comment for this manager, preserving previous comments
+            new_comment_line = f"{responder_name}: {comments}"
+            new_comments_str = (existing_comments_str + "\n" + new_comment_line).strip() if existing_comments_str else new_comment_line
             set_clauses.append(f"{comment_col} = %s")
-            values.append(comments)
+            values.append(new_comments_str)
 
         if role == "Admin-Manager" and admin_description:
             set_clauses.append("admin_manager_admin_desc = %s")
