@@ -139,6 +139,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
         support_type: ['IT Support', 'Admin Support'],
         add_as_assignee: false,
         can_receive_mail: false,
+        can_send_mail: false,
         receiver_position: '',
         branch: ['All']
     });
@@ -188,6 +189,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
             support_type: ['IT Support', 'Admin Support'],
             add_as_assignee: false,
             can_receive_mail: false,
+            can_send_mail: false,
             receiver_position: '',
             branch: ['All']
         });
@@ -203,6 +205,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
             support_type: (user.support_type || 'IT Support,Admin Support').split(',').map(s => s.trim()),
             add_as_assignee: !!user.is_assignee,
             can_receive_mail: !!user.can_receive_mail,
+            can_send_mail: !!user.can_send_mail,
             receiver_position: user.receiver_position || '',
             branch: (user.branch || 'All').split(',').map(s => s.trim())
         });
@@ -236,6 +239,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                     access: newUser.access.join(','),
                     support_type: newUser.support_type.join(','),
                     can_receive_mail: newUser.can_receive_mail,
+                    can_send_mail: newUser.can_send_mail,
                     receiver_position: newUser.receiver_position,
                     is_assignee: newUser.add_as_assignee,
                     branch: newUser.branch.join(',')
@@ -249,6 +253,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                     id: data.id,
                     created_at: 'Just now',
                     can_receive_mail: newUser.can_receive_mail,
+                    can_send_mail: newUser.can_send_mail,
                     receiver_position: newUser.receiver_position,
                     is_assignee: newUser.add_as_assignee,
                     branch: newUser.branch.join(',')
@@ -441,7 +446,21 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                         <div className={`w-10 h-5 rounded-full transition-colors ${newUser.can_receive_mail ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
                                         <div className={`absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform ${newUser.can_receive_mail ? 'translate-x-5' : 'translate-x-0'}`}></div>
                                     </div>
-                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Need to send mail</span>
+                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Access to receive mail</span>
+                                </label>
+
+                                <label className="flex items-center gap-2 cursor-pointer group">
+                                    <div className="relative flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={newUser.can_send_mail}
+                                            onChange={e => setNewUser(p => ({ ...p, can_send_mail: e.target.checked }))}
+                                            className="sr-only"
+                                        />
+                                        <div className={`w-10 h-5 rounded-full transition-colors ${newUser.can_send_mail ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                                        <div className={`absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform ${newUser.can_send_mail ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                    </div>
+                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Access to send mail</span>
                                 </label>
                             </div>
 
@@ -1611,7 +1630,7 @@ const AdminDashboard = () => {
             fetchAssignees(); // Fetch assignees on load
             fetchCategories(); // Fetch categories on load
             fetchDepartments(); // Fetch departments on load
-            if (user.email === 'admin@support.com') fetchUsers(); // Fetch users on load if admin
+            fetchUsers(); // Fetch users on load to populate receivers list
         }
     }, [user]);
 
@@ -3115,8 +3134,8 @@ const AdminDashboard = () => {
 
                                             </div>
                                         </div>
-                                        {/* Request Approval section — for Material request, Admin Support, OR IT Support type */}
-                                        {(selectedTicket.category === 'Material request' || selectedTicket.supportType?.includes('Admin Support') || selectedTicket.supportType?.includes('IT Support')) && (
+                                        {/* Request Approval section — allowed if user has send mail access, or for specific request types */}
+                                        {(user?.can_send_mail || isSuperAdmin || selectedTicket.category === 'Material request' || selectedTicket.supportType?.includes('Admin Support') || selectedTicket.supportType?.includes('IT Support')) && (
                                             <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                                                 {/* Toggle button — disabled until status & assignee chosen */}
                                                 {/* Compute whether all members have responded */}
@@ -3129,8 +3148,8 @@ const AdminDashboard = () => {
                                                             if (match) respondedNames.add(match[1].trim());
                                                         });
                                                     }
-                                                    // Dynamic check based on users who have mail enabled
-                                                    const mailUsers = users.filter(u => u.can_receive_mail);
+                                                    // Dynamic check based on users who have mail enabled and match ticket's support type
+                                                    const mailUsers = users.filter(u => u.can_receive_mail && (!selectedTicket.supportType || (u.support_type && u.support_type.includes(selectedTicket.supportType))));
                                                     const managementNames = mailUsers.filter(u => u.receiver_position === 'Management').map(u => u.name);
                                                     const adminManagerNames = mailUsers.filter(u => u.receiver_position === 'Manager').map(u => u.name);
 
@@ -3142,7 +3161,8 @@ const AdminDashboard = () => {
                                                     const isDisabled = !updateAssignee || !updateStatus
                                                         || selectedTicket.status === 'Completed'
                                                         || selectedTicket.status === 'Resolved'
-                                                        || (user.access && !user.access.includes('Edit'));
+                                                        || (user.access && !user.access.includes('Edit'))
+                                                        || (!isSuperAdmin && !user.can_send_mail);
 
                                                     return (
                                                         <>
@@ -3206,12 +3226,21 @@ const AdminDashboard = () => {
                                                                                     if (match) alreadyNotified.add(match[1].trim());
                                                                                 });
                                                                             }
-                                                                            // Also exclude Manager if already approved
-                                                                            if (selectedTicket.adminManagerStatus?.toLowerCase().includes('approved')) {
+                                                                            // Exclude Management users who were already sent an email
+                                                                            if (selectedTicket.managementStatus) {
+                                                                                selectedTicket.managementStatus.split(',').forEach(part => {
+                                                                                    if (part.includes(':')) {
+                                                                                        alreadyNotified.add(part.split(':')[0].trim());
+                                                                                    }
+                                                                                });
+                                                                            }
+                                                                            // Also exclude Manager if mail is already sent
+                                                                            if (selectedTicket.adminManagerStatus || selectedTicket.adminManagerMailTime) {
                                                                                 users.filter(u => u.receiver_position === 'Manager').forEach(u => alreadyNotified.add(u.name));
                                                                             }
 
-                                                                            const available = users.filter(u => u.can_receive_mail).map(u => u.name)
+                                                                            const available = users.filter(u => u.can_receive_mail && (!selectedTicket.supportType || (u.support_type && u.support_type.includes(selectedTicket.supportType))))
+                                                                                .map(u => u.name)
                                                                                 .filter(n => !approvalData.receivers.includes(n))
                                                                                 .filter(n => !alreadyNotified.has(n));
 
@@ -3231,7 +3260,11 @@ const AdminDashboard = () => {
                                                                                         </button>
                                                                                     ))}
                                                                                 </div>
-                                                                            ) : null;
+                                                                            ) : (
+                                                                                <div className="mt-2 text-sm text-slate-500 italic">
+                                                                                    No new receivers available. All eligible receivers have already been notified.
+                                                                                </div>
+                                                                            );
                                                                         })()}
                                                                     </div>
 

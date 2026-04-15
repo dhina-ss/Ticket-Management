@@ -239,6 +239,7 @@ def init_db():
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS security_answer TEXT;")
                 # Add mail receiver settings
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS can_receive_mail BOOLEAN DEFAULT FALSE;")
+                cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS can_send_mail BOOLEAN DEFAULT FALSE;")
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS receiver_position TEXT;")
                 # Add branch field for user filtering
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS branch TEXT;")
@@ -389,7 +390,7 @@ def get_admin_users() -> list:
         # We match by name and ensured it's not soft-deleted.
         cur.execute("""
             SELECT 
-                u.id, u.name, u.email, u.access, u.support_type, u.is_first_login, u.created_at, u.can_receive_mail, u.receiver_position, u.branch,
+                u.id, u.name, u.email, u.access, u.support_type, u.is_first_login, u.created_at, u.can_receive_mail, u.receiver_position, u.branch, u.can_send_mail,
                 EXISTS (SELECT 1 FROM assignees a WHERE a.name = u.name AND a.is_delete = false) as is_assignee
             FROM admin_users u
             ORDER BY u.created_at ASC;
@@ -403,32 +404,32 @@ def get_admin_users() -> list:
     return rows
 
 
-def create_admin_user(name: str, email: str, password: str, access: str = "View", support_type: str = "IT Support,Admin Support", can_receive_mail: bool = False, receiver_position: str = None, branch: str = "") -> dict:
+def create_admin_user(name: str, email: str, password: str, access: str = "View", support_type: str = "IT Support,Admin Support", can_receive_mail: bool = False, can_send_mail: bool = False, receiver_position: str = None, branch: str = "") -> dict:
     conn = _get_conn()
     with conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, receiver_position, branch) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
-                (name, email, password, access, support_type, can_receive_mail, receiver_position, branch)
+                "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
+                (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch)
             )
             new_id = cur.fetchone()[0]
     conn.close()
     return {"id": new_id}
 
 
-def update_admin_user(user_id: int, name: str, email: str, password: str, access: str, support_type: str, can_receive_mail: bool = False, receiver_position: str = None, branch: str = "") -> bool:
+def update_admin_user(user_id: int, name: str, email: str, password: str, access: str, support_type: str, can_receive_mail: bool = False, can_send_mail: bool = False, receiver_position: str = None, branch: str = "") -> bool:
     conn = _get_conn()
     with conn:
         with conn.cursor() as cur:
             if password:
                 cur.execute(
-                    "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, receiver_position = %s, branch = %s WHERE id = %s;",
-                    (name, email, password, access, support_type, can_receive_mail, receiver_position, branch, user_id)
+                    "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s WHERE id = %s;",
+                    (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, user_id)
                 )
             else:
                 cur.execute(
-                    "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, receiver_position = %s, branch = %s WHERE id = %s;",
-                    (name, email, access, support_type, can_receive_mail, receiver_position, branch, user_id)
+                    "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s WHERE id = %s;",
+                    (name, email, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, user_id)
                 )
             updated = cur.rowcount > 0
     conn.close()

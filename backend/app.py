@@ -572,6 +572,7 @@ def create_user():
         access = data.get("access", "View").strip()
         support_type = data.get("support_type", "IT Support,Admin Support").strip()
         can_receive_mail = data.get("can_receive_mail", False)
+        can_send_mail = data.get("can_send_mail", False)
         receiver_position = data.get("receiver_position", "").strip() or None
         branch = data.get("branch", "All").strip()
 
@@ -579,7 +580,7 @@ def create_user():
             return jsonify({"error": "Name, email and password are required."}), 400
         if len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
-        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, receiver_position, branch)
+        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch)
         logging.info(f"Admin Action: Created new user - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
         
         # Optionally add as assignee
@@ -607,6 +608,7 @@ def edit_user(user_id):
         access = data.get("access", "View").strip()
         support_type = data.get("support_type", "IT Support,Admin Support").strip()
         can_receive_mail = data.get("can_receive_mail", False)
+        can_send_mail = data.get("can_send_mail", False)
         receiver_position = data.get("receiver_position", "").strip() or None
         branch = data.get("branch", "All").strip()
 
@@ -615,7 +617,7 @@ def edit_user(user_id):
         if password and len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
         
-        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, receiver_position, branch)
+        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch)
         if updated:
             logging.info(f"Admin Action: Edited user {user_id} - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
             
