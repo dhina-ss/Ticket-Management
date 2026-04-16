@@ -193,11 +193,11 @@ const TicketForm = () => {
                                             required
                                         >
                                             <option value="">Select a branch</option>
-                                            <option value="Cotton Concepts HO, Coimbatore">Cotton Concepts HO, Coimbatore</option>
+                                            <option value="Cotton Concepts HO_ Coimbatore">Cotton Concepts HO, Coimbatore</option>
                                             <option value="Doctor Towels HO">Doctor Towels HO</option>
-                                            <option value="Cotton Concepts, Vengamedu">Cotton Concepts, Vengamedu</option>
-                                            <option value="Cotton Concepts, Karur">Cotton Concepts, Karur Factory</option>
-                                            <option value="Doctor Towels, Karur">Doctor Towels, Karur</option>
+                                            <option value="Cotton Concepts_ Vengamedu">Cotton Concepts, Vengamedu</option>
+                                            <option value="Cotton Concepts_ Karur">Cotton Concepts, Karur Factory</option>
+                                            <option value="Doctor Towels_ Karur">Doctor Towels, Karur</option>
                                         </select>
                                         <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-500">
                                             <span className="material-symbols-outlined">expand_more</span>
