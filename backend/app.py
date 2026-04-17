@@ -862,6 +862,23 @@ def login():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/me', methods=['GET'])
+def get_current_user():
+    """Return fresh user data for the currently logged-in user (identified by email)."""
+    try:
+        from database import get_admin_users
+        email = request.args.get('email', '').strip()
+        if not email:
+            return jsonify({"error": "Email is required."}), 400
+        users = get_admin_users()
+        user = next((u for u in users if u.get('email', '').lower() == email.lower()), None)
+        if not user:
+            return jsonify({"error": "User not found."}), 404
+        return jsonify(user), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/change_password', methods=['POST'])
 def change_password():
     """Update a user's password, security questions, and clear their is_first_login flag."""

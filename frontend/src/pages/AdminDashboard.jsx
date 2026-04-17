@@ -1502,7 +1502,7 @@ const AdminDashboard = () => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [ticketToDelete, setTicketToDelete] = useState(null);
 
-    const { user, logout } = useAuth();
+    const { user, logout, refreshUser } = useAuth();
     const isSuperAdmin = user?.email === 'admin@support.com';
     const isPowerUser = user?.receiver_position === 'Management' || user?.receiver_position === 'Manager';
 
@@ -1626,13 +1626,14 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         if (user) {
+            refreshUser(); // Sync user permissions (e.g. can_send_mail) from the backend
             fetchTickets();
             fetchAssignees(); // Fetch assignees on load
             fetchCategories(); // Fetch categories on load
             fetchDepartments(); // Fetch departments on load
             fetchUsers(); // Fetch users on load to populate receivers list
         }
-    }, [user]);
+    }, []);
 
     // Auto-refresh every 30 seconds
     useEffect(() => {

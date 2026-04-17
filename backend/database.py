@@ -453,7 +453,7 @@ def verify_admin_login(email: str, password: str) -> dict | None:
     conn = _get_conn()
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch FROM admin_users WHERE email = %s AND password = %s;",
+            "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch, can_receive_mail, can_send_mail FROM admin_users WHERE email = %s AND password = %s;",
             (email, password)
         )
         row = cur.fetchone()
@@ -467,7 +467,9 @@ def verify_admin_login(email: str, password: str) -> dict | None:
             "support_type": row[4], 
             "is_first_login": row[5] if len(row) > 5 else True,
             "receiver_position": row[6] if len(row) > 6 else None,
-            "branch": row[7] if len(row) > 7 else ""
+            "branch": row[7] if len(row) > 7 else "",
+            "can_receive_mail": row[8] if len(row) > 8 else False,
+            "can_send_mail": row[9] if len(row) > 9 else False
         }
     return None
 
