@@ -1062,11 +1062,11 @@ def submit_ticket():
         # ── Custom ID Generation based on Branch ──────────────────────────
         # Mapping: branch name -> (prefix, suffix)
         BRANCH_MAP = {
-            "Cotton Concepts HO, Coimbatore": ("CCCD", "HO"),
+            "Cotton Concepts HO_ Coimbatore": ("CCCD", "HO"),
             "Doctor Towels HO":               ("DST", "HO"),
-            "Cotton Concepts, Vengamedu":     ("VMCC", ""),
-            "Cotton Concepts, Karur":         ("KRFCC", ""),
-            "Doctor Towels, Karur":           ("KRDST", ""),
+            "Cotton Concepts_ Vengamedu":     ("VMCC", ""),
+            "Cotton Concepts_ Karur":         ("KRFCC", ""),
+            "Doctor Towels_ Karur":           ("KRDST", ""),
         }
         
         branch_name = data.get("branch", "")
