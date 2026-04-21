@@ -1086,8 +1086,10 @@ def submit_ticket():
             "Doctor Towels_ Karur":           ("KRDST", ""),
         }
         
-        branch_name = data.get("branch", "")
-        prefix, suffix = BRANCH_MAP.get(branch_name, ("TKT", "")) # Default to TKT if unknown
+        branch_name = data.get("branch", "").strip()
+        # Normalize: if someone sends "HO, Coimbatore" instead of "HO_ Coimbatore"
+        normalized_branch = branch_name.replace(", ", "_ ")
+        prefix, suffix = BRANCH_MAP.get(normalized_branch, BRANCH_MAP.get(branch_name, ("TKT", "")))
         
         from database import get_max_sequential_id
         max_num = get_max_sequential_id(prefix, suffix)

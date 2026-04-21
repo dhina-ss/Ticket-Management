@@ -1489,6 +1489,7 @@ const AdminDashboard = () => {
 
     // Selection State
     const [selectedTickets, setSelectedTickets] = useState(new Set());
+    const ticketDetailsRef = useRef(null);
 
     // Inline Approval Form State
     const [showApprovalForm, setShowApprovalForm] = useState(false);
@@ -2025,6 +2026,89 @@ const AdminDashboard = () => {
 
         XLSX.writeFile(workbook, `ticket_export_${new Date().toISOString().split('T')[0]}.xlsx`);
         setShowExportModal(false);
+    };
+
+    const handlePrint = () => {
+        if (!ticketDetailsRef.current) return;
+
+        const printWindow = window.open('', '_blank', 'width=800,height=900');
+        const content = ticketDetailsRef.current.innerHTML;
+
+        // Get all style tags and link tags
+        const styles = Array.from(document.getElementsByTagName('style'))
+            .map(tag => tag.outerHTML)
+            .join('');
+        const links = Array.from(document.getElementsByTagName('link'))
+            .filter(link => link.rel === 'stylesheet')
+            .map(link => link.outerHTML)
+            .join('');
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <title>Ticket Details - ${selectedTicket?.ticket_id}</title>
+                    ${styles}
+                    ${links}
+                    <style>
+                        body { 
+                            background-color: white !important; 
+                            color: #1e293b !important; 
+                            padding: 2cm !important;
+                            font-family: 'Inter', sans-serif !important;
+                        }
+                        .dark { background-color: white !important; color: #1e293b !important; }
+                        /* Ensure text colors are visible on white background */
+                        .text-slate-500, .text-slate-400 { color: #64748b !important; }
+                        .text-slate-800, .text-slate-900 { color: #1e293b !important; }
+                        /* Hide elements that shouldn't be printed */
+                        button, .material-symbols-outlined:not(.text-primary), .sticky, 
+                        .no-print { display: none !important; }
+                        
+                        /* Remove borders and shadows for a clean look */
+                        * { border: none !important; box-shadow: none !important; border-width: 0 !important; }
+                        .border, .border-t, .border-b, .border-l, .border-r { border: none !important; }
+                        
+                        /* Force 2-column layout for specific rows in print */
+                        .print-grid-2 { 
+                            display: grid !important; 
+                            grid-template-columns: repeat(2, minmax(0, 1fr)) !important; 
+                            gap: 1.5rem !important;
+                        }
+                        
+                        .md\:grid-cols-3 { 
+                            display: grid !important;
+                            grid-template-columns: repeat(3, minmax(0, 1fr)) !important; 
+                            gap: 1.5rem !important;
+                        }
+
+                        .sticky { position: static !important; }
+                        .max-h-[90vh] { max-height: none !important; overflow: visible !important; }
+                        .overflow-y-auto { overflow: visible !important; }
+                        /* Ensure grid/flex layouts work */
+                        .grid { display: grid !important; }
+                        .flex { display: flex !important; }
+                        /* Force background colors to print */
+                        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        @page { margin: 0; }
+                    </style>
+                </head>
+                <body class="bg-white">
+                    <div class="w-full text-slate-900">
+                        ${content}
+                    </div>
+                </body>
+            </html>
+        `);
+
+        printWindow.document.close();
+        
+        // Wait for styles/images to load
+        setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+            printWindow.close();
+        }, 1000);
     };
 
     const baseFilteredTickets = tickets.filter(ticket => {
@@ -2566,7 +2650,7 @@ const AdminDashboard = () => {
                 {
                     isModalOpen && selectedTicket && (
                         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={closeModal}>
-                            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                            <div ref={ticketDetailsRef} className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                                 <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 z-10">
                                     <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                         <span className="material-symbols-outlined text-primary">sticky_note_2</span>
@@ -2580,13 +2664,26 @@ const AdminDashboard = () => {
                                             </span>
                                         )}
                                     </h2>
-                                    <button onClick={closeModal} className="px-2 pt-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
-                                        <span className="material-symbols-outlined">close</span>
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handlePrint}
+                                            title={selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved' ? 'Print Ticket' : 'Print is only available for Completed tickets'}
+                                            disabled={!(selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved')}
+                                            className={`p-2 flex items-center justify-center rounded-lg transition-all ${selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved'
+                                                ? 'text-primary hover:bg-primary/10 cursor-pointer'
+                                                : 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                                                }`}
+                                        >
+                                            <span className="material-symbols-outlined">print</span>
+                                        </button>
+                                        <button onClick={closeModal} className="px-2 pt-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                                            <span className="material-symbols-outlined">close</span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="p-6 space-y-6">
                                     {/* Row 1: Branch, Submitted */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print-grid-2">
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Branch</label>
                                             <p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedTicket.branch || '-'}</p>
@@ -2598,7 +2695,7 @@ const AdminDashboard = () => {
                                     </div>
 
                                     {/* Row 2: Name, Mobile */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print-grid-2">
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Customer</label>
                                             <p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedTicket.fullName}</p>
@@ -2609,8 +2706,8 @@ const AdminDashboard = () => {
                                         </div>
                                     </div>
 
-                                    {/* Row 3: Department, Category, Support Type */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {/* Row 3: Department, Category */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print-grid-2">
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Department</label>
                                             <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
@@ -2623,12 +2720,18 @@ const AdminDashboard = () => {
                                                 <p className="font-medium text-sm">{selectedTicket.category}</p>
                                             </div>
                                         </div>
+                                    </div>
+
+                                    {/* Row 4: Support Type */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print-grid-2">
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Support Type</label>
                                             <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
                                                 <p className="font-medium text-sm">{selectedTicket.supportType || '-'}</p>
                                             </div>
                                         </div>
+                                        {/* Empty div to maintain 2-column balance if needed, or just let it align left */}
+                                        <div className="print:hidden"></div>
                                     </div>
 
                                     {/* Row 4: Description */}
@@ -3064,7 +3167,7 @@ const AdminDashboard = () => {
                                     )}
 
                                     {/* Row 5: Footer Actions */}
-                                    <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
+                                    <div className="border-t border-slate-100 dark:border-slate-800 pt-6 no-print">
                                         {/* Pending Comments — mandatory when setting to Pending */}
                                         {updateStatus === 'Pending' && !(selectedTicket.status === 'Completed' || selectedTicket.status === 'Resolved') && (
                                             <div className="mb-4">
