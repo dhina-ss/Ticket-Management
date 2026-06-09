@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
 
@@ -11,6 +11,7 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const navigate = useNavigate();
+    const location = useLocation();
     const { login, logout, isAuthenticated } = useAuth();
     const [loading, setLoading] = useState(false);
 
@@ -50,7 +51,10 @@ const Login = () => {
                     setShowPasswordChange(true);
                 } else {
                     login(res.data.user);
-                    navigate('/admin');
+                    const from = location.state?.from
+                        ? location.state.from.pathname + (location.state.from.search || '')
+                        : '/admin';
+                    navigate(from);
                 }
             } else {
                 setError(res.data.error || 'Invalid email or password');
@@ -86,7 +90,10 @@ const Login = () => {
             });
             if (res.status === 200 && res.data.success) {
                 login({ ...tempUser, is_first_login: false });
-                navigate('/admin');
+                const from = location.state?.from
+                    ? location.state.from.pathname + (location.state.from.search || '')
+                    : '/admin';
+                navigate(from);
             } else {
                 setPasswordError(res.data.error || 'Failed to update password');
             }

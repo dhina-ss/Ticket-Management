@@ -382,6 +382,221 @@ def init_db():
         pass
 
 
+    # ---- asset_types table ----
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS asset_types (
+                        id           SERIAL PRIMARY KEY,
+                        name         TEXT NOT NULL,
+                        is_delete    BOOLEAN DEFAULT FALSE,
+                        created_at   TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """)
+                cur.execute("ALTER TABLE asset_types ADD COLUMN IF NOT EXISTS is_delete BOOLEAN DEFAULT FALSE;")
+        conn.close()
+        print("DEBUG: asset_types table ready.")
+    except Exception as e:
+        pass
+
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                default_asset_types = [
+                    ("CPU",), ("Laptop",), ("Access point",), ("Monitor",), 
+                    ("NAS",), ("Printer",), ("Server",), ("Switch",), 
+                    ("UPS",), ("Mobile",), ("Firewall",)
+                ]
+                for at in default_asset_types:
+                    cur.execute("SELECT COUNT(*) FROM asset_types WHERE name = %s;", at)
+                    if cur.fetchone()[0] == 0:
+                        cur.execute("INSERT INTO asset_types (name) VALUES (%s)", at)
+        conn.close()
+        print("DEBUG: asset_types seeded.")
+    except Exception as e:
+        pass
+
+    # ---- assets table ----
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS assets (
+                        id            SERIAL PRIMARY KEY,
+                        asset_id      TEXT UNIQUE NOT NULL,
+                        category      TEXT,
+                        brand         TEXT,
+                        model         TEXT,
+                        configuration TEXT,
+                        serial        TEXT,
+                        assignee      TEXT DEFAULT 'Unassigned',
+                        emp_code      TEXT,
+                        cug           TEXT,
+                        email         TEXT,
+                        department    TEXT,
+                        branch        TEXT,
+                        purchase_date DATE,
+                        warranty      TEXT,
+                        condition     TEXT DEFAULT 'Excellent',
+                        remarks       TEXT,
+                        images        TEXT,
+                        qr_code       TEXT,
+                        "group"       TEXT DEFAULT 'IT',
+                        created_at    TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at    TIMESTAMPTZ DEFAULT NOW()
+                    );
+                    
+                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS images TEXT;
+                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS "group" TEXT DEFAULT 'IT';
+                    ALTER TABLE assets ALTER COLUMN warranty TYPE TEXT USING warranty::text;
+                """)
+                
+                # Migration: rename tag to asset_id
+                try:
+                    cur.execute("ALTER TABLE assets RENAME COLUMN tag TO asset_id;")
+                except Exception:
+                    pass
+                
+                # Migration: drop status and date column
+                try:
+                    cur.execute("ALTER TABLE assets DROP COLUMN IF EXISTS status;")
+                    cur.execute("ALTER TABLE assets DROP COLUMN IF EXISTS date;")
+                except Exception:
+                    pass
+                
+                # Migration: add updated_at column
+                try:
+                    cur.execute("ALTER TABLE assets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();")
+                except Exception:
+                    pass
+                
+                pass
+        conn.close()
+        print("DEBUG: assets table ready.")
+    except Exception as e:
+        print(f"DEBUG: assets table error: {e}")
+
+    # Migration: add warranty columns using autocommit (isolated from main transaction)
+    try:
+        conn_ddl = _get_conn()
+        conn_ddl.autocommit = True
+        with conn_ddl.cursor() as cur_ddl:
+            cur_ddl.execute("ALTER TABLE assets ADD COLUMN IF NOT EXISTS qr_code TEXT;")
+            cur_ddl.execute("ALTER TABLE assets ADD COLUMN IF NOT EXISTS warranty_date DATE;")
+            cur_ddl.execute("ALTER TABLE assets ADD COLUMN IF NOT EXISTS warranty_label TEXT;")
+        conn_ddl.close()
+        print("DEBUG: warranty columns ensured.")
+    except Exception as ddl_e:
+        print(f"DEBUG: warranty DDL error: {ddl_e}")
+
+    # Backfill warranty_date and warranty_label in a fresh connection (separate from DDL)
+
+    try:
+        conn2 = _get_conn()
+        with conn2:
+            with conn2.cursor() as cur2:
+                cur2.execute("""
+                    SELECT id, purchase_date, warranty
+                    FROM assets
+                    WHERE purchase_date IS NOT NULL
+                      AND warranty IS NOT NULL
+                      AND (warranty_date IS NULL OR warranty_label IS NULL)
+                """)
+                rows_to_fix = cur2.fetchall()
+                for r in rows_to_fix:
+                    rid, pd_val, wr = r[0], r[1], r[2]
+                    wdate, wlabel = _compute_warranty_fields(str(pd_val) if pd_val else None, wr)
+                    cur2.execute(
+                        "UPDATE assets SET warranty_date = %s, warranty_label = %s WHERE id = %s",
+                        (wdate, wlabel, rid)
+                    )
+                if rows_to_fix:
+                    print(f"DEBUG: warranty backfill updated {len(rows_to_fix)} rows.")
+        conn2.close()
+    except Exception as be:
+        print(f"DEBUG: warranty backfill error: {be}")
+
+
+
+
+# ---------------------------------------------------------------------------
+# Warranty helpers
+# ---------------------------------------------------------------------------
+
+def _compute_warranty_fields(purchase_date_str, warranty_text):
+    """Given a purchase_date string (YYYY-MM-DD) and a warranty duration string
+    like '1 Year', '2 Years', '6 Months', returns (warranty_date, warranty_label).
+    warranty_date is a datetime.date object (or None).
+    warranty_label is a human-readable string like '1 Year', '6 Months' (or None).
+    """
+    import datetime
+    import re
+    import calendar
+    if not purchase_date_str or not warranty_text:
+        return None, None
+    try:
+        pd = datetime.date.fromisoformat(str(purchase_date_str)[:10])
+    except Exception:
+        return None, None
+
+    # 1. Try parsing warranty_text as a direct date string (e.g. '2027-04-12 00:00:00' or '2027-04-12')
+    parsed_warranty_date = None
+    try:
+        parsed_warranty_date = datetime.date.fromisoformat(str(warranty_text)[:10])
+    except Exception:
+        pass
+
+    if parsed_warranty_date:
+        warranty_date = parsed_warranty_date
+        total_months = (warranty_date.year - pd.year) * 12 + (warranty_date.month - pd.month)
+        if total_months <= 0:
+            label = warranty_text
+        elif total_months % 12 == 0:
+            yrs = total_months // 12
+            label = f"{yrs} Year" if yrs == 1 else f"{yrs} Years"
+        else:
+            label = f"{total_months} Months"
+        return warranty_date, label
+
+    # 2. Otherwise, treat as duration string
+    wt = warranty_text.strip().lower()
+    months = 0
+    m = re.match(r'^(\d+(?:\.\d+)?)\s*(year|years|month|months)$', wt)
+    if m:
+        num = float(m.group(1))
+        unit = m.group(2)
+        if 'year' in unit:
+            months = int(num * 12)
+        else:
+            months = int(num)
+    else:
+        # Unrecognised format — keep text as label but no computed date
+        return None, warranty_text
+
+    # Compute expiry date
+    exp_year  = pd.year + (pd.month - 1 + months) // 12
+    exp_month = (pd.month - 1 + months) % 12 + 1
+    max_day   = calendar.monthrange(exp_year, exp_month)[1]
+    exp_day   = min(pd.day, max_day)
+    warranty_date = datetime.date(exp_year, exp_month, exp_day)
+
+    # Build label from actual month difference
+    total_months = (warranty_date.year - pd.year) * 12 + (warranty_date.month - pd.month)
+    if total_months <= 0:
+        label = warranty_text
+    elif total_months % 12 == 0:
+        yrs = total_months // 12
+        label = f"{yrs} Year" if yrs == 1 else f"{yrs} Years"
+    else:
+        label = f"{total_months} Months"
+
+    return warranty_date, label
+
+
 # ---------------------------------------------------------------------------
 # Admin user CRUD
 # ---------------------------------------------------------------------------
@@ -1239,3 +1454,216 @@ def delete_expired_attachments() -> dict:
         return {"success": True, "requester_count": req_count, "bill_count": bill_count}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Assets CRUD
+# ---------------------------------------------------------------------------
+
+def _row_to_asset(row: dict) -> dict:
+    import json
+    try:
+        images_list = json.loads(row.get("images")) if row.get("images") else []
+    except Exception:
+        images_list = []
+    return {
+        "id":            row.get("id"),
+        "assetId":       row.get("asset_id", ""),
+        "category":      row.get("category", ""),
+        "brand":         row.get("brand", ""),
+        "model":         row.get("model", ""),
+        "configuration": row.get("configuration", ""),
+        "serial":        row.get("serial", ""),
+        "assignee":      row.get("assignee", "Unassigned"),
+        "empCode":       row.get("emp_code", ""),
+        "cug":           row.get("cug", ""),
+        "email":         row.get("email", ""),
+        "department":    row.get("department", ""),
+        "branch":        row.get("branch", ""),
+        "group":         row.get("group", "IT"),
+        "purchaseDate":  str(row["purchase_date"]) if row.get("purchase_date") else "",
+        "warranty":      str(row["warranty"]) if row.get("warranty") else "",
+        "warrantyDate":  str(row["warranty_date"]) if row.get("warranty_date") else "",
+        "warrantyLabel": str(row["warranty_label"]) if row.get("warranty_label") else "",
+        "condition":     row.get("condition", "Excellent"),
+        "remarks":       row.get("remarks", ""),
+        "images":        images_list,
+        "qrCode":        f"/api/assets/{row.get('asset_id')}/qr" if row.get('asset_id') else "",
+        "updatedAt":     row["updated_at"].strftime("%Y-%m-%d %H:%M:%S") if row.get("updated_at") else "",
+    }
+
+
+def get_all_assets() -> list:
+    try:
+        conn = _get_conn()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM assets ORDER BY created_at DESC")
+            rows = cur.fetchall()
+        conn.close()
+        return [_row_to_asset(r) for r in rows]
+    except Exception as e:
+        return []
+
+
+def create_asset(data: dict) -> dict:
+    import json
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                w_date, w_label = _compute_warranty_fields(
+                    data.get("purchaseDate"), data.get("warranty")
+                )
+                cur.execute("""
+                    INSERT INTO assets
+                        (asset_id, category, brand, model, configuration, serial,
+                         assignee, emp_code, cug, email, department, branch,
+                         purchase_date, warranty, warranty_date, warranty_label,
+                         condition, remarks, images, qr_code, "group")
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id, asset_id
+                """, (
+                    data.get("assetId"),
+                    data.get("category", ""),
+                    data.get("brand", ""),
+                    data.get("model", ""),
+                    data.get("configuration", ""),
+                    data.get("serial", ""),
+                    data.get("assignee", "Unassigned"),
+                    data.get("empCode", ""),
+                    data.get("cug", ""),
+                    data.get("email", ""),
+                    data.get("department", ""),
+                    data.get("branch", ""),
+                    data.get("purchaseDate") or None,
+                    data.get("warranty") or None,
+                    w_date,
+                    w_label,
+                    data.get("condition", "Excellent"),
+                    data.get("remarks", ""),
+                    json.dumps(data.get("images") or []),
+                    data.get("qrCode", ""),
+                    data.get("group", "IT"),
+                ))
+                row = cur.fetchone()
+        conn.close()
+        return {"success": True, "id": row[0], "assetId": row[1]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def update_asset(asset_id: int, data: dict) -> dict:
+    import json
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                w_date, w_label = _compute_warranty_fields(
+                    data.get("purchaseDate"), data.get("warranty")
+                )
+                cur.execute("""
+                    UPDATE assets SET
+                        category = %s, brand = %s, model = %s,
+                        configuration = %s, serial = %s, assignee = %s,
+                        emp_code = %s, cug = %s, email = %s,
+                        department = %s, branch = %s,
+                        purchase_date = %s, warranty = %s,
+                        warranty_date = %s, warranty_label = %s,
+                        condition = %s, remarks = %s, images = %s,
+                        qr_code = %s, "group" = %s, updated_at = NOW()
+                    WHERE id = %s
+                """, (
+                    data.get("category", ""),
+                    data.get("brand", ""),
+                    data.get("model", ""),
+                    data.get("configuration", ""),
+                    data.get("serial", ""),
+                    data.get("assignee", "Unassigned"),
+                    data.get("empCode", ""),
+                    data.get("cug", ""),
+                    data.get("email", ""),
+                    data.get("department", ""),
+                    data.get("branch", ""),
+                    data.get("purchaseDate") or None,
+                    data.get("warranty") or None,
+                    w_date,
+                    w_label,
+                    data.get("condition", "Excellent"),
+                    data.get("remarks", ""),
+                    json.dumps(data.get("images") or []),
+                    data.get("qrCode", ""),
+                    data.get("group", "IT"),
+                    asset_id,
+                ))
+                updated = cur.rowcount > 0
+        conn.close()
+        return {"success": updated}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"DEBUG: update_asset error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def delete_asset(asset_id: int) -> dict:
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM assets WHERE id = %s", (asset_id,))
+                deleted = cur.rowcount > 0
+        conn.close()
+        return {"success": deleted}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+
+# ---------------------------------------------------------------------------
+# Asset Types CRUD
+# ---------------------------------------------------------------------------
+
+def get_asset_types() -> list:
+    conn = _get_conn()
+    with conn.cursor() as cur:
+        cur.execute("SELECT id, name, created_at FROM asset_types WHERE is_delete = FALSE ORDER BY created_at ASC;")
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    conn.close()
+    for r in rows:
+        if r.get("created_at"):
+            r["created_at"] = r["created_at"].strftime("%d-%m-%Y %I:%M %p")
+    return rows
+
+def create_asset_type(name: str) -> dict:
+    conn = _get_conn()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO asset_types (name) VALUES (%s) RETURNING id;",
+                (name,)
+            )
+            new_id = cur.fetchone()[0]
+    conn.close()
+    return {"id": new_id}
+
+def update_asset_type(type_id: int, name: str) -> bool:
+    conn = _get_conn()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE asset_types SET name = %s WHERE id = %s;",
+                (name, type_id)
+            )
+            updated = cur.rowcount > 0
+    conn.close()
+    return updated
+
+def delete_asset_type(type_id: int) -> bool:
+    conn = _get_conn()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE asset_types SET is_delete = TRUE WHERE id = %s;", (type_id,))
+            deleted = cur.rowcount > 0
+    conn.close()
+    return deleted

@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { DateRangePicker } from 'react-date-range';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import api from '../api';
 import logoImage from '../assets/logo.png';
 import logoDarkImage from '../assets/logo1.png';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 const EXPORT_COLUMNS = [
     { id: 'sno', label: 'S.No' },
@@ -50,6 +52,16 @@ const supportBadgeColor = (type) => {
 };
 
 const SUPPORT_TYPE_OPTIONS = ['IT Support', 'Admin Support'];
+
+const normalizeCategory = (cat) => {
+    const trimmed = (cat || '').trim();
+    if (!trimmed) return '';
+    const lower = trimmed.toLowerCase();
+    if (lower === 'ups' || lower === 'cpu' || lower === 'nas' || lower === 'it') {
+        return trimmed.toUpperCase();
+    }
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+};
 
 const BRANCH_OPTIONS = [
     'All',
@@ -124,6 +136,52 @@ const MultiSelectFormDropdown = ({ label, icon, options, selected, onChange }) =
                                     {option === 'All' ? `All Branches` : option}
                                 </span>
                             </label>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40' }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const ref = useRef(null);
+    useEffect(() => {
+        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false); };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+    return (
+        <div className="relative" ref={ref}>
+            <div
+                onClick={() => setIsOpen(o => !o)}
+                className={`flex items-center justify-between w-full px-4 py-3 text-sm rounded-xl border cursor-pointer transition-all bg-slate-50 dark:bg-slate-800 font-medium ${
+                    isOpen ? 'ring-2 ring-primary border-primary' : 'border-slate-200 dark:border-slate-700'
+                }`}
+            >
+                <span className="text-slate-800 dark:text-white truncate">{value || label}</span>
+                <span className={`material-symbols-outlined text-slate-400 text-[18px] transition-transform duration-200 shrink-0 ml-1 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
+            </div>
+            {isOpen && (
+                <div className={`absolute left-0 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${
+                    direction === 'up' 
+                        ? 'bottom-full mb-1.5 origin-bottom' 
+                        : 'top-full mt-1.5 origin-top'
+                }`}>
+                    <div className={`${maxHeight} overflow-y-auto custom-scrollbar px-1.5 py-0.5 space-y-0.5`}>
+                        {options.map(opt => (
+                            <div
+                                key={opt.value ?? opt}
+                                onClick={() => { onChange(opt.value ?? opt); setIsOpen(false); }}
+                                className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium ${
+                                    (opt.value ?? opt) === value
+                                        ? 'bg-primary/10 text-primary'
+                                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                {opt.label ?? opt}
+                            </div>
                         ))}
                     </div>
                 </div>
@@ -635,6 +693,1224 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
     );
 };
 
+const AssetsView = ({
+    assets,
+    setAssets,
+    assetTypes,
+    searchQuery,
+    categoryFilter,
+    branchFilter,
+    departmentFilter,
+    showAddModal,
+    setShowAddModal,
+    newAsset,
+    setNewAsset,
+    isEditing,
+    setIsEditing,
+    editingId,
+    setEditingId,
+    isDateFilterActive,
+    dateRange,
+    selectedAssetIds,
+    setSelectedAssetIds,
+    departments
+}) => {
+    const [currentStep, setCurrentStep] = useState(1);
+    const [qrLightbox, setQrLightbox] = useState(null); // holds base64 src when open
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 20;
+
+    const photosInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
+    const [showSourceModal, setShowSourceModal] = useState(false);
+
+    const handleUploadContainerClick = () => {
+        if ((newAsset.images || []).length >= 2) return;
+        if (window.innerWidth < 640) {
+            setShowSourceModal(true);
+        }
+    };
+
+    const getAssetQRUrl = (qrPath) => {
+        if (!qrPath) return '';
+        if (qrPath.startsWith('data:image')) return qrPath;
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        return `${apiBase}${qrPath}`;
+    };
+    const [selectedAsset, setSelectedAsset] = useState(null);
+    const location = useLocation();
+    useEffect(() => {
+        if (location.pathname === '/assets/add') {
+            setSelectedAsset(null);
+        }
+    }, [location.pathname]);
+    const [qrImageBlobUrl, setQrImageBlobUrl] = useState('');
+    const [qrLoading, setQrLoading] = useState(false);
+    const [detailsQRBlobUrl, setDetailsQRBlobUrl] = useState('');
+    const [activeImage, setActiveImage] = useState(null);
+
+    // Prevent background scrolling when lightbox is open
+    useEffect(() => {
+        if (activeImage) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [activeImage]);
+
+    // Close lightbox on ESC key press & handle arrow navigation
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                setActiveImage(null);
+            } else if (e.key === 'ArrowLeft' && selectedAsset?.images?.length > 1) {
+                const idx = selectedAsset.images.indexOf(activeImage);
+                if (idx !== -1) {
+                    setActiveImage(selectedAsset.images[idx === 0 ? selectedAsset.images.length - 1 : idx - 1]);
+                }
+            } else if (e.key === 'ArrowRight' && selectedAsset?.images?.length > 1) {
+                const idx = selectedAsset.images.indexOf(activeImage);
+                if (idx !== -1) {
+                    setActiveImage(selectedAsset.images[idx === selectedAsset.images.length - 1 ? 0 : idx + 1]);
+                }
+            }
+        };
+        if (activeImage) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [activeImage, selectedAsset]);
+
+    const handlePrevImage = (e) => {
+        e.stopPropagation();
+        if (selectedAsset?.images) {
+            const idx = selectedAsset.images.indexOf(activeImage);
+            if (idx !== -1) {
+                setActiveImage(selectedAsset.images[idx === 0 ? selectedAsset.images.length - 1 : idx - 1]);
+            }
+        }
+    };
+
+    const handleNextImage = (e) => {
+        e.stopPropagation();
+        if (selectedAsset?.images) {
+            const idx = selectedAsset.images.indexOf(activeImage);
+            if (idx !== -1) {
+                setActiveImage(selectedAsset.images[idx === selectedAsset.images.length - 1 ? 0 : idx + 1]);
+            }
+        }
+    };
+
+    const handleCloseAddModal = () => {
+        if (isEditing && editingId) {
+            const originalAsset = assets.find(a => a.id === editingId);
+            if (originalAsset) {
+                setSelectedAsset(originalAsset);
+            }
+        }
+        setShowAddModal(false);
+        setIsEditing(false);
+        setEditingId(null);
+    };
+
+    useEffect(() => {
+        let active = true;
+        if (selectedAsset && selectedAsset.qrCode) {
+            setDetailsQRBlobUrl('');
+            api.get(`/api/assets/${selectedAsset.assetId}/qr?t=${Date.now()}`, { responseType: 'blob' })
+                .then(res => {
+                    if (active) {
+                        const blobUrl = URL.createObjectURL(res.data);
+                        setDetailsQRBlobUrl(blobUrl);
+                    }
+                })
+                .catch(err => {
+                    console.error("Failed to load details QR image:", err);
+                });
+        }
+        return () => {
+            active = false;
+        };
+    }, [selectedAsset]);
+
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetAssetId = urlParams.get('assetId');
+        if (targetAssetId && assets && assets.length > 0) {
+            const found = assets.find(a => a.assetId === targetAssetId);
+            if (found) {
+                setSelectedAsset(found);
+                const newUrl = window.location.pathname + window.location.hash;
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        }
+    }, [assets]);
+
+    const handleViewQR = async (asset) => {
+        if (!asset) return;
+        setQrLightbox(asset);
+        setQrImageBlobUrl('');
+        setQrLoading(true);
+        try {
+            const res = await api.get(`/api/assets/${asset.assetId}/qr?t=${Date.now()}`, { responseType: 'blob' });
+            const blobUrl = URL.createObjectURL(res.data);
+            setQrImageBlobUrl(blobUrl);
+        } catch (err) {
+            console.error("Failed to load QR tag image:", err);
+        } finally {
+            setQrLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (showAddModal) {
+            setCurrentStep(1);
+        }
+    }, [showAddModal]);
+
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            const allIds = filteredAssets.map(a => a.id);
+            setSelectedAssetIds(allIds);
+        } else {
+            setSelectedAssetIds([]);
+        }
+    };
+
+    const handleSelectAsset = (e, assetId) => {
+        e.stopPropagation();
+        if (e.target.checked) {
+            setSelectedAssetIds(prev => [...prev, assetId]);
+        } else {
+            setSelectedAssetIds(prev => prev.filter(id => id !== assetId));
+        }
+    };
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, categoryFilter, branchFilter, departmentFilter, isDateFilterActive, dateRange]);
+
+
+
+    const filteredAssets = (Array.isArray(assets) ? assets : []).filter(a => {
+        const matchesSearch = (a.assetId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              a.assignee.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              (a.empCode || '').toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = categoryFilter.includes('All') || categoryFilter.includes(normalizeCategory(a.category));
+        const matchesBranch = branchFilter.includes('All') || branchFilter.includes(a.branch);
+        const matchesDepartment = departmentFilter.includes('All') || departmentFilter.includes(a.department);
+        
+        let matchesDate = true;
+        if (isDateFilterActive && dateRange[0] && a.date) {
+            const assetDate = new Date(a.date);
+            const start = new Date(dateRange[0].startDate);
+            const end = new Date(dateRange[0].endDate);
+            assetDate.setHours(0,0,0,0);
+            start.setHours(0,0,0,0);
+            end.setHours(0,0,0,0);
+            matchesDate = assetDate >= start && assetDate <= end;
+        }
+        
+        return matchesSearch && matchesCategory && matchesBranch && matchesDepartment && matchesDate;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(filteredAssets.length / ITEMS_PER_PAGE));
+    const pagedAssets = filteredAssets.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    const handleAdd = async (e) => {
+        e.preventDefault();
+        
+        const resolvedCategory = newAsset.category || 'Laptop';
+        const resolvedBranch = newAsset.branch || 'Cotton Concepts HO_ Coimbatore';
+        const resolvedWarranty = newAsset.warranty || '1 Year';
+        const resolvedCondition = newAsset.condition || 'Excellent';
+        const resolvedDepartment = newAsset.department || 'IT';
+        const resolvedGroup = newAsset.group || 'IT';
+
+        const resolvedAsset = {
+            ...newAsset,
+            category: resolvedCategory,
+            branch: resolvedBranch,
+            warranty: resolvedWarranty,
+            condition: resolvedCondition,
+            department: resolvedDepartment,
+            group: resolvedGroup
+        };
+
+        if (!resolvedAsset.assignee || !resolvedAsset.assignee.trim()) {
+            const el = document.getElementById('asset-assignee');
+            if (el) el.reportValidity();
+            return;
+        }
+        if (!resolvedAsset.empCode || !resolvedAsset.empCode.trim()) {
+            const el = document.getElementById('asset-emp-code');
+            if (el) el.reportValidity();
+            return;
+        }
+        if (!resolvedAsset.department) {
+            alert('Department is a mandatory field.');
+            return;
+        }
+
+        try {
+            if (isEditing) {
+                await api.put(`/api/assets/${editingId}`, resolvedAsset);
+                const updatedObj = { ...selectedAsset, ...resolvedAsset, qrCode: `/api/assets/${selectedAsset?.assetId || resolvedAsset.assetId}/qr` };
+                setAssets(prev => prev.map(a => a.id === editingId ? updatedObj : a));
+                setSelectedAsset(updatedObj);
+                setIsEditing(false);
+                setEditingId(null);
+            } else {
+                const res = await api.post('/api/assets', resolvedAsset);
+                const data = res.data;
+                setAssets(prev => [...prev, { ...resolvedAsset, id: data.id, assetId: data.assetId, qrCode: `/api/assets/${data.assetId}/qr`, date: new Date().toISOString().split('T')[0] }]);
+            }
+        } catch (err) {
+            console.error("Failed to save asset:", err);
+            alert('Failed to save asset: ' + (err.response?.data?.error || err.message));
+        }
+        setShowAddModal(false);
+        setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Excellent', remarks: '', images: [], qrCode: '', group: 'IT' });
+    };
+
+    const handleEdit = (asset) => {
+        setNewAsset(asset);
+        setIsEditing(true);
+        setEditingId(asset.id);
+        setShowAddModal(true, true);
+    };
+
+    const handleDelete = async (id) => {
+        if (confirm('Are you sure you want to delete this asset?')) {
+            try {
+                await api.delete(`/api/assets/${id}`);
+                setAssets(prev => prev.filter(a => a.id !== id));
+            } catch {
+                alert('Failed to delete asset.');
+            }
+        }
+    };
+
+    const handleNextStep = () => {
+        const brandInput = document.getElementById('asset-brand');
+        const modelInput = document.getElementById('asset-model');
+        const serialInput = document.getElementById('asset-serial');
+        const purchaseDateInput = document.getElementById('asset-purchase-date');
+
+        const configInput = document.getElementById('asset-config');
+
+        const resolvedCategory = newAsset.category || 'Laptop';
+        const resolvedBranch = newAsset.branch || 'Cotton Concepts HO_ Coimbatore';
+        const resolvedWarranty = newAsset.warranty || '1 Year';
+        const resolvedCondition = newAsset.condition || 'Excellent';
+
+        if (!resolvedCategory || !resolvedCategory.trim()) {
+            alert('Asset Type is a mandatory field.');
+            return;
+        }
+        if (!newAsset.brand || !newAsset.brand.trim()) {
+            if (brandInput) brandInput.reportValidity();
+            return;
+        }
+        if (!newAsset.model || !newAsset.model.trim()) {
+            if (modelInput) modelInput.reportValidity();
+            return;
+        }
+        if (!newAsset.configuration || !newAsset.configuration.trim()) {
+            if (configInput) configInput.reportValidity();
+            return;
+        }
+        if (!resolvedBranch || !resolvedBranch.trim()) {
+            alert('Branch is a mandatory field.');
+            return;
+        }
+
+        setNewAsset(prev => ({
+            ...prev,
+            category: resolvedCategory,
+            branch: resolvedBranch,
+            warranty: resolvedWarranty,
+            condition: resolvedCondition
+        }));
+
+        setCurrentStep(2);
+    };
+
+    const handleNextToStep3 = () => {
+        const assigneeInput = document.getElementById('asset-assignee');
+        const empCodeInput = document.getElementById('asset-emp-code');
+
+        const resolvedCondition = newAsset.condition || 'Excellent';
+        const resolvedGroup = newAsset.group || 'IT';
+        const resolvedDepartment = newAsset.department || 'IT';
+
+        if (!resolvedCondition || !resolvedCondition.trim()) {
+            alert('Condition is a mandatory field.');
+            return;
+        }
+        if (!newAsset.assignee || !newAsset.assignee.trim()) {
+            if (assigneeInput) assigneeInput.reportValidity();
+            return;
+        }
+        if (!newAsset.empCode || !newAsset.empCode.trim()) {
+            if (empCodeInput) empCodeInput.reportValidity();
+            return;
+        }
+        if (!resolvedGroup || !resolvedGroup.trim()) {
+            alert('Group is a mandatory field.');
+            return;
+        }
+        if (!resolvedDepartment) {
+            alert('Department is a mandatory field.');
+            return;
+        }
+
+        setNewAsset(prev => ({
+            ...prev,
+            condition: resolvedCondition,
+            group: resolvedGroup,
+            department: resolvedDepartment
+        }));
+
+        setCurrentStep(3);
+    };
+
+    const handleImageUpload = (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length + (newAsset.images || []).length > 2) {
+            alert("Maximum 2 images allowed.");
+            if (photosInputRef.current) photosInputRef.current.value = '';
+            if (cameraInputRef.current) cameraInputRef.current.value = '';
+            return;
+        }
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setNewAsset(prev => ({
+                    ...prev,
+                    images: [...(prev.images || []), reader.result]
+                }));
+            };
+            reader.readAsDataURL(file);
+        });
+        if (photosInputRef.current) photosInputRef.current.value = '';
+        if (cameraInputRef.current) cameraInputRef.current.value = '';
+    };
+
+    const handleRemoveImage = (index) => {
+        setNewAsset(prev => ({
+            ...prev,
+            images: (prev.images || []).filter((_, idx) => idx !== index)
+        }));
+    };
+
+    const handleQRUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setNewAsset(prev => ({ ...prev, qrCode: reader.result }));
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const stats = {
+        total: assets.length
+    };
+
+    return (
+        <div className="flex-1 flex flex-col overflow-hidden p-8 gap-8 animate-in fade-in duration-200">
+
+            {/* Assets Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col min-h-0 flex-1 overflow-hidden">
+                <div className="flex flex-col w-full flex-1 min-h-0">
+                    <table className="w-full text-left border-collapse table-fixed select-none">
+                        <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[4%]">
+                                    <input 
+                                        type="checkbox" 
+                                        onChange={handleSelectAll} 
+                                        checked={filteredAssets.length > 0 && filteredAssets.every(a => selectedAssetIds.includes(a.id))}
+                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-primary focus:ring-primary cursor-pointer" 
+                                    />
+                                </th>
+                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset ID</th>
+                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset Type</th>
+                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[22%]">Brand</th>
+                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[16%]">Serial Number</th>
+                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[17%]">User Name</th>
+                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">Emp Code</th>
+                            </tr>
+                        </thead>
+                    </table>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                        <table className="w-full text-left border-collapse table-fixed">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {filteredAssets.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="9" className="text-center py-10 text-slate-400 dark:text-slate-500 text-sm">No assets found matching the criteria.</td>
+                                    </tr>
+                                ) : (
+                                    pagedAssets.map((asset, idx) => (
+                                        <tr key={asset.id} onClick={() => setSelectedAsset(asset)} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer">
+                                            <td className="px-6 py-4 w-[4%]" onClick={e => e.stopPropagation()}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    onChange={(e) => handleSelectAsset(e, asset.id)}
+                                                    checked={selectedAssetIds.includes(asset.id)}
+                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-primary focus:ring-primary cursor-pointer" 
+                                                />
+                                            </td>
+                                            {/* <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[4%]">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td> */}
+                                            <td className="px-6 py-4 w-[12%]">
+                                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{asset.assetId}</span>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 w-[12%] truncate" title={normalizeCategory(asset.category)}>{normalizeCategory(asset.category)}</td>
+                                            <td className="px-6 py-4 w-[22%]">
+                                                <div className="text-sm font-medium text-slate-900 dark:text-white truncate" title={`${asset.brand || ''} ${asset.model || ''}`.trim() || asset.name}>
+                                                    {asset.brand ? `${asset.brand} ${asset.model}` : asset.name}
+                                                </div>
+                                                <div className="text-[11px] text-slate-400 truncate" title={`${asset.branch}`}>{asset.branch}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm font-mono text-slate-500 dark:text-slate-400 w-[16%] truncate" title={asset.serial}>{asset.serial}</td>
+                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[17%] truncate" title={asset.assignee}>{asset.assignee}</td>
+                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[13%] truncate" title={asset.empCode}>{asset.empCode || '—'}</td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    {/* Pagination Controls */}
+                    <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 min-w-[240px]">
+                            Showing <span className="font-medium">{filteredAssets.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}</span> to <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, filteredAssets.length)}</span> of <span className="font-medium">{filteredAssets.length}</span> assets
+                        </p>
+                        <div className="flex justify-center flex-1">
+                            {selectedAssetIds.length > 0 && (
+                                <span className="text-xs font-bold text-primary animate-in fade-in slide-in-from-bottom-2 duration-150 bg-primary/10 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-primary/20">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
+                                    {selectedAssetIds.length} {selectedAssetIds.length === 1 ? 'RECORD' : 'RECORDS'} SELECTED
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1 min-w-[240px] justify-end">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >Previous</button>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                                .reduce((acc, p, idx, arr) => {
+                                    if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                                    acc.push(p);
+                                    return acc;
+                                }, [])
+                                .map((item, idx) =>
+                                    item === '...' ? (
+                                        <span key={`ellipsis-${idx}`} className="px-2 py-1 text-sm text-slate-400">…</span>
+                                    ) : (
+                                        <button
+                                            key={item}
+                                            onClick={() => setCurrentPage(item)}
+                                            className={`px-3 py-1 text-sm rounded transition-colors ${currentPage === item
+                                                ? 'bg-primary text-white'
+                                                : 'border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                }`}
+                                        >{item}</button>
+                                    )
+                                )
+                            }
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >Next</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Asset Detail Modal */}
+            {selectedAsset && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4 animate-in fade-in duration-200" onClick={() => setSelectedAsset(null)}>
+                    <div className="bg-white dark:bg-slate-900 border-0 sm:border border-slate-200 dark:border-slate-800 rounded-none sm:rounded-2xl w-full max-w-2xl h-full sm:h-auto max-h-screen sm:max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+                            <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                    <span className="material-symbols-outlined text-primary text-lg">inventory_2</span>
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-bold text-slate-800 dark:text-white leading-tight">Asset Details</h2>
+                                    <p className="text-xs text-slate-400 font-mono mt-0.5">{selectedAsset.assetId || `#${selectedAsset.id}`}</p>
+                                </div>
+                                <span className="ml-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">{normalizeCategory(selectedAsset.category)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {selectedAsset.qrCode && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleViewQR(selectedAsset)}
+                                        className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="View QR Code Label"
+                                    >
+                                        <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
+                                        View QR Code
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => { handleEdit(selectedAsset); setSelectedAsset(null); }}
+                                    title="Edit Asset"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-[15px]">edit</span>
+                                    Edit
+                                </button>
+                                <button onClick={() => setSelectedAsset(null)} className="hidden lg:flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-all cursor-pointer">
+                                    <span className="material-symbols-outlined text-[18px]">close</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6 space-y-6">
+                            {/* Device Info */}
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Device Info</p>
+                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Brand</p>
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">{selectedAsset.brand || '—'}</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Model</p>
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">{selectedAsset.model || '—'}</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 col-span-2 lg:col-span-1">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Serial Number</p>
+                                        <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{selectedAsset.serial || '—'}</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 col-span-2">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Configuration</p>
+                                        <p className="text-sm text-slate-700 dark:text-slate-300">{selectedAsset.configuration || '—'}</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Group</p>
+                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.group || 'IT'}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Condition & Dates */}
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Condition &amp; Dates</p>
+                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Condition</p>
+                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
+                                            selectedAsset.condition === 'Excellent' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                            selectedAsset.condition === 'Good' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                            selectedAsset.condition === 'Fair' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                        }`}>
+                                            <span className="h-1.5 w-1.5 rounded-full bg-current"></span>
+                                            {selectedAsset.condition || '—'}
+                                        </span>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Purchase Date</p>
+                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.purchaseDate || '—'}</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Warranty Duration</p>
+                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                            {selectedAsset.warrantyLabel || selectedAsset.warranty || '—'}
+                                        </p>
+                                    </div>
+                                    {/* <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Warranty Expiry</p>
+                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                            {selectedAsset.warrantyDate || '—'}
+                                        </p>
+                                    </div> */}
+                                </div>
+                            </div>
+
+                            {/* Assignment */}
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Assignment</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Assigned To</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-sm font-medium text-slate-800 dark:text-white">{selectedAsset.assignee || '—'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Emp Code</p>
+                                        <p className="text-sm font-mono font-medium text-slate-700 dark:text-slate-300">{selectedAsset.empCode || '—'}</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Department</p>
+                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.department || '—'}</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Branch</p>
+                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.branch || '—'}</p>
+                                    </div>
+                                    {(selectedAsset.cug || selectedAsset.email) && (
+                                        <>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">CUG Number</p>
+                                                <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{selectedAsset.cug || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Email</p>
+                                                <p className="text-sm text-slate-700 dark:text-slate-300 break-all">{selectedAsset.email || '—'}</p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Device Images - always visible */}
+                            <div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Device Images</p>
+                                    {selectedAsset.qrCode && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleViewQR(selectedAsset)}
+                                            className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                            title="View QR Code Label"
+                                        >
+                                            <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
+                                            View QR Code
+                                        </button>
+                                    )}
+                                </div>
+                                {(selectedAsset.images && selectedAsset.images.length > 0) ? (
+                                    <div className="flex flex-wrap gap-3">
+                                        {selectedAsset.images.map((img, i) => (
+                                            <div key={i} className="flex flex-col items-center gap-1.5">
+                                                <div 
+                                                    onClick={() => setActiveImage(img)}
+                                                    className="relative w-28 h-28 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all active:scale-[0.98] group/thumb"
+                                                >
+                                                    <img src={img} alt={`Asset image ${i + 1}`} className="w-full h-full object-cover" />
+                                                    <div className="absolute inset-0 bg-black/15 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
+                                                        <span className="material-symbols-outlined text-white text-[18px] bg-slate-900/60 p-1.5 rounded-full backdrop-blur-sm border border-slate-800/50">zoom_in</span>
+                                                    </div>
+                                                </div>
+                                                <span className="text-[10px] text-slate-400 font-medium">Image {i + 1}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-4 p-4 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
+                                        <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                                            <span className="material-symbols-outlined text-slate-300 dark:text-slate-600 text-2xl">photo_camera</span>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">No images uploaded</p>
+                                            <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-current"></span>
+                                                Image Pending
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Remarks */}
+                            {selectedAsset.remarks && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Remarks</p>
+                                    <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/40 rounded-xl p-4">
+                                        <p className="text-sm text-slate-700 dark:text-amber-200/80 leading-relaxed whitespace-pre-wrap">{selectedAsset.remarks}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Footer: Last Updated */}
+                            {selectedAsset.updatedAt && (
+                                <p className="text-[11px] text-slate-400 text-right">Last updated: {selectedAsset.updatedAt}</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* FULL SCREEN LIGHTBOX FOR DEVICE IMAGES */}
+            {activeImage && (
+                <div 
+                    className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-[300] flex items-center justify-center p-4 animate-in fade-in duration-200"
+                    onClick={() => setActiveImage(null)}
+                >
+                    {/* Close Button */}
+                    <button 
+                        onClick={() => setActiveImage(null)}
+                        className="absolute top-4 right-4 sm:top-6 sm:right-6 w-11 h-11 rounded-full bg-slate-900/60 hover:bg-slate-800/80 text-white/90 hover:text-white flex items-center justify-center transition-all border border-slate-800 cursor-pointer shadow-lg z-[310]"
+                        title="Close Full Screen"
+                    >
+                        <span className="material-symbols-outlined text-[24px]">close</span>
+                    </button>
+
+                    {/* Left Navigation Arrow */}
+                    {selectedAsset?.images?.length > 1 && (
+                        <button 
+                            onClick={handlePrevImage}
+                            className="absolute left-4 sm:left-6 w-11 h-11 rounded-full bg-slate-900/60 hover:bg-slate-800/80 text-white/90 hover:text-white flex items-center justify-center transition-all border border-slate-800 cursor-pointer shadow-lg z-[310] active:scale-95"
+                            title="Previous Image"
+                        >
+                            <span className="material-symbols-outlined text-[24px]">chevron_left</span>
+                        </button>
+                    )}
+
+                    {/* Right Navigation Arrow */}
+                    {selectedAsset?.images?.length > 1 && (
+                        <button 
+                            onClick={handleNextImage}
+                            className="absolute right-4 sm:right-6 w-11 h-11 rounded-full bg-slate-900/60 hover:bg-slate-800/80 text-white/90 hover:text-white flex items-center justify-center transition-all border border-slate-800 cursor-pointer shadow-lg z-[310] active:scale-95"
+                            title="Next Image"
+                        >
+                            <span className="material-symbols-outlined text-[24px]">chevron_right</span>
+                        </button>
+                    )}
+
+                    {/* Image Container with Page Indicator */}
+                    <div 
+                        className="relative max-w-full max-h-[85vh] flex flex-col items-center justify-center gap-4"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <img 
+                            src={activeImage} 
+                            alt="Device Photo Fullscreen" 
+                            className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-slate-900/50 animate-in zoom-in-95 duration-200"
+                        />
+                        {selectedAsset?.images?.length > 1 && (
+                            <span className="px-3 py-1.5 rounded-full bg-slate-900/60 text-[11px] font-bold text-slate-300 border border-slate-800 tracking-wider">
+                                {selectedAsset.images.indexOf(activeImage) + 1} / {selectedAsset.images.length}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Add/Edit Asset Modal */}
+            {showAddModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-3xl shadow-xl flex flex-col max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-6 py-4 shrink-0 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800 mb-6">
+                            <h3 className="font-semibold text-slate-800 dark:text-white text-lg font-display">{isEditing ? 'Edit Asset' : 'Add New Asset'}</h3>
+                            <button onClick={handleCloseAddModal} className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200 transition-all cursor-pointer">
+                                <span className="material-symbols-outlined text-[18px]">close</span>
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleAdd} className="space-y-4 overflow-y-auto flex-1 px-6 pb-6">
+                            {currentStep === 1 && (
+                                <div className="space-y-4 animate-in fade-in duration-200">
+                                    {/* Row 1: Asset Type + Brand */}
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Asset Type <span className="text-red-500">*</span></label>
+                                            <SelectDropdown
+                                                value={newAsset.category || 'Laptop'}
+                                                onChange={v => setNewAsset(p => ({ ...p, category: v }))}
+                                                options={assetTypes?.map(t => t.name) || []}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Brand <span className="text-red-500">*</span></label>
+                                            <input
+                                                id="asset-brand"
+                                                type="text"
+                                                required
+                                                value={newAsset.brand || ''}
+                                                onChange={e => setNewAsset(p => ({ ...p, brand: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. Apple"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Model <span className="text-red-500">*</span></label>
+                                            <input
+                                                id="asset-model"
+                                                type="text"
+                                                required
+                                                value={newAsset.model || ''}
+                                                onChange={e => setNewAsset(p => ({ ...p, model: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder='e.g. MacBook Pro 16"'
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Row 2: Model + Serial Number + Configuration + Branch */}
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Serial Number</label>
+                                            <input
+                                                id="asset-serial"
+                                                type="text"
+                                                value={newAsset.serial}
+                                                onChange={e => setNewAsset(p => ({ ...p, serial: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-mono"
+                                                placeholder="e.g. C02F123XYZ45"
+                                            />
+                                        </div>
+                                        <div className="col-span-2 lg:col-span-1">
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Configuration <span className="text-red-500">*</span></label>
+                                            <input
+                                                id="asset-config"
+                                                type="text"
+                                                required
+                                                value={newAsset.configuration || ''}
+                                                onChange={e => setNewAsset(p => ({ ...p, configuration: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. M3 Pro, 18GB, 512GB"
+                                            />
+                                        </div>
+                                        <div className="col-span-2 lg:col-span-1">
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Branch <span className="text-red-500">*</span></label>
+                                            <SelectDropdown
+                                                value={newAsset.branch || 'Cotton Concepts HO_ Coimbatore'}
+                                                onChange={v => setNewAsset(p => ({ ...p, branch: v }))}
+                                                options={['Cotton Concepts HO_ Coimbatore','Doctor Towels HO','Cotton Concepts_ Vengamedu','Cotton Concepts_ Karur','Doctor Towels_ Karur']}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Row 3: Purchase Date + Warranty (date) + Condition */}
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Purchase Date</label>
+                                            <input
+                                                id="asset-purchase-date"
+                                                type="date"
+                                                value={newAsset.purchaseDate || ''}
+                                                onChange={e => setNewAsset(p => ({ ...p, purchaseDate: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Warranty</label>
+                                            <SelectDropdown
+                                                value={newAsset.warranty || '1 Year'}
+                                                onChange={v => setNewAsset(p => ({ ...p, warranty: v }))}
+                                                options={['6 Months', '1 Year', '2 Years', '3 Years', '4 Years', '5 Years']}
+                                            />
+                                        </div>
+                                        <div className="col-span-2 lg:col-span-1">
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Condition <span className="text-red-500">*</span></label>
+                                            <SelectDropdown
+                                                value={newAsset.condition || 'Excellent'}
+                                                onChange={v => setNewAsset(p => ({ ...p, condition: v }))}
+                                                options={['Excellent','Good','Medium','Average','Scrap', "Stock"]}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Row 4: Remarks (full width) */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Remarks</label>
+                                        <textarea
+                                            value={newAsset.remarks || ''}
+                                            onChange={e => setNewAsset(p => ({ ...p, remarks: e.target.value }))}
+                                            rows="2"
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium resize-none"
+                                            placeholder="e.g. Write remarks about the device..."
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-col-reverse lg:flex-row gap-3 pt-4">
+                                        <button type="button" onClick={handleCloseAddModal} className="flex-1 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleNextStep}
+                                            className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
+                                        >
+                                            Next: User Details
+                                            <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {currentStep === 2 && (
+                                <div className="space-y-4 animate-in fade-in duration-200">
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">User Name <span className="text-red-500">*</span></label>
+                                            <input
+                                                id="asset-assignee"
+                                                type="text"
+                                                required
+                                                value={newAsset.assignee || ''}
+                                                onChange={e => setNewAsset(p => ({ ...p, assignee: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. John Doe or Unassigned"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Employee Code <span className="text-red-500">*</span></label>
+                                            <input
+                                                id="asset-emp-code"
+                                                type="text"
+                                                required
+                                                value={newAsset.empCode || ''}
+                                                onChange={e => setNewAsset(p => ({ ...p, empCode: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. EMP001"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Department <span className="text-red-500">*</span></label>
+                                            <SelectDropdown
+                                                value={newAsset.department || 'IT'}
+                                                onChange={v => setNewAsset(p => ({ ...p, department: v }))}
+                                                options={departments?.length > 0 ? departments.map(d => d.name) : ['IT','HR','Finance','Sales','Production','Logistics']}
+                                                maxHeight="max-h-35"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Email Address</label>
+                                            <input
+                                                type="email"
+                                                value={newAsset.email || ''}
+                                                onChange={e => setNewAsset(p => ({ ...p, email: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. user@company.com"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">CUG (SIM Number)</label>
+                                            <input
+                                                type="text"
+                                                value={newAsset.cug || ''}
+                                                onChange={e => setNewAsset(p => ({ ...p, cug: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. +91 98765 43210"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col-reverse lg:flex-row gap-3 pt-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentStep(1)}
+                                            className="flex-1 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer flex items-center justify-center gap-2"
+                                        >
+                                            <span className="material-symbols-outlined text-sm">arrow_back</span>
+                                            Back: Device Details
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleNextToStep3}
+                                            className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
+                                        >
+                                            Next: Upload Images
+                                            <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {currentStep === 3 && (
+                                <div className="space-y-4 animate-in fade-in duration-200">
+                                    <div className="flex flex-col gap-3">
+                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 font-display">Asset Photos <span className="font-normal text-slate-400">(max 2)</span></label>
+                                        <div 
+                                            onClick={handleUploadContainerClick}
+                                            className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-900/30 transition-all hover:bg-slate-50 dark:hover:bg-slate-900/50 relative group min-h-[140px] cursor-pointer"
+                                        >
+                                            <input
+                                                type="file"
+                                                ref={photosInputRef}
+                                                multiple
+                                                accept="image/*"
+                                                onChange={handleImageUpload}
+                                                className="absolute inset-0 w-full h-full opacity-0 pointer-events-none sm:pointer-events-auto sm:cursor-pointer z-10"
+                                                disabled={(newAsset.images || []).length >= 2}
+                                            />
+                                            <input
+                                                type="file"
+                                                ref={cameraInputRef}
+                                                accept="image/*"
+                                                capture="environment"
+                                                onChange={handleImageUpload}
+                                                className="hidden"
+                                            />
+                                            <div className="flex flex-col items-center text-center space-y-1.5 pointer-events-none">
+                                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                                                    <span className="material-symbols-outlined text-xl">add_photo_alternate</span>
+                                                </div>
+                                                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Click or drag to upload asset photos</p>
+                                                <p className="text-[11px] text-slate-400">PNG, JPG, WEBP (max 2)</p>
+                                            </div>
+                                        </div>
+                                        {(newAsset.images || []).length > 0 && (
+                                            <div className="grid grid-cols-2 gap-3 mt-1">
+                                                {newAsset.images.map((img, idx) => (
+                                                    <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 group bg-slate-100 dark:bg-slate-950">
+                                                        <img src={img} alt={`Asset preview ${idx + 1}`} className="w-full h-full object-cover" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveImage(idx)}
+                                                            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-red-600/80 text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow z-20 cursor-pointer"
+                                                            title="Remove"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[14px]">delete</span>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex flex-col-reverse lg:flex-row gap-3 pt-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentStep(2)}
+                                            className="flex-1 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer flex items-center justify-center gap-2"
+                                        >
+                                            <span className="material-symbols-outlined text-sm">arrow_back</span>
+                                            Back: User Details
+                                        </button>
+                                        <button type="submit" className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-xl transition-colors cursor-pointer">
+                                            {isEditing ? 'Save Changes' : 'Add Asset'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* QR Code Lightbox */}
+            {qrLightbox && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
+                    onClick={() => setQrLightbox(null)}
+                >
+                    <div className="relative bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-4 w-full max-w-[340px] sm:max-w-[420px] lg:max-w-[540px]" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between w-full">
+                            <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2 font-display">
+                                <span className="material-symbols-outlined text-primary text-lg">qr_code_2</span>
+                                Asset Tag Sticker
+                            </h4>
+                            <button
+                                onClick={() => setQrLightbox(null)}
+                                className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200 transition-all cursor-pointer"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">close</span>
+                            </button>
+                        </div>
+                        <div className="w-full bg-slate-50 dark:bg-slate-950 p-4 rounded-xl flex items-center justify-center border border-slate-100 dark:border-slate-800/60 min-h-[160px]">
+                            {qrLoading ? (
+                                <div className="flex flex-col items-center justify-center gap-2 text-slate-400 py-8 animate-pulse">
+                                    <span className="material-symbols-outlined text-3xl animate-spin text-primary">autorenew</span>
+                                    <span className="text-xs font-semibold">Generating Sticker...</span>
+                                </div>
+                            ) : qrImageBlobUrl ? (
+                                <img 
+                                    src={qrImageBlobUrl} 
+                                    alt="Asset Tag sticker" 
+                                    className="w-full max-w-[240px] sm:max-w-[320px] lg:max-w-full h-auto object-contain rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 bg-white" 
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center gap-2 text-red-500 py-8 font-medium">
+                                    <span className="material-symbols-outlined text-3xl">error</span>
+                                    <span className="text-xs">Failed to load sticker image</span>
+                                </div>
+                            )}
+                        </div>
+                        <a
+                            href={qrImageBlobUrl || '#'}
+                            download={`${qrLightbox.assetId || 'asset'}_tag.png`}
+                            onClick={(e) => {
+                                if (qrLoading || !qrImageBlobUrl) {
+                                    e.preventDefault();
+                                }
+                            }}
+                            className={`w-full flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg ${
+                                qrLoading || !qrImageBlobUrl 
+                                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none' 
+                                    : 'bg-primary text-white hover:bg-primary/90 shadow-primary/20 cursor-pointer'
+                            }`}
+                        >
+                            <span className="material-symbols-outlined text-[18px]">download</span>
+                            {qrLoading ? 'Loading Tag...' : 'Download Label PNG'}
+                        </a>
+                    </div>
+                </div>
+            )}
+            {showSourceModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250] flex items-end sm:items-center justify-center p-4" onClick={() => setShowSourceModal(false)}>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-2xl sm:rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4 animate-in slide-in-from-bottom duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="text-center">
+                            <h4 className="font-bold text-slate-800 dark:text-white text-base font-display">Add Photo</h4>
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Choose an image source to upload</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowSourceModal(false);
+                                    cameraInputRef.current?.click();
+                                }}
+                                className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-xl border border-slate-100 dark:border-slate-855 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all active:scale-[0.98] cursor-pointer"
+                            >
+                                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                    <span className="material-symbols-outlined text-2xl">photo_camera</span>
+                                </div>
+                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 font-display">Camera</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowSourceModal(false);
+                                    photosInputRef.current?.click();
+                                }}
+                                className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-xl border border-slate-100 dark:border-slate-855 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all active:scale-[0.98] cursor-pointer"
+                            >
+                                <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
+                                    <span className="material-symbols-outlined text-2xl">image</span>
+                                </div>
+                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 font-display">Photos</span>
+                            </button>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowSourceModal(false)}
+                            className="w-full py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-705 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-colors cursor-pointer text-center text-sm"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, onToggle }) => {
     const [showAddAssignee, setShowAddAssignee] = useState(false);
     const [editingAssignee, setEditingAssignee] = useState(null);
@@ -704,7 +1980,7 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
             <div className="mb-4 flex items-end justify-between">
                 <div onClick={onToggle} className="cursor-pointer group select-none">
                     <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
-                        Assignees
+                        Assignees ({assignees?.length || 0})
                         <span className="material-symbols-outlined text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">
                             {isExpanded ? 'expand_less' : 'expand_more'}
                         </span>
@@ -730,48 +2006,56 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
                     ) : assignees.length === 0 ? (
                         <div className="p-10 text-center text-slate-500">No assignees found. Add one on the left.</div>
                     ) : (
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Assignee Name</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Support Type</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {Array.isArray(assignees) && assignees.map(a => (
-                                    <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="text-sm font-medium text-slate-900 dark:text-white">{a.name}</div>
-                                            <div className="text-xs text-slate-400">Added {new Date(a.created_at).toLocaleDateString()}</div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${a.support_type === 'IT Support' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : a.support_type === 'Admin Support' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300'}`}>
-                                                {a.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : a.support_type}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    title="Edit Assignee"
-                                                    onClick={() => handleOpenEdit(a)}
-                                                    className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-blue-600 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                                >
-                                                    <span className="material-symbols-outlined text-[16px]">edit</span>
-                                                </button>
-                                                <button
-                                                    title="Delete Assignee"
-                                                    onClick={() => handleDeleteClick(a)}
-                                                    className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                >
-                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
-                                                </button>
-                                            </div>
-                                        </td>
+                        <div className="flex flex-col w-full">
+                            <table className="w-full text-left border-collapse table-fixed">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">S.No</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[48%]">Assignee Name</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[25%]">Support Type</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                            </table>
+                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
+                                <table className="w-full text-left border-collapse table-fixed">
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {Array.isArray(assignees) && assignees.map((a, idx) => (
+                                            <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
+                                                <td className="px-6 py-4 w-[48%]">
+                                                    <div className="text-sm font-medium text-slate-900 dark:text-white">{a.name}</div>
+                                                    <div className="text-xs text-slate-400">Added {new Date(a.created_at).toLocaleDateString()}</div>
+                                                </td>
+                                                <td className="px-6 py-4 w-[25%]">
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${a.support_type === 'IT Support' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : a.support_type === 'Admin Support' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300'}`}>
+                                                        {a.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : a.support_type}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 w-[15%]">
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            title="Edit Assignee"
+                                                            onClick={() => handleOpenEdit(a)}
+                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-blue-600 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                        </button>
+                                                        <button
+                                                            title="Delete Assignee"
+                                                            onClick={() => handleDeleteClick(a)}
+                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     )}
                 </div>
             )}
@@ -879,6 +2163,242 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
     );
 };
 
+const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpanded, onToggle }) => {
+    const [showAddType, setShowAddType] = useState(false);
+    const [editingType, setEditingType] = useState(null);
+    const [name, setName] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState('');
+    const [typeToDelete, setTypeToDelete] = useState(null);
+
+    const handleAdd = async (e) => {
+        e.preventDefault();
+        setError('');
+        if (!name.trim()) {
+            setError('Name is required.');
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            if (editingType) {
+                await api.put(`/api/asset_types/${editingType.id}`, { name });
+            } else {
+                await api.post('/api/asset_types', { name });
+            }
+            const res = await api.get('/api/asset_types');
+            setAssetTypes(res.data);
+            handleCloseModal();
+        } catch (err) {
+            setError(err.response?.data?.error || `Failed to ${editingType ? 'edit' : 'add'} asset type.`);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleCloseModal = () => {
+        setShowAddType(false);
+        setEditingType(null);
+        setName('');
+        setError('');
+    };
+
+    const handleOpenEdit = (type) => {
+        setEditingType(type);
+        setName(type.name);
+        setShowAddType(true);
+    };
+
+    const handleDeleteClick = (type) => {
+        setTypeToDelete(type);
+    };
+
+    const confirmDelete = async () => {
+        if (!typeToDelete) return;
+        try {
+            await api.delete(`/api/asset_types/${typeToDelete.id}`);
+            const res = await api.get('/api/asset_types');
+            setAssetTypes(res.data);
+            setTypeToDelete(null);
+        } catch (err) {
+            alert('Failed to delete asset type.');
+        }
+    };
+
+    return (
+        <div className="w-full shrink-0 p-8 border-b border-slate-200 dark:border-slate-800">
+            <div className="mb-4 flex items-end justify-between">
+                <div onClick={onToggle} className="cursor-pointer group select-none">
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
+                        Asset Types ({assetTypes?.length || 0})
+                        <span className="material-symbols-outlined text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">
+                            {isExpanded ? 'expand_less' : 'expand_more'}
+                        </span>
+                    </h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Manage asset categories dynamically.</p>
+                </div>
+                {isExpanded && (
+                    <button
+                        onClick={() => setShowAddType(true)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">add</span>
+                        Add Type
+                    </button>
+                )}
+            </div>
+
+            {/* List */}
+            {isExpanded && (
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-hidden h-fit">
+                    {assetTypesLoading ? (
+                        <div className="p-10 text-center text-slate-500">Loading asset types...</div>
+                    ) : assetTypes.length === 0 ? (
+                        <div className="p-10 text-center text-slate-500">No asset types found. Add one on the left.</div>
+                    ) : (
+                        <div className="flex flex-col w-full">
+                            <table className="w-full text-left border-collapse table-fixed">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">S.No</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[73%]">Type Name</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
+                                <table className="w-full text-left border-collapse table-fixed">
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {Array.isArray(assetTypes) && assetTypes.map((c, idx) => (
+                                            <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
+                                                <td className="px-6 py-4 w-[73%]">
+                                                    <div className="text-sm font-medium text-slate-900 dark:text-white">{c.name}</div>
+                                                    <div className="text-xs text-slate-400">Added {new Date(c.created_at).toLocaleDateString()}</div>
+                                                </td>
+                                                <td className="px-6 py-4 w-[15%]">
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            title="Edit Type"
+                                                            onClick={() => handleOpenEdit(c)}
+                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-blue-600 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                        </button>
+                                                        <button
+                                                            title="Delete Type"
+                                                            onClick={() => handleDeleteClick(c)}
+                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {typeToDelete && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                                <span className="material-symbols-outlined text-red-500">warning</span>
+                                Delete Type
+                            </h3>
+                            <button
+                                onClick={() => setTypeToDelete(null)}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">close</span>
+                            </button>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+                            Are you sure you want to delete <span className="font-semibold text-slate-800 dark:text-white">{typeToDelete.name}</span>? This action cannot be undone.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setTypeToDelete(null)}
+                                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add/Edit Modal */}
+            {showAddType && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="font-bold text-slate-800 dark:text-white text-lg">
+                                {editingType ? 'Edit Asset Type' : 'Add New Asset Type'}
+                            </h3>
+                            <button
+                                onClick={handleCloseModal}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">close</span>
+                            </button>
+                        </div>
+
+                        {error && (
+                            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm border border-red-100 dark:border-red-900/30">
+                                {error}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleAdd} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Type Name</label>
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={e => setName(e.target.value)}
+                                    placeholder="e.g. Printer"
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all"
+                                    required
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={handleCloseModal}
+                                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-primary hover:bg-primary/90 transition-colors disabled:opacity-50"
+                                >
+                                    {isSubmitting ? 'Saving...' : editingType ? 'Save Changes' : 'Add Type'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpanded, onToggle }) => {
     const [showAddCategory, setShowAddCategory] = useState(false);
     const [editingCategory, setEditingCategory] = useState(null);
@@ -944,11 +2464,11 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
     };
 
     return (
-        <div className="w-full shrink-0 p-8">
+        <div className="w-full shrink-0 p-8 border-b border-slate-200 dark:border-slate-800">
             <div className="mb-4 flex items-end justify-between">
                 <div onClick={onToggle} className="cursor-pointer group select-none">
                     <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
-                        Categories
+                        Categories ({categories?.length || 0})
                         <span className="material-symbols-outlined text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">
                             {isExpanded ? 'expand_less' : 'expand_more'}
                         </span>
@@ -974,48 +2494,56 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
                     ) : categories.length === 0 ? (
                         <div className="p-10 text-center text-slate-500">No categories found. Add one on the left.</div>
                     ) : (
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Category Name</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Support Type</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {Array.isArray(categories) && categories.map(c => (
-                                    <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="text-sm font-medium text-slate-900 dark:text-white">{c.name}</div>
-                                            <div className="text-xs text-slate-400">Added {new Date(c.created_at).toLocaleDateString()}</div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${c.support_type?.includes('IT Support') ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'}`}>
-                                                {c.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : c.support_type}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    title="Edit Category"
-                                                    onClick={() => handleOpenEdit(c)}
-                                                    className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-blue-600 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                                >
-                                                    <span className="material-symbols-outlined text-[16px]">edit</span>
-                                                </button>
-                                                <button
-                                                    title="Delete Category"
-                                                    onClick={() => handleDeleteClick(c)}
-                                                    className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                >
-                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
-                                                </button>
-                                            </div>
-                                        </td>
+                        <div className="flex flex-col w-full">
+                            <table className="w-full text-left border-collapse table-fixed">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">S.No</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[48%]">Category Name</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[25%]">Support Type</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                            </table>
+                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
+                                <table className="w-full text-left border-collapse table-fixed">
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {Array.isArray(categories) && categories.map((c, idx) => (
+                                            <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
+                                                <td className="px-6 py-4 w-[48%]">
+                                                    <div className="text-sm font-medium text-slate-900 dark:text-white">{c.name}</div>
+                                                    <div className="text-xs text-slate-400">Added {new Date(c.created_at).toLocaleDateString()}</div>
+                                                </td>
+                                                <td className="px-6 py-4 w-[25%]">
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${c.support_type?.includes('IT Support') ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'}`}>
+                                                        {c.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : c.support_type}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 w-[15%]">
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            title="Edit Category"
+                                                            onClick={() => handleOpenEdit(c)}
+                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-blue-600 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                        </button>
+                                                        <button
+                                                            title="Delete Category"
+                                                            onClick={() => handleDeleteClick(c)}
+                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     )}
                 </div>
             )}
@@ -1197,7 +2725,7 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
             <div className="mb-4 flex items-end justify-between">
                 <div onClick={onToggle} className="cursor-pointer group select-none">
                     <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
-                        Departments
+                        Departments ({departments?.length || 0})
                         <span className="material-symbols-outlined text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">
                             {isExpanded ? 'expand_less' : 'expand_more'}
                         </span>
@@ -1222,48 +2750,56 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
                     ) : departments.length === 0 ? (
                         <div className="p-10 text-center text-slate-500">No departments found.</div>
                     ) : (
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Department Name</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Support Type</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {Array.isArray(departments) && departments.map(d => (
-                                    <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="text-sm font-medium text-slate-900 dark:text-white">{d.name}</div>
-                                            <div className="text-xs text-slate-400">Added {new Date(d.created_at).toLocaleDateString()}</div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${d.support_type?.includes('IT Support') ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'}`}>
-                                                {d.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : d.support_type}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    title="Edit Department"
-                                                    onClick={() => handleOpenEdit(d)}
-                                                    className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-blue-600 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20 shadow-sm"
-                                                >
-                                                    <span className="material-symbols-outlined text-[16px]">edit</span>
-                                                </button>
-                                                <button
-                                                    title="Delete Department"
-                                                    onClick={() => handleDeleteClick(d)}
-                                                    className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20 shadow-sm"
-                                                >
-                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
-                                                </button>
-                                            </div>
-                                        </td>
+                        <div className="flex flex-col w-full">
+                            <table className="w-full text-left border-collapse table-fixed">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">S.No</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[48%]">Department Name</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[25%]">Support Type</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                            </table>
+                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
+                                <table className="w-full text-left border-collapse table-fixed">
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {Array.isArray(departments) && departments.map((d, idx) => (
+                                            <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
+                                                <td className="px-6 py-4 w-[48%]">
+                                                    <div className="text-sm font-medium text-slate-900 dark:text-white">{d.name}</div>
+                                                    <div className="text-xs text-slate-400">Added {new Date(d.created_at).toLocaleDateString()}</div>
+                                                </td>
+                                                <td className="px-6 py-4 w-[25%]">
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${d.support_type?.includes('IT Support') ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'}`}>
+                                                        {d.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : d.support_type}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 w-[15%]">
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            title="Edit Department"
+                                                            onClick={() => handleOpenEdit(d)}
+                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-blue-600 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20 shadow-sm"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                        </button>
+                                                        <button
+                                                            title="Delete Department"
+                                                            onClick={() => handleDeleteClick(d)}
+                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20 shadow-sm"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     )}
                 </div>
             )}
@@ -1339,7 +2875,7 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
     );
 };
 
-const MultiSelectFilter = ({ label, icon, options, selected, onChange }) => {
+const MultiSelectFilter = ({ label, icon, options, selected, onChange, widthClass = '' }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -1377,12 +2913,14 @@ const MultiSelectFilter = ({ label, icon, options, selected, onChange }) => {
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className={`flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700 outline-none cursor-pointer ${isOpen ? 'ring-2 ring-primary border-primary bg-white dark:bg-slate-900 shadow-sm' : ''}`}
+                className={`flex items-center justify-between gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700 outline-none cursor-pointer ${widthClass} ${isOpen ? 'ring-2 ring-primary border-primary bg-white dark:bg-slate-900 shadow-sm' : ''}`}
             >
-                {icon && <span className="material-symbols-outlined text-slate-400 text-lg">{icon}</span>}
-                <span className={`truncate max-w-[100px] font-medium ${selected.includes('All') ? 'text-slate-500 dark:text-slate-400' : 'text-primary'}`}>
-                    {getDisplayValue()}
-                </span>
+                <div className="flex items-center gap-2 truncate">
+                    {icon && <span className="material-symbols-outlined text-slate-400 text-lg">{icon}</span>}
+                    <span className={`truncate max-w-[120px] font-medium ${selected.includes('All') ? 'text-slate-500 dark:text-slate-400' : 'text-primary'}`}>
+                        {getDisplayValue()}
+                    </span>
+                </div>
                 <span className={`material-symbols-outlined text-slate-400 text-base transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
             </button>
 
@@ -1427,6 +2965,19 @@ const MultiSelectFilter = ({ label, icon, options, selected, onChange }) => {
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const { user, logout, refreshUser } = useAuth();
+    const isSuperAdmin = user?.email === 'admin@support.com';
+    const isPowerUser = user?.receiver_position === 'Management' || user?.receiver_position === 'Manager';
+
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -1445,7 +2996,13 @@ const AdminDashboard = () => {
     const [vendorName, setVendorName] = useState('');
 
     const [isUpdating, setIsUpdating] = useState(false);
-    const [activeView, setActiveView] = useState('tickets'); // 'tickets' | 'users'
+    const [activeView, setActiveView] = useState(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('assetId')) {
+            return 'assets';
+        }
+        return 'tickets';
+    }); // 'tickets' | 'users' | 'assets'
     const [users, setUsers] = useState([]);
     const [usersLoading, setUsersLoading] = useState(false);
     const [showAddUser, setShowAddUser] = useState(false);
@@ -1455,6 +3012,24 @@ const AdminDashboard = () => {
     const [categoriesLoading, setCategoriesLoading] = useState(false);
     const [departments, setDepartments] = useState([]);
     const [departmentsLoading, setDepartmentsLoading] = useState(false);
+    const [assetTypes, setAssetTypes] = useState([]);
+    const [assetTypesLoading, setAssetTypesLoading] = useState(false);
+    // Assets state
+    const [assets, setAssets] = useState([]);
+    const [assetsLoading, setAssetsLoading] = useState(false);
+    const [assetSearchQuery, setAssetSearchQuery] = useState('');
+    const [assetCategoryFilter, setAssetCategoryFilter] = useState(['All']);
+    const [assetBranchFilter, setAssetBranchFilter] = useState(['All']);
+    const [assetDepartmentFilter, setAssetDepartmentFilter] = useState(['All']);
+    const [showAddAssetModal, setShowAddAssetModal] = useState(false);
+    const [showAddAssetDropdown, setShowAddAssetDropdown] = useState(false);
+    const [newAsset, setNewAsset] = useState({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT' });
+    const [isEditingAsset, setIsEditingAsset] = useState(false);
+    const [editingAssetId, setEditingAssetId] = useState(null);
+    const [selectedAssetIds, setSelectedAssetIds] = useState([]);
+
+
+
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState(['All']);
     const [branchFilter, setBranchFilter] = useState(['All']);
@@ -1462,6 +3037,26 @@ const AdminDashboard = () => {
     const [categoryFilter, setCategoryFilter] = useState(['All']);
     const [assigneeFilter, setAssigneeFilter] = useState(['All']);
     const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
+    const downloadDropdownRef = useRef(null);
+    const [isGeneratingQRs, setIsGeneratingQRs] = useState(false);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (downloadDropdownRef.current && !downloadDropdownRef.current.contains(event.target)) {
+                setShowDownloadDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    useEffect(() => {
+        if (selectedAssetIds.length === 0) {
+            setShowDownloadDropdown(false);
+        }
+    }, [selectedAssetIds]);
+
     const [isDateFilterActive, setIsDateFilterActive] = useState(false);
     const [dateRange, setDateRange] = useState([
         {
@@ -1470,6 +3065,228 @@ const AdminDashboard = () => {
             key: 'selection'
         }
     ]);
+
+    useEffect(() => {
+        setSelectedAssetIds([]);
+    }, [assetSearchQuery, assetCategoryFilter, assetBranchFilter, assetDepartmentFilter, isDateFilterActive, dateRange]);
+
+    const handleDownloadSelectedAssets = () => {
+        if (selectedAssetIds.length === 0) return;
+        const selectedList = assets.filter(a => selectedAssetIds.includes(a.id));
+        const rows = selectedList.map((asset, idx) => ({
+            "S.No": idx + 1,
+            "Asset ID": asset.assetId || '',
+            "Asset Type": asset.category || '',
+            "Brand": asset.brand || '',
+            "Model": asset.model || '',
+            "Serial Number": asset.serial || '',
+            "User Name": asset.assignee || '',
+            "Emp Code": asset.empCode || '',
+            "Branch": asset.branch || '',
+            "Department": asset.department || '',
+            "Purchase Date": asset.purchaseDate || '',
+            "Warranty": asset.warranty || '',
+            "Condition": asset.condition || '',
+            "Remarks": asset.remarks || ''
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Selected Assets");
+        XLSX.writeFile(workbook, `Selected_Assets_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    const handleDownloadSelectedQRs = async () => {
+        if (selectedAssetIds.length === 0) return;
+        
+        setIsGeneratingQRs(true);
+        
+        try {
+            const selectedList = assets.filter(a => selectedAssetIds.includes(a.id));
+            
+            // Helper to convert blob to base64
+            const blobToBase64 = (blob) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            };
+
+            const qrImages = [];
+            const batchSize = 10;
+            
+            // Resilient batching to avoid connection timeouts or browser concurrency throttling
+            for (let i = 0; i < selectedList.length; i += batchSize) {
+                const batch = selectedList.slice(i, i + batchSize);
+                const batchPromises = batch.map(async (asset) => {
+                    if (!asset.assetId) return null;
+                    try {
+                        const response = await api.get(`/api/assets/${asset.assetId}/qr?t=${Date.now()}`, { responseType: 'blob' });
+                        const base64 = await blobToBase64(response.data);
+                        return { assetId: asset.assetId, base64 };
+                    } catch (err) {
+                        console.error(`Failed to fetch QR label for asset ${asset.assetId}:`, err);
+                        return null; // Gracefully continue if a single request fails
+                    }
+                });
+                
+                const batchResults = await Promise.all(batchPromises);
+                qrImages.push(...batchResults.filter(Boolean));
+            }
+            
+            if (qrImages.length === 0) {
+                setIsGeneratingQRs(false);
+                showToast("No valid QR labels could be compiled.", "error");
+                return;
+            }
+            
+            // Partition into chunks of 40 labels (4 columns x 10 rows)
+            const chunks = [];
+            for (let i = 0; i < qrImages.length; i += 40) {
+                chunks.push(qrImages.slice(i, i + 40));
+            }
+            
+            let pagesHtml = '';
+            chunks.forEach((chunk) => {
+                pagesHtml += `<div class="a4-page">`;
+                chunk.forEach((imgData) => {
+                    pagesHtml += `
+                        <div class="label-cell">
+                            <img class="label-img" src="${imgData.base64}" alt="${imgData.assetId}" />
+                        </div>
+                    `;
+                });
+                
+                // Pad remaining cells on last page to preserve 4x10 grid format
+                const remaining = 40 - chunk.length;
+                for (let i = 0; i < remaining; i++) {
+                    pagesHtml += `<div class="label-cell empty-cell"></div>`;
+                }
+                pagesHtml += `</div>`;
+            });
+
+            // Create a hidden iframe for print invocation
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            iframe.style.zIndex = '-9999';
+            document.body.appendChild(iframe);
+
+            const iframeDoc = iframe.contentWindow.document;
+            iframeDoc.open();
+            iframeDoc.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Print Asset Labels</title>
+                    <style>
+                        * {
+                            box-sizing: border-box;
+                        }
+                        body {
+                            margin: 0;
+                            padding: 0;
+                        }
+                        .preview-container {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                        }
+                        .a4-page {
+                            width: 210mm;
+                            height: 297mm;
+                            display: grid;
+                            grid-template-columns: repeat(4, 52.5mm);
+                            grid-template-rows: repeat(10, 29.7mm);
+                            gap: 0;
+                            padding: 0;
+                            margin: 0 auto;
+                            box-sizing: border-box;
+                            page-break-after: always;
+                        }
+                        .label-cell {
+                            width: 52.5mm;
+                            height: 29.7mm;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            overflow: hidden;
+                            border: 0.1mm dashed #e2e8f0;
+                            padding: 2mm;
+                            box-sizing: border-box;
+                        }
+                        .label-img {
+                            width: 100%;
+                            height: 100%;
+                            object-fit: contain;
+                            display: block;
+                        }
+                        .empty-cell {
+                            background-color: transparent;
+                        }
+                        @media print {
+                            body, html {
+                                margin: 0;
+                                padding: 0;
+                                width: 210mm;
+                                height: 297mm;
+                            }
+                            .a4-page {
+                                page-break-after: always;
+                                margin: 0;
+                            }
+                            * {
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                            @page {
+                                size: A4 portrait;
+                                margin: 0;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="preview-container">
+                        ${pagesHtml}
+                    </div>
+                </body>
+                </html>
+            `);
+            iframeDoc.close();
+
+            // Wait for all images in the iframe to finish loading
+            const images = iframeDoc.getElementsByTagName('img');
+            const imageLoadPromises = Array.from(images).map((img) => {
+                if (img.complete) return Promise.resolve();
+                return new Promise((resolve) => {
+                    img.onload = resolve;
+                    img.onerror = resolve;
+                });
+            });
+
+            await Promise.all(imageLoadPromises);
+
+            // Give browser a split second to render base64 textures
+            setTimeout(() => {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+                
+                document.body.removeChild(iframe);
+                setIsGeneratingQRs(false);
+            }, 500);
+
+        } catch (error) {
+            console.error("Failed to generate printable QR grid:", error);
+            setIsGeneratingQRs(false);
+            showToast("Failed to compile A4 sheet layout.", "error");
+        }
+    };
 
     const handleDateChange = (item) => {
         setDateRange([item.selection]);
@@ -1503,9 +3320,7 @@ const AdminDashboard = () => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [ticketToDelete, setTicketToDelete] = useState(null);
 
-    const { user, logout, refreshUser } = useAuth();
-    const isSuperAdmin = user?.email === 'admin@support.com';
-    const isPowerUser = user?.receiver_position === 'Management' || user?.receiver_position === 'Manager';
+    // Auth variables defined at component top level
 
     // Dark mode
     const [darkMode, setDarkMode] = useState(() => {
@@ -1613,6 +3428,18 @@ const AdminDashboard = () => {
         }
     };
 
+    const fetchAssetTypes = async () => {
+        setAssetTypesLoading(true);
+        try {
+            const response = await api.get('/api/asset_types');
+            setAssetTypes(response.data);
+        } catch (err) {
+            console.error("Failed to fetch asset types:", err);
+        } finally {
+            setAssetTypesLoading(false);
+        }
+    };
+
     const fetchUsers = async () => {
         setUsersLoading(true);
         try {
@@ -1625,16 +3452,69 @@ const AdminDashboard = () => {
         }
     };
 
+    const fetchAssets = async () => {
+        setAssetsLoading(true);
+        try {
+            const response = await api.get('/api/assets');
+            setAssets(Array.isArray(response.data) ? response.data : []);
+        } catch (err) {
+            console.error("Failed to fetch assets:", err);
+            setAssets([]);
+        } finally {
+            setAssetsLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (user) {
             refreshUser(); // Sync user permissions (e.g. can_send_mail) from the backend
-            fetchTickets();
-            fetchAssignees(); // Fetch assignees on load
-            fetchCategories(); // Fetch categories on load
-            fetchDepartments(); // Fetch departments on load
-            fetchUsers(); // Fetch users on load to populate receivers list
+            // Initial load of assets and global metadata
+            fetchAssets();
+            fetchAssignees();
+            fetchCategories();
+            fetchDepartments();
+            fetchAssetTypes();
         }
-    }, []);
+    }, [user?.email]);
+
+    useEffect(() => {
+        const handleOutsideClick = (e) => {
+            if (!e.target.closest('.add-asset-dropdown-container')) {
+                setShowAddAssetDropdown(false);
+            }
+        };
+        if (showAddAssetDropdown) {
+            document.addEventListener('mousedown', handleOutsideClick);
+        }
+        return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, [showAddAssetDropdown]);
+
+    useEffect(() => {
+        if (!user) return;
+        const path = location.pathname;
+        if (path === '/assets' || path === '/assets/add') {
+            setActiveView('assets');
+            if (path === '/assets/add') {
+                setIsEditingAsset(false);
+                const initialGroup = location.state?.group || 'IT';
+                setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: initialGroup });
+            }
+        } else if (path === '/users') {
+            setActiveView('users');
+            fetchUsers();
+        } else if (path === '/settings') {
+            setActiveView('settings');
+            fetchAssignees();
+            fetchCategories();
+            fetchDepartments();
+            fetchAssetTypes();
+        } else if (path === '/tickets') {
+            setActiveView('tickets');
+            fetchTickets();
+        } else if (path === '/admin') {
+            navigate('/tickets', { replace: true });
+        }
+    }, [location.pathname, user?.email]);
 
     // Auto-refresh every 30 seconds
     useEffect(() => {
@@ -2174,6 +4054,65 @@ const AdminDashboard = () => {
     const uniqueDepartments = ['All', ...new Set(tickets.map(t => t.department).filter(Boolean))];
     const uniqueCategories = ['All', ...new Set(tickets.map(t => t.category).filter(Boolean))];
     const uniqueAssignees = ['All', ...new Set(tickets.map(t => t.assignee).filter(Boolean))];
+    const uniqueAssetTypes = ['All', ...new Set((assetTypes || []).map(t => t.name).filter(Boolean))];
+
+    if (isMobile) {
+        return (
+            <div className="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col justify-center items-center p-6">
+                <div className="w-full max-w-sm flex flex-col space-y-6">
+                    <div className="text-center space-y-2">
+                        <div className="h-16 w-16 mx-auto rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-sm mb-4">
+                            <span className="material-symbols-outlined text-[32px]">qr_code_scanner</span>
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white font-display">Scan Asset QR</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Scan an asset tag to instantly view or update its details.
+                        </p>
+                    </div>
+
+                    <div className="w-full aspect-square bg-slate-900 rounded-3xl overflow-hidden shadow-2xl relative ring-4 ring-primary/20">
+                        <Scanner
+                            onScan={(result) => {
+                                if (result && result.length > 0 && result[0].rawValue) {
+                                    const qrContent = result[0].rawValue;
+                                    try {
+                                        const urlObj = new URL(qrContent);
+                                        if (urlObj.pathname.startsWith('/asset/')) {
+                                            navigate(urlObj.pathname + '?edit=true');
+                                            return;
+                                        }
+                                    } catch (e) {
+                                        // Ignore invalid URL error, try fallback string matching
+                                    }
+                                    
+                                    if (qrContent.includes('/asset/')) {
+                                        const assetPath = qrContent.substring(qrContent.indexOf('/asset/'));
+                                        navigate(assetPath + (assetPath.includes('?') ? '&' : '?') + 'edit=true');
+                                    } else {
+                                        showToast('Invalid Asset QR Code scanned.', 'error');
+                                    }
+                                }
+                            }}
+                            onError={(error) => console.log(error?.message)}
+                            components={{
+                                audio: true,
+                                onOff: true,
+                                tracker: true,
+                            }}
+                        />
+                    </div>
+                    
+                    <button
+                        onClick={handleLogout}
+                        className="mt-8 flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all cursor-pointer w-full"
+                    >
+                        <span className="material-symbols-outlined text-lg">logout</span>
+                        Logout
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 h-screen flex overflow-hidden">
@@ -2185,21 +4124,30 @@ const AdminDashboard = () => {
                 <nav className="flex-1 space-y-1">
                     <button
                         onClick={() => {
-                            setActiveView('tickets');
-                            fetchTickets();
+                            navigate('/tickets');
                         }}
                         className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-colors cursor-pointer ${activeView === 'tickets'
                             ? 'text-primary bg-primary/10 border-r-4 border-primary'
                             : 'text-slate-600 dark:text-slate-400 hover:bg-primary/5 dark:hover:bg-primary/10 hover:text-primary'
                             }`}>
                         <span className="material-symbols-outlined mr-3">confirmation_number</span>
-                        <span>All Tickets</span>
+                        <span>Tickets</span>
+                    </button>
+                    <button
+                        onClick={() => {
+                            navigate('/assets');
+                        }}
+                        className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-colors cursor-pointer ${activeView === 'assets'
+                            ? 'text-primary bg-primary/10 border-r-4 border-primary'
+                            : 'text-slate-600 dark:text-slate-400 hover:bg-primary/5 dark:hover:bg-primary/10 hover:text-primary'
+                            }`}>
+                        <span className="material-symbols-outlined mr-3">inventory_2</span>
+                        <span>Assets</span>
                     </button>
                     {user?.email === 'admin@support.com' && (
                         <button
                             onClick={() => {
-                                setActiveView('users');
-                                fetchUsers();
+                                navigate('/users');
                             }}
                             className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-colors cursor-pointer ${activeView === 'users'
                                 ? 'text-primary bg-primary/10 border-r-4 border-primary'
@@ -2212,10 +4160,7 @@ const AdminDashboard = () => {
                     {user?.email === 'admin@support.com' && (
                         <button
                             onClick={() => {
-                                setActiveView('settings');
-                                fetchAssignees();
-                                fetchCategories();
-                                fetchDepartments();
+                                navigate('/settings');
                             }}
                             className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-colors cursor-pointer ${activeView === 'settings'
                                 ? 'text-primary bg-primary/10 border-r-4 border-primary'
@@ -2252,6 +4197,167 @@ const AdminDashboard = () => {
                             <p className="text-xs text-slate-500 dark:text-slate-400">The user dashboard has admin users data</p>
                         </div>
                     )}
+                    {activeView === 'assets' && <>
+                        <div className="relative flex-1 max-w-sm mr-6">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                            <input
+                                type="text"
+                                placeholder="Search asset id, username and emp code..."
+                                value={assetSearchQuery}
+                                onChange={e => setAssetSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 mx-4">
+                            <MultiSelectFilter
+                                label="Type"
+                                icon="category"
+                                options={uniqueAssetTypes}
+                                selected={assetCategoryFilter}
+                                onChange={setAssetCategoryFilter}
+                                widthClass="w-48"
+                            />
+                            <MultiSelectFilter
+                                label="Branch"
+                                icon="location_on"
+                                options={[
+                                    'All',
+                                    'Cotton Concepts HO_ Coimbatore',
+                                    'Doctor Towels HO',
+                                    'Cotton Concepts_ Vengamedu',
+                                    'Cotton Concepts_ Karur',
+                                    'Doctor Towels_ Karur'
+                                ]}
+                                selected={assetBranchFilter}
+                                onChange={setAssetBranchFilter}
+                                widthClass="w-48"
+                            />
+                            <MultiSelectFilter
+                                label="Dept"
+                                icon="corporate_fare"
+                                options={['All', ...(departments?.length > 0 ? departments.map(d => d.name) : ['IT', 'HR', 'Finance', 'Sales', 'Production', 'Logistics'])]}
+                                selected={assetDepartmentFilter}
+                                onChange={setAssetDepartmentFilter}
+                                widthClass="w-48"
+                            />
+                            <div className="relative flex items-center gap-2">
+                                <button
+                                    onClick={() => setShowDatePicker(!showDatePicker)}
+                                    aria-label="Toggle date filter"
+                                    title="Date Range Filter"
+                                    className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-colors shadow-sm relative
+                                    ${isDateFilterActive || showDatePicker
+                                            ? 'bg-primary text-white border-primary'
+                                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">
+                                        calendar_today
+                                    </span>
+                                    {isDateFilterActive && (
+                                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-white dark:border-slate-900"></span>
+                                        </span>
+                                    )}
+                                </button>
+                                
+                                {showDatePicker && (
+                                    <div className="absolute top-12 right-0 z-50 shadow-2xl rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col">
+                                        <DateRangePicker
+                                            onChange={handleDateChange}
+                                            moveRangeOnFirstSelection={false}
+                                            months={2}
+                                            ranges={dateRange}
+                                            direction="horizontal"
+                                            rangeColors={['#137fec']}
+                                            staticRanges={[]}
+                                            inputRanges={[]}
+                                        />
+                                        <div className="bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-700/50 p-3 flex justify-between items-center">
+                                            {isDateFilterActive ? (
+                                                <button
+                                                    onClick={clearDateFilter}
+                                                    className="text-sm font-medium text-slate-500 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400 transition-colors ml-2"
+                                                >
+                                                    Clear filter
+                                                </button>
+                                            ) : (
+                                                <div></div>
+                                            )}
+                                            <button
+                                                onClick={() => setShowDatePicker(false)}
+                                                className="px-4 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors"
+                                            >
+                                                Done
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="relative" ref={downloadDropdownRef}>
+                                <button
+                                    onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
+                                    disabled={selectedAssetIds.length === 0}
+                                    title={selectedAssetIds.length === 0 ? "Select assets to download" : "Download Options"}
+                                    className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-all shadow-sm
+                                    ${selectedAssetIds.length > 0
+                                        ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 cursor-pointer animate-in fade-in scale-in-95 duration-200'
+                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50'}`}
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">
+                                        download
+                                    </span>
+                                </button>
+                                {selectedAssetIds.length > 0 && (
+                                    <div 
+                                        className={`absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 py-1.5 transition-all duration-200 
+                                        ${showDownloadDropdown 
+                                            ? 'opacity-100 visible translate-y-0 pointer-events-auto' 
+                                            : 'opacity-0 invisible translate-y-1 pointer-events-none'
+                                        }`}
+                                    >
+                                        <button
+                                            onClick={() => {
+                                                handleDownloadSelectedQRs();
+                                                setShowDownloadDropdown(false);
+                                            }}
+                                            className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-2.5 transition-colors cursor-pointer"
+                                        >
+                                            <span className="material-symbols-outlined text-base">qr_code</span>
+                                            <span>QR Code</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                handleDownloadSelectedAssets();
+                                                setShowDownloadDropdown(false);
+                                            }}
+                                            className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-2.5 transition-colors border-t border-slate-100 dark:border-slate-800/80 mt-1 pt-1 cursor-pointer"
+                                        >
+                                            <span className="material-symbols-outlined text-base">description</span>
+                                            <span>Asset Details</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            {((assetSearchQuery !== '') || !assetCategoryFilter.includes('All') || !assetBranchFilter.includes('All') || !assetDepartmentFilter.includes('All') || isDateFilterActive) && (
+                                <button
+                                    onClick={() => {
+                                        setAssetSearchQuery('');
+                                        setAssetCategoryFilter(['All']);
+                                        setAssetBranchFilter(['All']);
+                                        setAssetDepartmentFilter(['All']);
+                                        setIsDateFilterActive(false);
+                                        setDateRange([{ startDate: new Date(), endDate: new Date(), key: 'selection' }]);
+                                    }}
+                                    aria-label="Clear all filters"
+                                    title="Clear all filters"
+                                    className="flex items-center justify-center w-9 h-9 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm animate-in fade-in zoom-in duration-200"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
+                                </button>
+                            )}
+                        </div>
+                    </>}
                     {activeView === 'settings' && (
                         <div>
                             <h2 className="text-lg font-bold text-slate-800 dark:text-white">Settings</h2>
@@ -2418,6 +4524,39 @@ const AdminDashboard = () => {
                                 {showAddUser ? 'Cancel' : 'Add User'}
                             </button>
                         )}
+                        {activeView === 'assets' && (
+                            <div className="relative add-asset-dropdown-container">
+                                <button
+                                    onClick={() => setShowAddAssetDropdown(p => !p)}
+                                    className="flex items-center gap-2 p-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors shadow cursor-pointer font-display"
+                                >
+                                    <span className="material-symbols-outlined text-base">add</span>
+                                    Add Asset
+                                    <span className="material-symbols-outlined text-sm leading-none">keyboard_arrow_down</span>
+                                </button>
+                                {showAddAssetDropdown && (
+                                    <div className="absolute right-0 mt-1.5 w-36 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-[250] py-1">
+                                        <button
+                                            onClick={() => {
+                                                setShowAddAssetDropdown(false);
+                                                setIsEditingAsset(false);
+                                                setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT' });
+                                                navigate('/assets/add', { state: { group: 'IT' } });
+                                            }}
+                                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 font-medium transition-colors cursor-pointer"
+                                        >
+                                            IT
+                                        </button>
+                                        <button
+                                            disabled
+                                            className="w-full text-left px-4 py-2.5 text-sm text-slate-300 dark:text-slate-700 font-medium cursor-not-allowed"
+                                        >
+                                            Admin
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         <button
                             onClick={toggleDarkMode}
                             aria-label="Toggle dark mode"
@@ -2461,7 +4600,55 @@ const AdminDashboard = () => {
                             onToggle={() => setExpandedSettingsView(prev => prev === 'departments' ? null : 'departments')}
                             showToast={showToast}
                         />
+                        <AssetTypesView
+                            assetTypes={assetTypes}
+                            setAssetTypes={setAssetTypes}
+                            assetTypesLoading={assetTypesLoading}
+                            isExpanded={expandedSettingsView === 'assetTypes'}
+                            onToggle={() => setExpandedSettingsView(prev => prev === 'assetTypes' ? null : 'assetTypes')}
+                        />
                     </div>
+                )}
+
+                {/* Assets View */}
+                {activeView === 'assets' && (
+                    <AssetsView
+                        assets={assets}
+                        setAssets={setAssets}
+                        assetTypes={assetTypes}
+                        searchQuery={assetSearchQuery}
+                        setSearchQuery={setAssetSearchQuery}
+                        categoryFilter={assetCategoryFilter}
+                        branchFilter={assetBranchFilter}
+                        departmentFilter={assetDepartmentFilter}
+                        showAddModal={location.pathname === '/assets/add' || (showAddAssetModal && isEditingAsset)}
+                        setShowAddModal={(val, isEdit = false) => {
+                            if (val) {
+                                if (isEditingAsset || isEdit) {
+                                    setShowAddAssetModal(true);
+                                } else {
+                                    navigate('/assets/add');
+                                }
+                            } else {
+                                if (location.pathname === '/assets/add') {
+                                    navigate('/assets');
+                                } else {
+                                    setShowAddAssetModal(false);
+                                }
+                            }
+                        }}
+                        newAsset={newAsset}
+                        setNewAsset={setNewAsset}
+                        isEditing={isEditingAsset}
+                        setIsEditing={setIsEditingAsset}
+                        editingId={editingAssetId}
+                        setEditingId={setEditingAssetId}
+                        isDateFilterActive={isDateFilterActive}
+                        dateRange={dateRange}
+                        selectedAssetIds={selectedAssetIds}
+                        setSelectedAssetIds={setSelectedAssetIds}
+                        departments={departments}
+                    />
                 )}
 
                 {/* Tickets View */}
@@ -3578,6 +5765,28 @@ const AdminDashboard = () => {
                     </div>
                 )
             }
+
+            {/* Generating QRs Loader Overlay */}
+            {isGeneratingQRs && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center gap-5 text-center animate-in zoom-in-95 duration-200">
+                        <div className="relative flex items-center justify-center">
+                            <div className="h-16 w-16 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin"></div>
+                            <span className="material-symbols-outlined text-[28px] text-emerald-500 absolute">qr_code_2</span>
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Generating Printable Sheet</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+                                Compiling selected asset QR labels into a high-DPI A4 printable layout...
+                            </p>
+                            <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-full text-xs font-semibold">
+                                <span className="animate-pulse h-1.5 w-1.5 bg-emerald-500 rounded-full"></span>
+                                <span>Processing {selectedAssetIds.length} Label(s)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Toast notification */}
             {

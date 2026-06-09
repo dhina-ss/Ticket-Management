@@ -15,7 +15,11 @@ from database import (
     get_attachment,
     update_ticket_mail_time,
     auto_confirm_stale_tickets,
-    delete_expired_attachments, # Added this line
+    delete_expired_attachments,
+    get_asset_types,
+    create_asset_type,
+    update_asset_type,
+    delete_asset_type,
 )
 
 import os
@@ -30,7 +34,7 @@ import threading
 
 DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'dist'))
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 CORS(app)
 
 LAST_SENT_EMAIL = None # Store the last sent email for E2E testing
@@ -654,6 +658,253 @@ def delete_user(user_id):
             return jsonify({"message": "User deleted."}), 200
         return jsonify({"error": "User not found."}), 404
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+# ---------------------------------------------------------------------------
+# Assets API Routes
+# ---------------------------------------------------------------------------
+
+@app.route('/api/assets', methods=['GET', 'POST'])
+def assets_route():
+    """GET/POST endpoint for assets."""
+    if request.method == 'POST':
+        try:
+            from database import create_asset, get_all_assets
+            data = request.json or {}
+            # Auto-generate assetId if not provided
+            if not data.get("assetId"):
+                import datetime
+                
+                # 1. Get prefix code based on category
+                category = data.get("category", "")
+                category_mapping = {
+                    "cpu": "CPU",
+                    "laptop": "LAP",
+                    "mobile": "MOB",
+                    "monitor": "MON",
+                    "printer": "PRN",
+                    "server": "SRV",
+                }
+                category_lower = category.lower().strip()
+                prefix = category_mapping.get(category_lower)
+                if not prefix:
+                    prefix = (category.replace(" ", "")[:3].upper()) if len(category) >= 3 else "AST"
+                
+                # 2. Extract year_short from purchaseDate (format: "YYYY-MM-DD")
+                purchase_date_str = data.get("purchaseDate")
+                if purchase_date_str and len(purchase_date_str) >= 4:
+                    try:
+                        purchase_year = int(purchase_date_str[:4])
+                    except ValueError:
+                        purchase_year = datetime.datetime.now().year
+                else:
+                    purchase_year = datetime.datetime.now().year
+                year_short = str(purchase_year)[-2:]
+                
+                # 3. Calculate unique increment per category and year
+                existing = get_all_assets()
+                same_category_assets = [a for a in existing if a.get("category", "").lower().strip() == category_lower]
+                increment = len(same_category_assets) + 1
+                existing_tags = {a.get("assetId") for a in existing}
+                
+                while True:
+                    tag = f"{prefix}{year_short}{str(increment).zfill(4)}"
+                    if tag not in existing_tags:
+                        break
+                    increment += 1
+                
+                data["assetId"] = tag
+            result = create_asset(data)
+            if result.get("success"):
+                logging.info(f"Admin Action: Created asset - Asset ID: {result.get('assetId')}")
+                return jsonify(result), 201
+            return jsonify(result), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    else:
+        try:
+            from database import get_all_assets
+            return jsonify(get_all_assets()), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/assets/<string:asset_id>', methods=['GET'])
+def get_single_asset_route(asset_id):
+    """Retrieve details for a single asset by alphanumeric ID."""
+    try:
+        from database import get_all_assets
+        all_ast = get_all_assets()
+        asset = next((a for a in all_ast if a.get("assetId") == asset_id), None)
+        if asset:
+            return jsonify(asset), 200
+        return jsonify({"error": "Asset not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/assets/<int:asset_id>', methods=['PUT'])
+def update_asset_route(asset_id):
+    """Update an existing asset."""
+    try:
+        from database import update_asset
+        data = request.json or {}
+        result = update_asset(asset_id, data)
+        if result.get("success"):
+            logging.info(f"Admin Action: Updated asset {asset_id}")
+            return jsonify({"message": "Asset updated."}), 200
+        return jsonify({"error": "Asset not found."}), 404
+    except Exception as e:
+        logging.exception(f"Exception in update_asset_route for asset_id {asset_id}:")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/assets/<int:asset_id>', methods=['DELETE'])
+def delete_asset_route(asset_id):
+    """Delete an asset by id."""
+    try:
+        from database import delete_asset
+        result = delete_asset(asset_id)
+        if result.get("success"):
+            logging.info(f"Admin Action: Deleted asset {asset_id}")
+            return jsonify({"message": "Asset deleted."}), 200
+        return jsonify({"error": "Asset not found."}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/assets/<string:asset_id>/qr', methods=['GET'])
+def get_asset_qr_endpoint(asset_id):
+    """Dynamically compile and serve a beautiful 52.5mm x 29.7mm QR code label for an asset."""
+    import io
+    import qrcode
+    from PIL import Image, ImageDraw, ImageFont
+    from database import get_all_assets
+
+    try:
+        # 1. Lookup asset by asset_id to find its branch
+        assets_list = get_all_assets()
+        asset = next((a for a in assets_list if a.get("assetId") == asset_id), None)
+        branch = asset.get("branch", "") if asset else ""
+
+        # 2. Compile QR Code (standard high quality)
+        host = "http://122.165.253.167:443"
+
+        qr_data = f"{host}/asset/{asset_id}"
+
+        qr = qrcode.QRCode(version=1, box_size=10, border=1)
+        qr.add_data(qr_data)
+        qr.make(fit=True)
+        qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGBA")
+
+        # 3. Create canvas: 52.5mm x 29.7mm at 300 DPI is 620 x 350 pixels
+        width, height = 620, 350
+        label_img = Image.new("RGBA", (width, height), "white")
+        draw = ImageDraw.Draw(label_img)
+
+        # Clean, solid black border inset inside the image with a 5px gap from the edges, width=2px
+        draw.rectangle([7, 7, width - 6, height - 6], outline="black", width=2)
+        # Center QR code vertically on the left side
+        qr_size = 210
+        qr_img_resized = qr_img.resize((qr_size, qr_size), Image.Resampling.LANCZOS)
+        label_img.paste(qr_img_resized, (45, (height - qr_size) // 2), qr_img_resized)
+
+        # 4. Brand-based logo select
+        logo_filename = "dt.png" if "doctor towels" in branch.lower() else "cc.png"
+        
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        logo_path = os.path.join(base_dir, "frontend", "src", "assets", logo_filename)
+        
+        # Fallback if executed from a different folder
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(os.path.dirname(base_dir), "frontend", "src", "assets", logo_filename)
+
+        # Load logo
+        logo = None
+        if os.path.exists(logo_path):
+            logo = Image.open(logo_path).convert("RGBA")
+            logo.thumbnail((280, 185), Image.Resampling.LANCZOS)
+
+        # 5. Load fonts
+        try:
+            font_id = ImageFont.truetype("arialbd.ttf", 26)
+            font_warn = ImageFont.truetype("arial.ttf", 16)
+        except IOError:
+            try:
+                font_id = ImageFont.truetype("arial.ttf", 26)
+                font_warn = ImageFont.truetype("arial.ttf", 16)
+            except IOError:
+                font_id = ImageFont.load_default()
+                font_warn = ImageFont.load_default()
+
+        # 6. Get element dimensions for dynamic block vertical centering
+        text_id = f"Asset ID: {asset_id}"
+        bbox_id = draw.textbbox((0, 0), text_id, font=font_id)
+        text_id_w = bbox_id[2] - bbox_id[0]
+        text_id_h = bbox_id[3] - bbox_id[1]
+
+        text_warn = "(Please do not remove this tag)"
+        bbox_warn = draw.textbbox((0, 0), text_warn, font=font_warn)
+        text_warn_w = bbox_warn[2] - bbox_warn[0]
+        text_warn_h = bbox_warn[3] - bbox_warn[1]
+
+        # Define right column layout
+        right_col_x = 290
+        right_col_w = 300
+
+        # Combined height calculations (logo + 20px gap + Asset ID + 15px gap + Warning text)
+        logo_h = logo.height if logo else 120
+        gap1 = 20
+        gap2 = 15
+        total_height = logo_h + gap1 + text_id_h + gap2 + text_warn_h
+        
+        # Starting Y coordinate for perfect vertical centering of the entire right column block
+        start_y = (height - total_height) // 2
+
+        # 7. Render logo
+        if logo:
+            logo_x = right_col_x + (right_col_w - logo.width) // 2
+            logo_y = start_y
+            label_img.paste(logo, (logo_x, logo_y), logo)
+            next_y = logo_y + logo_h
+        else:
+            # Fallback if logo file not found
+            draw.rectangle([right_col_x + 10, start_y, right_col_x + right_col_w - 10, start_y + 120], fill="#F1F5F9", outline="#CBD5E1")
+            bbox_no_logo = draw.textbbox((0, 0), "No Logo Found", font=font_warn)
+            no_logo_w = bbox_no_logo[2] - bbox_no_logo[0]
+            draw.text((right_col_x + (right_col_w - no_logo_w) // 2, start_y + 50), "No Logo Found", fill="#64748B", font=font_warn)
+            next_y = start_y + 120
+
+        # 8. Render Asset ID text
+        text_id_x = right_col_x + (right_col_w - text_id_w) // 2
+        text_id_y = next_y + gap1
+        draw.text((text_id_x, text_id_y), text_id, fill="black", font=font_id)
+
+        # 9. Render Warning text
+        text_warn_x = right_col_x + (right_col_w - text_warn_w) // 2
+        text_warn_y = text_id_y + text_id_h + gap2
+        draw.text((text_warn_x, text_warn_y), text_warn, fill="#475569", font=font_warn)
+
+        # 6. Stream file as response
+        img_io = io.BytesIO()
+        label_img.save(img_io, 'PNG')
+        img_io.seek(0)
+        response = send_file(img_io, mimetype='image/png')
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            with open("qr_error.log", "a") as f:
+                f.write(f"\n--- Error for asset {asset_id} ---\n")
+                traceback.print_exc(file=f)
+        except Exception:
+            pass
         return jsonify({"error": str(e)}), 500
 
 
@@ -1657,6 +1908,38 @@ def not_found(e):
     # This catches React Router paths like /admin, returning the SPA index.html
     return send_from_directory(DIST_DIR, 'index.html')
 # ---------------------------------------------------------------------------
+# Asset Types Management
+# ---------------------------------------------------------------------------
+@app.route('/api/asset_types', methods=['GET', 'POST'])
+def manage_asset_types():
+    if request.method == 'GET':
+        return jsonify(get_asset_types())
+    if request.method == 'POST':
+        data = request.json
+        name = data.get('name')
+        if not name:
+            return jsonify({"error": "Name is required"}), 400
+        res = create_asset_type(name)
+        return jsonify(res)
+
+@app.route('/api/asset_types/<int:type_id>', methods=['PUT', 'DELETE'])
+def manage_single_asset_type(type_id):
+    if request.method == 'PUT':
+        data = request.json
+        name = data.get('name')
+        if not name:
+            return jsonify({"error": "Name is required"}), 400
+        updated = update_asset_type(type_id, name)
+        if updated:
+            return jsonify({"success": True})
+        return jsonify({"error": "Failed to update asset type"}), 400
+    if request.method == 'DELETE':
+        deleted = delete_asset_type(type_id)
+        if deleted:
+            return jsonify({"success": True})
+        return jsonify({"error": "Failed to delete asset type"}), 400
+
+# ---------------------------------------------------------------------------
 # Background Scheduler (Applies to both WSGI & Development)
 # ---------------------------------------------------------------------------
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -1680,4 +1963,5 @@ if __name__ == '__main__':
     os.environ['APP_ENV'] = args.env
 
     host = "122.165.253.167" if args.env == "prod" else "localhost"
-    app.run(host=host, port=443)
+    is_debug = (args.env == "local")
+    app.run(host=host, port=443, debug=is_debug)
