@@ -979,7 +979,7 @@ def update_approval_status(ticket_id: str, role: str, status: str, comments: str
             conn = _get_conn()
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT management_approvals, management_status FROM tickets WHERE ticket_id = %s",
+                    "SELECT management_approvals, management_status, management_comments FROM tickets WHERE ticket_id = %s",
                     (ticket_id,)
                 )
                 row = cur.fetchone()
@@ -992,6 +992,7 @@ def update_approval_status(ticket_id: str, role: str, status: str, comments: str
                 except Exception:
                     approvals = []
             existing_statuses = row[1] if row else ""
+            existing_comments_str = (row[2] if row and row[2] else "").strip()
 
             # Find or create the entry for this responder
             entry = next((e for e in approvals if e.get("name") == responder_name), None)
@@ -1036,11 +1037,16 @@ def update_approval_status(ticket_id: str, role: str, status: str, comments: str
             set_clauses.append("management_status = %s")
             values.append(", ".join(status_parts))
 
+            # Also update management_comments column for legacy field compatibility / queries
+            if comments and status != "Pending":
+                new_comment_line = f"{responder_name}: {comments}"
+                new_comments_str = (existing_comments_str + "\n" + new_comment_line).strip() if existing_comments_str else new_comment_line
+                set_clauses.append("management_comments = %s")
+                values.append(new_comments_str)
+
             # Update status time when a final decision lands
             if status in ["Approved", "Rejected", "Hold"]:
                 set_clauses.append("management_status_time = NOW()")
-
-
 
         except Exception as e:
             return {"success": False, "error": str(e)}
