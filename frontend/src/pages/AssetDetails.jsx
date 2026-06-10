@@ -43,12 +43,17 @@ const AssetDetails = () => {
     const { assetId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
 
     const [asset, setAsset] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [scannedFromDedicatedScanner, setScannedFromDedicatedScanner] = useState(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('edit') === 'true';
+    });
     const [showEditModal, setShowEditModal] = useState(false);
+    const [submitAction, setSubmitAction] = useState('exit'); // 'exit' | 'scan'
     const [activeImage, setActiveImage] = useState(null);
     const [departments, setDepartments] = useState([]);
 
@@ -217,7 +222,8 @@ const AssetDetails = () => {
         if (asset) {
             const urlParams = new URLSearchParams(location.search);
             if (urlParams.get('edit') === 'true') {
-                if (isAuthenticated) {
+                setScannedFromDedicatedScanner(true);
+                if (isAuthenticated && user?.access?.includes('Edit')) {
                     setShowEditModal(true);
                 }
                 // Strip the ?edit=true parameter from URL quietly
@@ -225,7 +231,7 @@ const AssetDetails = () => {
                 window.history.replaceState({}, document.title, newUrl);
             }
         }
-    }, [asset, isAuthenticated, location.search]);
+    }, [asset, isAuthenticated, location.search, user]);
 
     const handleImageUpload = async (e) => {
         const files = Array.from(e.target.files);
@@ -262,19 +268,9 @@ const AssetDetails = () => {
     };
 
     const handleEditClick = () => {
-        if (!isAuthenticated) {
-            // Redirect to login page and preserve target page state with ?edit=true query param
-            navigate('/login', {
-                state: {
-                    from: {
-                        pathname: `/asset/${assetId}`,
-                        search: '?edit=true'
-                    }
-                }
-            });
-            return;
+        if (isAuthenticated && user?.access?.includes('Edit') && scannedFromDedicatedScanner) {
+            setShowEditModal(true);
         }
-        setShowEditModal(true);
     };
 
     const handleSave = async (e) => {
@@ -326,8 +322,12 @@ const AssetDetails = () => {
 
         try {
             await api.put(`/api/assets/${asset.id}`, editForm);
-            await fetchAsset();
-            setShowEditModal(false);
+            if (submitAction === 'scan') {
+                navigate('/admin');
+            } else {
+                await fetchAsset();
+                setShowEditModal(false);
+            }
         } catch (err) {
             console.error("Error updating asset details:", err);
             setSaveError(err.response?.data?.error || 'Failed to update asset details.');
@@ -387,7 +387,7 @@ const AssetDetails = () => {
                 </div>
 
                 <div className="flex items-center gap-3 w-full">
-                    {isAuthenticated && (
+                    {isAuthenticated && user?.access?.includes('Edit') && scannedFromDedicatedScanner && (
                         <button
                             onClick={handleEditClick}
                             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-xs sm:text-sm font-bold rounded-xl hover:bg-primary/90 transition-all shadow-md hover:shadow-primary/10 active:scale-[0.98] cursor-pointer"
@@ -409,7 +409,7 @@ const AssetDetails = () => {
             {/* Content Cards */}
             <div className="grid grid-cols-1 gap-6 sm:gap-8">
                 {/* QR and Sticker Card */}
-                <div className={`flex-col items-center ${isAuthenticated ? 'hidden sm:flex' : 'flex'}`}>
+                <div className="hidden sm:flex flex-col items-center">
                     <div className="w-full max-w-[200px] sm:max-w-[280px] bg-white dark:bg-slate-900 shadow-lg border border-slate-200 dark:border-slate-800 rounded-3xl p-5 text-center flex flex-col items-center">
                         <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4">Official Asset Tag</h3>
                         <div className="relative border border-slate-100 dark:border-slate-850 rounded-2xl overflow-hidden shadow-inner p-2 bg-slate-50 dark:bg-slate-950 flex items-center justify-center min-h-[120px] sm:min-h-[160px] w-full">
@@ -815,22 +815,52 @@ const AssetDetails = () => {
                                 )}
                             </div>
 
-                            {/* Footer Buttons */}
-                            <div className="flex flex-col-reverse lg:flex-row lg:justify-end gap-3.5 border-t border-slate-100 dark:border-slate-800 pt-6 mt-6">
+                            {/* Footer Buttons - Desktop View */}
+                            <div className="hidden lg:flex lg:justify-end gap-3.5 border-t border-slate-100 dark:border-slate-800 pt-6 mt-6">
                                 <button
                                     type="button"
                                     onClick={() => setShowEditModal(false)}
-                                    className="w-full lg:w-auto px-5 py-3 rounded-xl font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    className="px-5 py-3 rounded-xl font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
+                                    onClick={() => setSubmitAction('exit')}
                                     disabled={saving}
-                                    className="w-full lg:w-auto px-6 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 disabled:opacity-60 transition-all cursor-pointer flex items-center justify-center gap-2"
+                                    className="px-6 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 disabled:opacity-60 transition-all cursor-pointer flex items-center justify-center gap-2"
                                 >
-                                    {saving && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
-                                    {saving ? 'Saving...' : 'Save Changes'}
+                                    {saving && submitAction === 'exit' && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
+                                    {saving && submitAction === 'exit' ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+
+                            {/* Footer Buttons - Mobile View */}
+                            <div className="flex flex-col gap-3 border-t border-slate-100 dark:border-slate-800 pt-6 mt-6 lg:hidden">
+                                <button
+                                    type="submit"
+                                    onClick={() => setSubmitAction('exit')}
+                                    disabled={saving}
+                                    className="w-full px-6 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary/90 shadow-md disabled:opacity-60 transition-all cursor-pointer flex items-center justify-center gap-2"
+                                >
+                                    {saving && submitAction === 'exit' && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
+                                    {saving && submitAction === 'exit' ? 'Saving...' : 'Save and Exit'}
+                                </button>
+                                <button
+                                    type="submit"
+                                    onClick={() => setSubmitAction('scan')}
+                                    disabled={saving}
+                                    className="w-full px-6 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md disabled:opacity-60 transition-all cursor-pointer flex items-center justify-center gap-2"
+                                >
+                                    {saving && submitAction === 'scan' && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
+                                    {saving && submitAction === 'scan' ? 'Saving...' : 'Save and Next'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEditModal(false)}
+                                    className="w-full px-5 py-3 rounded-xl font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
+                                >
+                                    Cancel
                                 </button>
                             </div>
                         </form>

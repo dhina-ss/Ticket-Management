@@ -790,9 +790,10 @@ def get_asset_qr_endpoint(asset_id):
         branch = asset.get("branch", "") if asset else ""
 
         # 2. Compile QR Code (standard high quality)
-        host = "http://122.165.253.167:443"
-
-        qr_data = f"{host}/asset/{asset_id}"
+        # Use request.host_url for dynamic host (remove trailing slash)
+        # Determine base URL for QR data: use env QR_BASE_URL if defined, else request.host_url
+        base_url = os.getenv('QR_BASE_URL') or request.host_url.rstrip('/')
+        qr_data = f"{base_url}/asset/{asset_id}"
 
         qr = qrcode.QRCode(version=1, box_size=10, border=1)
         qr.add_data(qr_data)
@@ -808,34 +809,51 @@ def get_asset_qr_endpoint(asset_id):
         draw.rectangle([7, 7, width - 6, height - 6], outline="black", width=2)
         # Center QR code vertically on the left side
         qr_size = 210
-        qr_img_resized = qr_img.resize((qr_size, qr_size), Image.Resampling.LANCZOS)
+        try:
+            resample_filter = Image.Resampling.LANCZOS
+        except AttributeError:
+            resample_filter = Image.LANCZOS if hasattr(Image, "LANCZOS") else Image.ANTIALIAS
+        qr_img_resized = qr_img.resize((qr_size, qr_size), resample_filter)
         label_img.paste(qr_img_resized, (45, (height - qr_size) // 2), qr_img_resized)
 
         # 4. Brand-based logo select
         logo_filename = "dt.png" if "doctor towels" in branch.lower() else "cc.png"
         
+        # Determine project root (parent of backend directory)
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        logo_path = os.path.join(base_dir, "frontend", "src", "assets", logo_filename)
+        project_root = os.path.abspath(os.path.join(base_dir, ".."))
+        logo_path = os.path.join(project_root, "frontend", "src", "assets", logo_filename)
         
-        # Fallback if executed from a different folder
-        if not os.path.exists(logo_path):
-            logo_path = os.path.join(os.path.dirname(base_dir), "frontend", "src", "assets", logo_filename)
-
-        # Load logo
+        # Load logo if it exists
         logo = None
         if os.path.exists(logo_path):
             logo = Image.open(logo_path).convert("RGBA")
-            logo.thumbnail((280, 185), Image.Resampling.LANCZOS)
-
-        # 5. Load fonts
-        try:
-            font_id = ImageFont.truetype("arialbd.ttf", 26)
-            font_warn = ImageFont.truetype("arial.ttf", 16)
-        except IOError:
+            # Use appropriate resampling filter depending on Pillow version
             try:
-                font_id = ImageFont.truetype("arial.ttf", 26)
-                font_warn = ImageFont.truetype("arial.ttf", 16)
+                resample_filter = Image.Resampling.LANCZOS
+            except AttributeError:
+                resample_filter = Image.LANCZOS if hasattr(Image, "LANCZOS") else Image.ANTIALIAS
+            logo.thumbnail((280, 185), resample_filter)
+        
+        # 5. Load fonts with robust system-agnostic fallbacks
+        font_id = None
+        font_warn = None
+        for font_name in ["arial.ttf", "arial", "Helvetica", "DejaVuSans", "LiberationSans", "FreeSans"]:
+            try:
+                if font_name == "arial.ttf":
+                    font_id = ImageFont.truetype("arialbd.ttf", 26)
+                else:
+                    font_id = ImageFont.truetype(font_name, 26)
+                font_warn = ImageFont.truetype(font_name, 16)
+                break
             except IOError:
+                continue
+
+        if font_id is None or font_warn is None:
+            try:
+                font_id = ImageFont.load_default(size=26)
+                font_warn = ImageFont.load_default(size=16)
+            except TypeError:
                 font_id = ImageFont.load_default()
                 font_warn = ImageFont.load_default()
 
@@ -895,6 +913,7 @@ def get_asset_qr_endpoint(asset_id):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
+        response.headers["Content-Disposition"] = f"inline; filename=\"{asset_id}_qr.png\""
         return response
     except Exception as e:
         import traceback

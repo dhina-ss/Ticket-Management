@@ -701,6 +701,7 @@ const AssetsView = ({
     categoryFilter,
     branchFilter,
     departmentFilter,
+    conditionFilter,
     showAddModal,
     setShowAddModal,
     newAsset,
@@ -893,7 +894,7 @@ const AssetsView = ({
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, categoryFilter, branchFilter, departmentFilter, isDateFilterActive, dateRange]);
+    }, [searchQuery, categoryFilter, branchFilter, departmentFilter, conditionFilter, isDateFilterActive, dateRange]);
 
 
 
@@ -904,6 +905,7 @@ const AssetsView = ({
         const matchesCategory = categoryFilter.includes('All') || categoryFilter.includes(normalizeCategory(a.category));
         const matchesBranch = branchFilter.includes('All') || branchFilter.includes(a.branch);
         const matchesDepartment = departmentFilter.includes('All') || departmentFilter.includes(a.department);
+        const matchesCondition = conditionFilter.includes('All') || conditionFilter.includes(a.condition);
         
         let matchesDate = true;
         if (isDateFilterActive && dateRange[0] && a.date) {
@@ -916,7 +918,7 @@ const AssetsView = ({
             matchesDate = assetDate >= start && assetDate <= end;
         }
         
-        return matchesSearch && matchesCategory && matchesBranch && matchesDepartment && matchesDate;
+        return matchesSearch && matchesCategory && matchesBranch && matchesDepartment && matchesCondition && matchesDate;
     });
 
     const totalPages = Math.max(1, Math.ceil(filteredAssets.length / ITEMS_PER_PAGE));
@@ -1145,10 +1147,11 @@ const AssetsView = ({
                                 </th>
                                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset ID</th>
                                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset Type</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[22%]">Brand</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[16%]">Serial Number</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[17%]">User Name</th>
+                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[18%]">Brand</th>
+                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">Serial Number</th>
+                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">User Name</th>
                                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">Emp Code</th>
+                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">Condition</th>
                             </tr>
                         </thead>
                     </table>
@@ -1175,15 +1178,26 @@ const AssetsView = ({
                                                 <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{asset.assetId}</span>
                                             </td>
                                             <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 w-[12%] truncate" title={normalizeCategory(asset.category)}>{normalizeCategory(asset.category)}</td>
-                                            <td className="px-6 py-4 w-[22%]">
+                                            <td className="px-6 py-4 w-[18%]">
                                                 <div className="text-sm font-medium text-slate-900 dark:text-white truncate" title={`${asset.brand || ''} ${asset.model || ''}`.trim() || asset.name}>
                                                     {asset.brand ? `${asset.brand} ${asset.model}` : asset.name}
                                                 </div>
                                                 <div className="text-[11px] text-slate-400 truncate" title={`${asset.branch}`}>{asset.branch}</div>
                                             </td>
-                                            <td className="px-6 py-4 text-sm font-mono text-slate-500 dark:text-slate-400 w-[16%] truncate" title={asset.serial}>{asset.serial}</td>
-                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[17%] truncate" title={asset.assignee}>{asset.assignee}</td>
+                                            <td className="px-6 py-4 text-sm font-mono text-slate-500 dark:text-slate-400 w-[13%] truncate" title={asset.serial}>{asset.serial}</td>
+                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[15%] truncate" title={asset.assignee}>{asset.assignee}</td>
                                             <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[13%] truncate" title={asset.empCode}>{asset.empCode || '—'}</td>
+                                            <td className="px-6 py-4 w-[13%]">
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                                    asset.condition?.toLowerCase() === 'excellent' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+                                                    asset.condition?.toLowerCase() === 'good' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
+                                                    asset.condition?.toLowerCase() === 'medium' || asset.condition?.toLowerCase() === 'fair' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
+                                                    asset.condition?.toLowerCase() === 'scrap' || asset.condition?.toLowerCase() === 'poor' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
+                                                    'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                                }`}>
+                                                    {asset.condition || '—'}
+                                                </span>
+                                            </td>
                                         </tr>
                                     ))
                                 )}
@@ -3021,6 +3035,7 @@ const AdminDashboard = () => {
     const [assetCategoryFilter, setAssetCategoryFilter] = useState(['All']);
     const [assetBranchFilter, setAssetBranchFilter] = useState(['All']);
     const [assetDepartmentFilter, setAssetDepartmentFilter] = useState(['All']);
+    const [assetConditionFilter, setAssetConditionFilter] = useState(['All']);
     const [showAddAssetModal, setShowAddAssetModal] = useState(false);
     const [showAddAssetDropdown, setShowAddAssetDropdown] = useState(false);
     const [newAsset, setNewAsset] = useState({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT' });
@@ -3040,6 +3055,7 @@ const AdminDashboard = () => {
     const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
     const downloadDropdownRef = useRef(null);
     const [isGeneratingQRs, setIsGeneratingQRs] = useState(false);
+    const [qrScannerError, setQrScannerError] = useState(null);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -3068,7 +3084,7 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         setSelectedAssetIds([]);
-    }, [assetSearchQuery, assetCategoryFilter, assetBranchFilter, assetDepartmentFilter, isDateFilterActive, dateRange]);
+    }, [assetSearchQuery, assetCategoryFilter, assetBranchFilter, assetDepartmentFilter, assetConditionFilter, isDateFilterActive, dateRange]);
 
     const handleDownloadSelectedAssets = () => {
         if (selectedAssetIds.length === 0) return;
@@ -4071,35 +4087,58 @@ const AdminDashboard = () => {
                     </div>
 
                     <div className="w-full aspect-square bg-slate-900 rounded-3xl overflow-hidden shadow-2xl relative ring-4 ring-primary/20">
-                        <Scanner
-                            onScan={(result) => {
-                                if (result && result.length > 0 && result[0].rawValue) {
-                                    const qrContent = result[0].rawValue;
-                                    try {
-                                        const urlObj = new URL(qrContent);
-                                        if (urlObj.pathname.startsWith('/asset/')) {
-                                            navigate(urlObj.pathname + '?edit=true');
-                                            return;
+                        {qrScannerError || !navigator.mediaDevices || !window.isSecureContext ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-950 text-slate-200">
+                                <span className="material-symbols-outlined text-4xl text-amber-500 mb-3 animate-pulse">photo_camera_off</span>
+                                <h3 className="text-sm font-bold text-white mb-2">Camera Access Blocked</h3>
+                                <p className="text-xs text-slate-400 max-w-[240px] leading-relaxed">
+                                    {!window.isSecureContext 
+                                        ? "Camera access requires a secure HTTPS connection. Please access this app via HTTPS."
+                                        : qrScannerError 
+                                            ? `Error: ${qrScannerError}`
+                                            : "Unable to find or access camera. Please check your browser's camera permissions."
+                                    }
+                                </p>
+                                {!window.isSecureContext && (
+                                    <span className="mt-3 px-3 py-1 bg-amber-500/10 text-amber-400 text-[10px] font-semibold rounded-full border border-amber-500/20">
+                                        Insecure HTTP Context
+                                    </span>
+                                )}
+                            </div>
+                        ) : (
+                            <Scanner
+                                onScan={(result) => {
+                                    if (result && result.length > 0 && result[0].rawValue) {
+                                        const qrContent = result[0].rawValue;
+                                        try {
+                                            const urlObj = new URL(qrContent);
+                                            if (urlObj.pathname.startsWith('/asset/')) {
+                                                navigate(urlObj.pathname + '?edit=true');
+                                                return;
+                                            }
+                                        } catch (e) {
+                                            // Ignore invalid URL error, try fallback string matching
                                         }
-                                    } catch (e) {
-                                        // Ignore invalid URL error, try fallback string matching
+                                        
+                                        if (qrContent.includes('/asset/')) {
+                                            const assetPath = qrContent.substring(qrContent.indexOf('/asset/'));
+                                            navigate(assetPath + (assetPath.includes('?') ? '&' : '?') + 'edit=true');
+                                        } else {
+                                            showToast('Invalid Asset QR Code scanned.', 'error');
+                                        }
                                     }
-                                    
-                                    if (qrContent.includes('/asset/')) {
-                                        const assetPath = qrContent.substring(qrContent.indexOf('/asset/'));
-                                        navigate(assetPath + (assetPath.includes('?') ? '&' : '?') + 'edit=true');
-                                    } else {
-                                        showToast('Invalid Asset QR Code scanned.', 'error');
-                                    }
-                                }
-                            }}
-                            onError={(error) => console.log(error?.message)}
-                            components={{
-                                audio: true,
-                                onOff: true,
-                                tracker: true,
-                            }}
-                        />
+                                }}
+                                onError={(error) => {
+                                    console.log(error?.message);
+                                    setQrScannerError(error?.message || "Unknown error opening camera.");
+                                }}
+                                components={{
+                                    audio: true,
+                                    onOff: true,
+                                    tracker: true,
+                                }}
+                            />
+                        )}
                     </div>
                     
                     <button
@@ -4215,7 +4254,7 @@ const AdminDashboard = () => {
                                 options={uniqueAssetTypes}
                                 selected={assetCategoryFilter}
                                 onChange={setAssetCategoryFilter}
-                                widthClass="w-48"
+                                widthClass="w-38"
                             />
                             <MultiSelectFilter
                                 label="Branch"
@@ -4230,7 +4269,7 @@ const AdminDashboard = () => {
                                 ]}
                                 selected={assetBranchFilter}
                                 onChange={setAssetBranchFilter}
-                                widthClass="w-48"
+                                widthClass="w-38"
                             />
                             <MultiSelectFilter
                                 label="Dept"
@@ -4238,7 +4277,15 @@ const AdminDashboard = () => {
                                 options={['All', ...(departments?.length > 0 ? departments.map(d => d.name) : ['IT', 'HR', 'Finance', 'Sales', 'Production', 'Logistics'])]}
                                 selected={assetDepartmentFilter}
                                 onChange={setAssetDepartmentFilter}
-                                widthClass="w-48"
+                                widthClass="w-38"
+                            />
+                            <MultiSelectFilter
+                                label="Condition"
+                                icon="healing"
+                                options={['All', 'Excellent', 'Good', 'Medium', 'Average', 'Scrap', 'Stock']}
+                                selected={assetConditionFilter}
+                                onChange={setAssetConditionFilter}
+                                widthClass="w-38"
                             />
                             <div className="relative flex items-center gap-2">
                                 <button
@@ -4339,13 +4386,14 @@ const AdminDashboard = () => {
                                     </div>
                                 )}
                             </div>
-                            {((assetSearchQuery !== '') || !assetCategoryFilter.includes('All') || !assetBranchFilter.includes('All') || !assetDepartmentFilter.includes('All') || isDateFilterActive) && (
+                            {((assetSearchQuery !== '') || !assetCategoryFilter.includes('All') || !assetBranchFilter.includes('All') || !assetDepartmentFilter.includes('All') || !assetConditionFilter.includes('All') || isDateFilterActive) && (
                                 <button
                                     onClick={() => {
                                         setAssetSearchQuery('');
                                         setAssetCategoryFilter(['All']);
                                         setAssetBranchFilter(['All']);
                                         setAssetDepartmentFilter(['All']);
+                                        setAssetConditionFilter(['All']);
                                         setIsDateFilterActive(false);
                                         setDateRange([{ startDate: new Date(), endDate: new Date(), key: 'selection' }]);
                                     }}
@@ -4621,6 +4669,7 @@ const AdminDashboard = () => {
                         categoryFilter={assetCategoryFilter}
                         branchFilter={assetBranchFilter}
                         departmentFilter={assetDepartmentFilter}
+                        conditionFilter={assetConditionFilter}
                         showAddModal={location.pathname === '/assets/add' || (showAddAssetModal && isEditingAsset)}
                         setShowAddModal={(val, isEdit = false) => {
                             if (val) {
