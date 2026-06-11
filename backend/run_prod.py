@@ -13,7 +13,14 @@ if __name__ == '__main__':
     from app import app
     
     port = 443
-    host = '0.0.0.0' if args.env == 'prod' else 'localhost'
+    host = '122.165.253.167' if args.env == 'prod' else 'localhost'
     print(f"Starting Waitress server on {host}:{port} in {args.env} mode...")
     
-    serve(app, host=host, port=port)
+    try:
+        serve(app, host=host, port=port)
+    except Exception as e:
+        if args.env == 'prod':
+            print(f"Warning: Could not bind directly to {host} ({e}). Falling back to 0.0.0.0...")
+            serve(app, host='0.0.0.0', port=port)
+        else:
+            raise e

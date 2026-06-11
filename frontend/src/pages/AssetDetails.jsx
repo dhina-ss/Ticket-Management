@@ -157,7 +157,7 @@ const AssetDetails = () => {
         'Doctor Towels_ Karur'
     ];
     const DEPARTMENT_OPTIONS = ['IT', 'HR', 'Finance', 'Sales', 'Production', 'Logistics'];
-    const CONDITION_OPTIONS = ['Excellent', 'Good', 'Fair', 'Poor'];
+    const CONDITION_OPTIONS = ['Excellent', 'Good', 'Medium', 'Average', 'Scrap', 'Stock'];
 
     // Category casing normalization
     const normalizeCategory = (cat) => {
@@ -741,7 +741,7 @@ const AssetDetails = () => {
 
                             {/* Row 7: Condition */}
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Physical Condition <span className="text-red-500">*</span></label>
+                                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Condition <span className="text-red-500">*</span></label>
                                 <select
                                     value={editForm.condition}
                                     onChange={e => setEditForm(p => ({ ...p, condition: e.target.value }))}

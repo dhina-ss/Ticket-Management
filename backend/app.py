@@ -37,6 +37,22 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 CORS(app)
 
+@app.before_request
+def limit_hosts():
+    if app.config.get('TESTING'):
+        return
+
+    env = os.environ.get('APP_ENV', 'local')
+    req_host = request.host
+
+    if env == 'local':
+        allowed = {'localhost', 'localhost:443', '127.0.0.1', '127.0.0.1:443', '[::1]', '[::1]:443'}
+    else:
+        allowed = {'122.165.253.167', '122.165.253.167:443'}
+
+    if req_host not in allowed:
+        return jsonify({"error": "Forbidden: Access denied for this host."}), 403
+
 LAST_SENT_EMAIL = None # Store the last sent email for E2E testing
 
 logging.basicConfig(
