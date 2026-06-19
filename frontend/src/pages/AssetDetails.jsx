@@ -56,6 +56,7 @@ const AssetDetails = () => {
     const [submitAction, setSubmitAction] = useState('exit'); // 'exit' | 'scan'
     const [activeImage, setActiveImage] = useState(null);
     const [departments, setDepartments] = useState([]);
+    const [assetTypes, setAssetTypes] = useState([]);
 
     // Prevent background scrolling when modal or lightbox is open
     useEffect(() => {
@@ -212,9 +213,19 @@ const AssetDetails = () => {
         }
     };
 
+    const fetchAssetTypes = async () => {
+        try {
+            const response = await api.get('/api/asset_types');
+            setAssetTypes(response.data);
+        } catch (err) {
+            console.error("Failed to fetch asset types:", err);
+        }
+    };
+
     useEffect(() => {
         fetchAsset();
         fetchDepartments();
+        fetchAssetTypes();
     }, [assetId]);
 
     // Handle auto-edit trigger if redirected back after login with ?edit=true
@@ -580,7 +591,7 @@ const AssetDetails = () => {
                                         onChange={e => setEditForm(p => ({ ...p, category: e.target.value }))}
                                         className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
                                     >
-                                        {CATEGORY_OPTIONS.map((cat, idx) => (
+                                        {(assetTypes && assetTypes.length > 0 ? assetTypes.map(t => t.name) : CATEGORY_OPTIONS).map((cat, idx) => (
                                             <option key={idx} value={cat}>{cat}</option>
                                         ))}
                                     </select>
