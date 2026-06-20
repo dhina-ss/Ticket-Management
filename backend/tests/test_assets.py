@@ -140,3 +140,29 @@ def test_api_assets_qr_code_success(client, mocker):
     
     assert response.status_code == 200
     assert response.headers['Content-Type'] == 'image/png'
+
+def test_api_assets_bulk_delete_success(client, mocker):
+    """Test bulk deleting assets successfully."""
+    mocker.patch('database.delete_asset', return_value={"success": True})
+    
+    payload = {
+        "admin_email": "admin@support.com",
+        "asset_ids": [1, 2, 3]
+    }
+    response = client.post('/api/bulk-delete-assets', json=payload)
+    
+    assert response.status_code == 200
+    assert response.json.get("success_count") == 3
+    assert response.json.get("message") == "Successfully deleted 3 assets"
+
+def test_api_assets_bulk_delete_unauthorized(client):
+    """Test bulk deleting assets as a non-super-admin."""
+    payload = {
+        "admin_email": "notadmin@support.com",
+        "asset_ids": [1, 2]
+    }
+    response = client.post('/api/bulk-delete-assets', json=payload)
+    
+    assert response.status_code == 403
+    assert "error" in response.json
+

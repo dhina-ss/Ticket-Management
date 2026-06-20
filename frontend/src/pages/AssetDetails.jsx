@@ -165,7 +165,7 @@ const AssetDetails = () => {
         const trimmed = (cat || '').trim();
         if (!trimmed) return '';
         const lower = trimmed.toLowerCase();
-        if (lower === 'ups' || lower === 'cpu' || lower === 'nas' || lower === 'it') {
+        if (lower === 'ups' || lower === 'cpu' || lower === 'nas' || lower === 'it' || lower === 'dvr') {
             return trimmed.toUpperCase();
         }
         return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();

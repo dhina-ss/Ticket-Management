@@ -791,6 +791,39 @@ def delete_asset_route(asset_id):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/bulk-delete-assets', methods=['POST'])
+def bulk_delete_assets_route():
+    """Bulk delete assets by a list of ids. Only accessible by super admin."""
+    try:
+        from database import delete_asset
+        data = request.get_json() or {}
+        admin_email = data.get('admin_email', '')
+        if not admin_email or admin_email.strip().lower() != 'admin@support.com':
+            return jsonify({"error": "Unauthorized. Only super-admin can delete assets."}), 403
+            
+        asset_ids = data.get('asset_ids', [])
+        if not asset_ids:
+            return jsonify({"error": "No asset IDs provided"}), 400
+            
+        success_count = 0
+        errors = []
+        for aid in asset_ids:
+            res = delete_asset(aid)
+            if res.get('success'):
+                success_count += 1
+            else:
+                errors.append({"asset_id": aid, "error": res.get('error')})
+                
+        return jsonify({
+            "message": f"Successfully deleted {success_count} assets",
+            "success_count": success_count,
+            "errors": errors
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 @app.route('/api/assets/<string:asset_id>/qr', methods=['GET'])
 def get_asset_qr_endpoint(asset_id):
     """Dynamically compile and serve a beautiful 52.5mm x 29.7mm QR code label for an asset."""

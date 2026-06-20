@@ -53,11 +53,30 @@ const supportBadgeColor = (type) => {
 
 const SUPPORT_TYPE_OPTIONS = ['IT Support', 'Admin Support'];
 
+const formatCreatedAt = (dateStr) => {
+    if (!dateStr) return '';
+    if (dateStr === 'Just now') return 'Just now';
+    const regex = /^(\d{2})-(\d{2})-(\d{4})/;
+    const match = dateStr.match(regex);
+    if (match) {
+        const day = match[1];
+        const month = match[2];
+        const year = match[3];
+        const compatibleStr = `${year}-${month}-${day}${dateStr.slice(10)}`;
+        const dateObj = new Date(compatibleStr);
+        if (!isNaN(dateObj.getTime())) {
+            return dateObj.toLocaleDateString();
+        }
+    }
+    const standardDate = new Date(dateStr);
+    return isNaN(standardDate.getTime()) ? dateStr : standardDate.toLocaleDateString();
+};
+
 const normalizeCategory = (cat) => {
     const trimmed = (cat || '').trim();
     if (!trimmed) return '';
     const lower = trimmed.toLowerCase();
-    if (lower === 'ups' || lower === 'cpu' || lower === 'nas' || lower === 'it') {
+    if (lower === 'ups' || lower === 'cpu' || lower === 'nas' || lower === 'it' || lower === 'dvr') {
         return trimmed.toUpperCase();
     }
     return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
@@ -901,11 +920,14 @@ const AssetsView = ({
     const filteredAssets = (Array.isArray(assets) ? assets : []).filter(a => {
         const matchesSearch = (a.assetId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                               a.assignee.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              (a.empCode || '').toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesCategory = categoryFilter.includes('All') || categoryFilter.includes(normalizeCategory(a.category));
-        const matchesBranch = branchFilter.includes('All') || branchFilter.includes(a.branch);
-        const matchesDepartment = departmentFilter.includes('All') || departmentFilter.includes(a.department);
-        const matchesCondition = conditionFilter.includes('All') || conditionFilter.includes(a.condition);
+                              (a.empCode || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              (a.category || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              (normalizeCategory(a.category) || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              (a.brand || '').toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = categoryFilter.some(f => f.trim().toLowerCase() === 'all') || categoryFilter.some(f => f.trim().toLowerCase() === (a.category || '').trim().toLowerCase());
+        const matchesBranch = branchFilter.some(f => f.trim().toLowerCase() === 'all') || branchFilter.some(f => f.trim().toLowerCase() === (a.branch || '').trim().toLowerCase());
+        const matchesDepartment = departmentFilter.some(f => f.trim().toLowerCase() === 'all') || departmentFilter.some(f => f.trim().toLowerCase() === (a.department || '').trim().toLowerCase());
+        const matchesCondition = conditionFilter.some(f => f.trim().toLowerCase() === 'all') || conditionFilter.some(f => f.trim().toLowerCase() === (a.condition || '').trim().toLowerCase());
         
         let matchesDate = true;
         if (isDateFilterActive && dateRange[0] && a.date) {
@@ -2039,7 +2061,7 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
                                                 <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
                                                 <td className="px-6 py-4 w-[48%]">
                                                     <div className="text-sm font-medium text-slate-900 dark:text-white">{a.name}</div>
-                                                    <div className="text-xs text-slate-400">Added {new Date(a.created_at).toLocaleDateString()}</div>
+                                                    <div className="text-xs text-slate-400">Added {formatCreatedAt(a.created_at)}</div>
                                                 </td>
                                                 <td className="px-6 py-4 w-[25%]">
                                                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${a.support_type === 'IT Support' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : a.support_type === 'Admin Support' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300'}`}>
@@ -2287,7 +2309,7 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
                                                 <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
                                                 <td className="px-6 py-4 w-[73%]">
                                                     <div className="text-sm font-medium text-slate-900 dark:text-white">{c.name}</div>
-                                                    <div className="text-xs text-slate-400">Added {new Date(c.created_at).toLocaleDateString()}</div>
+                                                    <div className="text-xs text-slate-400">Added {formatCreatedAt(c.created_at)}</div>
                                                 </td>
                                                 <td className="px-6 py-4 w-[15%]">
                                                     <div className="flex items-center gap-2">
@@ -2527,7 +2549,7 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
                                                 <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
                                                 <td className="px-6 py-4 w-[48%]">
                                                     <div className="text-sm font-medium text-slate-900 dark:text-white">{c.name}</div>
-                                                    <div className="text-xs text-slate-400">Added {new Date(c.created_at).toLocaleDateString()}</div>
+                                                    <div className="text-xs text-slate-400">Added {formatCreatedAt(c.created_at)}</div>
                                                 </td>
                                                 <td className="px-6 py-4 w-[25%]">
                                                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${c.support_type?.includes('IT Support') ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'}`}>
@@ -2783,7 +2805,7 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
                                                 <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
                                                 <td className="px-6 py-4 w-[48%]">
                                                     <div className="text-sm font-medium text-slate-900 dark:text-white">{d.name}</div>
-                                                    <div className="text-xs text-slate-400">Added {new Date(d.created_at).toLocaleDateString()}</div>
+                                                    <div className="text-xs text-slate-400">Added {formatCreatedAt(d.created_at)}</div>
                                                 </td>
                                                 <td className="px-6 py-4 w-[25%]">
                                                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${d.support_type?.includes('IT Support') ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'}`}>
@@ -3042,6 +3064,7 @@ const AdminDashboard = () => {
     const [isEditingAsset, setIsEditingAsset] = useState(false);
     const [editingAssetId, setEditingAssetId] = useState(null);
     const [selectedAssetIds, setSelectedAssetIds] = useState([]);
+    const [showAssetDeleteConfirm, setShowAssetDeleteConfirm] = useState(false);
 
 
 
@@ -3082,9 +3105,7 @@ const AdminDashboard = () => {
         }
     ]);
 
-    useEffect(() => {
-        setSelectedAssetIds([]);
-    }, [assetSearchQuery, assetCategoryFilter, assetBranchFilter, assetDepartmentFilter, assetConditionFilter, isDateFilterActive, dateRange]);
+
 
     const handleDownloadSelectedAssets = () => {
         if (selectedAssetIds.length === 0) return;
@@ -3716,6 +3737,30 @@ const AdminDashboard = () => {
         }
     };
 
+    const confirmDeleteAssets = async () => {
+        if (selectedAssetIds.length === 0) return;
+        setIsUpdating(true);
+        try {
+            const response = await api.post('/api/bulk-delete-assets', {
+                asset_ids: selectedAssetIds,
+                admin_email: user?.email
+            });
+            if (response.status === 200) {
+                setAssets(prev => prev.filter(a => !selectedAssetIds.includes(a.id)));
+                showToast(`Successfully deleted ${selectedAssetIds.length} assets`, 'success');
+                setSelectedAssetIds([]);
+            } else {
+                showToast('Failed to delete assets', 'error');
+            }
+        } catch (err) {
+            console.error("Error deleting assets:", err);
+            showToast('An error occurred while deleting assets.', 'error');
+        } finally {
+            setIsUpdating(false);
+            setShowAssetDeleteConfirm(false);
+        }
+    };
+
     const handleRequestApproval = (e, ticketId) => {
         e.stopPropagation();
         setActiveAction(null);
@@ -4241,7 +4286,7 @@ const AdminDashboard = () => {
                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
                             <input
                                 type="text"
-                                placeholder="Search asset id, username and emp code..."
+                                placeholder="Search asset id, type, brand, username..."
                                 value={assetSearchQuery}
                                 onChange={e => setAssetSearchQuery(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
@@ -4386,6 +4431,21 @@ const AdminDashboard = () => {
                                     </div>
                                 )}
                             </div>
+                            {isSuperAdmin && (
+                                <button
+                                    onClick={() => setShowAssetDeleteConfirm(true)}
+                                    disabled={selectedAssetIds.length === 0}
+                                    title={selectedAssetIds.length === 0 ? "Select assets to delete" : "Delete Selected Assets"}
+                                    className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-all shadow-sm
+                                    ${selectedAssetIds.length > 0
+                                        ? 'bg-red-600 text-white border-red-600 hover:bg-red-700 cursor-pointer animate-in fade-in scale-in-95 duration-200'
+                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50'}`}
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">
+                                        delete
+                                    </span>
+                                </button>
+                            )}
                             {((assetSearchQuery !== '') || !assetCategoryFilter.includes('All') || !assetBranchFilter.includes('All') || !assetDepartmentFilter.includes('All') || !assetConditionFilter.includes('All') || isDateFilterActive) && (
                                 <button
                                     onClick={() => {
@@ -5736,6 +5796,45 @@ const AdminDashboard = () => {
                                         </button>
                                         <button
                                             onClick={() => setShowDeleteConfirm(false)}
+                                            className="w-full py-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-semibold transition-all"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
+
+                {/* Custom Asset Delete Confirmation Modal */}
+                {
+                    showAssetDeleteConfirm && (
+                        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowAssetDeleteConfirm(false)}>
+                            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
+                                <div className="p-6 text-center">
+                                    <div className="mx-auto w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
+                                        <span className="material-symbols-outlined text-red-600 text-3xl">delete_forever</span>
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Delete {selectedAssetIds.length} Asset{selectedAssetIds.length > 1 ? 's' : ''}?</h3>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-6">
+                                        Are you sure you want to delete the selected asset{selectedAssetIds.length > 1 ? 's' : ''}? This action cannot be undone.
+                                    </p>
+                                    <div className="flex flex-col gap-3">
+                                        <button
+                                            onClick={confirmDeleteAssets}
+                                            disabled={isUpdating}
+                                            className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold shadow-lg shadow-red-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                        >
+                                            {isUpdating ? (
+                                                <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                            ) : (
+                                                <span className="material-symbols-outlined text-lg">delete</span>
+                                            )}
+                                            Delete Asset{selectedAssetIds.length > 1 ? 's' : ''}
+                                        </button>
+                                        <button
+                                            onClick={() => setShowAssetDeleteConfirm(false)}
                                             className="w-full py-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-semibold transition-all"
                                         >
                                             Cancel
