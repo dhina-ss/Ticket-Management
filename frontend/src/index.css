@@ -5,15 +5,67 @@
 @theme {
   --color-primary: #137fec;
   --color-background-light: #f8fafc;
-  --color-background-dark: #0f172a;
+  --color-background-dark: #181D27;
   --color-sidebar-light: #ffffff;
-  --color-sidebar-dark: #1e293b;
+  --color-sidebar-dark: #1C212B;
 
   --font-display: Inter, sans-serif;
 
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-full: 9999px;
+
+  --color-db-surface-container-lowest: #ffffff;
+  --color-db-on-primary-container: #775c00;
+  --color-db-tertiary-fixed-dim: #c5c7c8;
+  --color-db-surface-tint: #765b00;
+  --color-db-primary-container: #ffd66b;
+  --color-db-tertiary-fixed: #e1e3e4;
+  --color-db-on-tertiary-container: #5d6061;
+  --color-db-surface-dim: #d4dbdd;
+  --color-db-surface: #f4fafd;
+  --color-db-on-surface: #161d1f;
+  --color-db-inverse-surface: #2b3234;
+  --color-db-on-error-container: #93000a;
+  --color-db-outline: #7f7664;
+  --color-db-on-tertiary-fixed-variant: #454748;
+  --color-db-on-secondary-fixed: #380d00;
+  --color-db-secondary: #9e421d;
+  --color-db-on-secondary: #ffffff;
+  --color-db-surface-bright: #f4fafd;
+  --color-db-secondary-fixed-dim: #ffb59b;
+  --color-db-secondary-fixed: #ffdbcf;
+  --color-db-primary-fixed-dim: #e9c259;
+  --color-db-on-tertiary-fixed: #191c1d;
+  --color-db-error: #ba1a1a;
+  --color-db-on-tertiary: #ffffff;
+  --color-db-inverse-primary: #e9c259;
+  --color-db-inverse-on-surface: #ebf2f4;
+  --color-db-tertiary-container: #dadbdc;
+  --color-db-primary-fixed: #ffdf93;
+  --color-db-surface-container-high: #e2e9ec;
+  --color-db-on-primary-fixed-variant: #594400;
+  --color-db-on-primary-fixed: #241a00;
+  --color-db-background: #f4fafd;
+  --color-db-surface-container-highest: #dde4e6;
+  --color-db-on-error: #ffffff;
+  --color-db-error-container: #ffdad6;
+  --color-db-surface-container: #e8eff1;
+  --color-db-on-surface-variant: #4d4636;
+  --color-db-on-secondary-fixed-variant: #7f2b06;
+  --color-db-surface-container-low: #eef5f7;
+  --color-db-on-background: #161d1f;
+  --color-db-tertiary: #5c5f60;
+  --color-db-primary: #765b00;
+  --color-db-on-primary: #ffffff;
+  --color-db-surface-variant: #dde4e6;
+  --color-db-secondary-container: #fc895e;
+  --color-db-outline-variant: #d0c5b1;
+  --color-db-on-secondary-container: #722200;
+
+  --spacing-margin-desktop: 80px;
+  --spacing-margin-mobile: 16px;
+  --spacing-gutter: 24px;
 }
 
 :root {
@@ -42,13 +94,11 @@
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #475569;
-  /* slate-600 */
+  background: #343944;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
-  /* slate-500 */
+  background: #808692;
 }
 
 * {
@@ -57,8 +107,45 @@
 }
 
 .dark * {
-  scrollbar-color: #475569 transparent;
+  scrollbar-color: #343944 transparent;
 }
+
+/* ─── Custom Swatch Palette Dark Mode (New Swatches) ─────────────────────── */
+/* bg=#181D27 | text-muted=#808692 | border=#343944 | card=#1C212B | inputs=#242934 */
+.dark {
+  /* Page / root background */
+  --dm-bg:          #181D27;
+  /* Card / panel / table surface */
+  --dm-surface:     #1C212B;
+  /* Header & sidebar */
+  --dm-header:      #1C212B;
+  /* Subtle raised surface, inputs, hover rows */
+  --dm-surface-2:   #242934;
+  /* Borders */
+  --dm-border:      #343944;
+  --dm-border-soft: #242934;
+  /* Text */
+  --dm-text:        #f0f0f2;
+  /* Muted text */
+  --dm-text-muted:  #808692;
+}
+
+/* Map to standard Tailwind dark slate classes ----------------------------- */
+/* slate-900 → dm-surface */
+.dark .dark\:bg-slate-900 { background-color: var(--dm-surface) !important; }
+/* slate-800 → dm-surface-2 */
+.dark .dark\:bg-slate-800 { background-color: var(--dm-surface-2) !important; }
+/* slate-950 → dm-bg */
+.dark .dark\:bg-slate-950 { background-color: var(--dm-bg) !important; }
+/* borders */
+.dark .dark\:border-slate-800 { border-color: var(--dm-border-soft) !important; }
+.dark .dark\:border-slate-700 { border-color: var(--dm-border) !important; }
+/* divide lines */
+.dark .dark\:divide-slate-800 > * + * { border-color: var(--dm-border-soft) !important; }
+/* text */
+.dark .dark\:text-slate-400 { color: var(--dm-text-muted) !important; }
+.dark .dark\:text-slate-300 { color: #e2e8f0 !important; }
+.dark .dark\:text-white     { color: var(--dm-text) !important; }
 
 /* Hide the static defined ranges sidebar in react-date-range completely */
 .rdrDefinedRangesWrapper {

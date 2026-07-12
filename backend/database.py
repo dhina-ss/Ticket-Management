@@ -233,6 +233,8 @@ def init_db():
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS access TEXT DEFAULT 'View';")
                 # Add support_type column to existing table if missing
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS support_type TEXT DEFAULT 'IT Support,Admin Support';")
+                # Add allowed_menus column to existing table if missing
+                cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS allowed_menus TEXT DEFAULT '';")
                 # Add is_first_login column
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS is_first_login BOOLEAN DEFAULT TRUE;")
                 # Add security questions columns
@@ -250,8 +252,8 @@ def init_db():
                 cur.execute("SELECT COUNT(*) FROM admin_users;")
                 if cur.fetchone()[0] == 0:
                     cur.execute(
-                        "INSERT INTO admin_users (name, email, password, access, support_type, branch) VALUES (%s, %s, %s, %s, %s, %s)",
-                        ("Admin User", "admin@support.com", "Admin@123", "View,Edit,Export", "IT Support,Admin Support", "All")
+                        "INSERT INTO admin_users (name, email, password, access, support_type, branch, allowed_menus) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                        ("Admin User", "admin@support.com", "Admin@123", "View,Edit,Export", "IT Support,Admin Support", "All", "")
                     )
 
                 # Migration: Replace ', ' in branch names with '_ '
@@ -345,6 +347,7 @@ def init_db():
                     );
                 """)
                 cur.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_delete BOOLEAN DEFAULT FALSE;")
+                cur.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS subcategories TEXT DEFAULT '';")
         conn.close()
         print("DEBUG: categories table ready.")
     except Exception as e:
@@ -396,6 +399,8 @@ def init_db():
                     );
                 """)
                 cur.execute("ALTER TABLE asset_types ADD COLUMN IF NOT EXISTS is_delete BOOLEAN DEFAULT FALSE;")
+                cur.execute("ALTER TABLE asset_types ADD COLUMN IF NOT EXISTS asset_group TEXT DEFAULT 'IT';")
+                cur.execute("ALTER TABLE asset_types ADD COLUMN IF NOT EXISTS prefix VARCHAR(3);")
         conn.close()
         print("DEBUG: asset_types table ready.")
     except Exception as e:
@@ -406,14 +411,52 @@ def init_db():
         with conn:
             with conn.cursor() as cur:
                 default_asset_types = [
-                    ("CPU",), ("Laptop",), ("Access point",), ("Monitor",), 
-                    ("NAS",), ("Printer",), ("Server",), ("Switch",), 
-                    ("UPS",), ("Mobile",), ("Firewall",)
+                    # IT types
+                    ("CPU", "IT", "CPU"),
+                    ("Laptop", "IT", "LAP"),
+                    ("Access point", "IT", "ACP"),
+                    ("Monitor", "IT", "MON"),
+                    ("NAS", "IT", "NAS"),
+                    ("Printer", "IT", "PRN"),
+                    ("Server", "IT", "SRV"),
+                    ("Switch", "IT", "SWT"),
+                    ("UPS", "IT", "UPS"),
+                    ("Mobile", "IT", "MOB"),
+                    ("Firewall", "IT", "FWL"),
+                    # Admin types
+                    ("Building", "Admin", "BLD"),
+                    ("Consumables", "Admin", "CON"),
+                    ("Display", "Admin", "DSP"),
+                    ("Electrical", "Admin", "ELE"),
+                    ("Electronics", "Admin", "ELN"),
+                    ("Fire", "Admin", "FIR"),
+                    ("Furniture", "Admin", "FUR"),
+                    ("Housekeeping", "Admin", "HSK"),
+                    ("HVAC", "Admin", "HVC"),
+                    ("Kitchen", "Admin", "KIT"),
+                    ("Laboratory", "Admin", "LAB"),
+                    ("Lighting", "Admin", "LIT"),
+                    ("Machinery", "Admin", "MAC"),
+                    ("Medical", "Admin", "MED"),
+                    ("Networking", "Admin", "NET"),
+                    ("Pest", "Admin", "PST"),
+                    ("Plumbing", "Admin", "PLM"),
+                    ("Security", "Admin", "SEC"),
+                    ("Stationery", "Admin", "STN"),
+                    ("Storage", "Admin", "STR"),
+                    ("Studio", "Admin", "STD")
                 ]
-                for at in default_asset_types:
-                    cur.execute("SELECT COUNT(*) FROM asset_types WHERE name = %s;", at)
-                    if cur.fetchone()[0] == 0:
-                        cur.execute("INSERT INTO asset_types (name) VALUES (%s)", at)
+                for name, grp, pre in default_asset_types:
+                    cur.execute("SELECT id, is_delete FROM asset_types WHERE name = %s LIMIT 1;", (name,))
+                    row = cur.fetchone()
+                    if not row:
+                        cur.execute("INSERT INTO asset_types (name, asset_group, prefix) VALUES (%s, %s, %s)", (name, grp, pre))
+                    else:
+                        type_id, is_del = row
+                        if is_del:
+                            cur.execute("UPDATE asset_types SET is_delete = FALSE, asset_group = %s, prefix = %s WHERE id = %s;", (grp, pre, type_id))
+                        else:
+                            cur.execute("UPDATE asset_types SET asset_group = %s, prefix = %s WHERE id = %s AND (prefix IS NULL OR asset_group IS NULL);", (grp, pre, type_id))
         conn.close()
         print("DEBUG: asset_types seeded.")
     except Exception as e:
@@ -453,6 +496,14 @@ def init_db():
                     ALTER TABLE assets ADD COLUMN IF NOT EXISTS images TEXT;
                     ALTER TABLE assets ADD COLUMN IF NOT EXISTS "group" TEXT DEFAULT 'IT';
                     ALTER TABLE assets ALTER COLUMN warranty TYPE TEXT USING warranty::text;
+                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_name TEXT;
+                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS location TEXT;
+                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_provided_team TEXT;
+                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS type TEXT;
+                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS quantity TEXT;
+                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS status TEXT;
+                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS warranty_expiry TEXT;
+                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS purchase_cost TEXT;
                 """)
                 
                 # Migration: rename tag to asset_id
@@ -461,9 +512,8 @@ def init_db():
                 except Exception:
                     pass
                 
-                # Migration: drop status and date column
+                # Migration: drop date column
                 try:
-                    cur.execute("ALTER TABLE assets DROP COLUMN IF EXISTS status;")
                     cur.execute("ALTER TABLE assets DROP COLUMN IF EXISTS date;")
                 except Exception:
                     pass
@@ -519,6 +569,39 @@ def init_db():
         conn2.close()
     except Exception as be:
         print(f"DEBUG: warranty backfill error: {be}")
+
+    # ---- admin_assets table ----
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS admin_assets (
+                        id              SERIAL PRIMARY KEY,
+                        asset_id        TEXT UNIQUE NOT NULL,
+                        created_at      TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at      TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """)
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS asset_name TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS department TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS serial_number TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS assignee TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS location TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS \"group\" TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS type TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS quantity TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS status TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS branch TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS warranty_expiry TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS purchase_cost TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS category TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS brand_model TEXT;")
+                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS remarks TEXT;")
+        conn.close()
+        print("DEBUG: admin_assets table ready.")
+    except Exception as e:
+        print(f"DEBUG: admin_assets table error: {e}")
 
 
 
@@ -603,18 +686,17 @@ def _compute_warranty_fields(purchase_date_str, warranty_text):
 
 def get_admin_users() -> list:
     conn = _get_conn()
-    with conn.cursor() as cur:
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         # LEFT JOIN with assignees to check if user is also an assignee.
         # We match by name and ensured it's not soft-deleted.
         cur.execute("""
-            SELECT 
-                u.id, u.name, u.email, u.access, u.support_type, u.is_first_login, u.created_at, u.can_receive_mail, u.receiver_position, u.branch, u.can_send_mail,
-                EXISTS (SELECT 1 FROM assignees a WHERE a.name = u.name AND a.is_delete = false) as is_assignee
+            SELECT u.id, u.name, u.email, u.access, u.support_type, u.created_at, 
+                   u.can_receive_mail, u.can_send_mail, u.receiver_position, u.branch, u.allowed_menus,
+                   EXISTS (SELECT 1 FROM assignees a WHERE a.name = u.name AND a.is_delete = false) as is_assignee
             FROM admin_users u
             ORDER BY u.created_at ASC;
         """)
-        cols = [d[0] for d in cur.description]
-        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     for r in rows:
         if r.get("created_at"):
@@ -622,34 +704,40 @@ def get_admin_users() -> list:
     return rows
 
 
-def create_admin_user(name: str, email: str, password: str, access: str = "View", support_type: str = "IT Support,Admin Support", can_receive_mail: bool = False, can_send_mail: bool = False, receiver_position: str = None, branch: str = "") -> dict:
+def create_admin_user(name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus=""):
     conn = _get_conn()
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
-                (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch)
-            )
-            new_id = cur.fetchone()[0]
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
+                    (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus)
+                )
+                new_id = cur.fetchone()[0]
+    except Exception:
+        new_id = None
     conn.close()
     return {"id": new_id}
 
 
-def update_admin_user(user_id: int, name: str, email: str, password: str, access: str, support_type: str, can_receive_mail: bool = False, can_send_mail: bool = False, receiver_position: str = None, branch: str = "") -> bool:
+def update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus=""):
     conn = _get_conn()
-    with conn:
-        with conn.cursor() as cur:
-            if password:
-                cur.execute(
-                    "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s WHERE id = %s;",
-                    (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, user_id)
-                )
-            else:
-                cur.execute(
-                    "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s WHERE id = %s;",
-                    (name, email, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, user_id)
-                )
-            updated = cur.rowcount > 0
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if password:
+                    cur.execute(
+                        "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s WHERE id = %s;",
+                        (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, user_id)
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s WHERE id = %s;",
+                        (name, email, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, user_id)
+                    )
+                updated = cur.rowcount > 0
+    except Exception:
+        updated = False
     conn.close()
     return updated
 
@@ -666,26 +754,18 @@ def delete_admin_user(user_id: int) -> bool:
 
 def verify_admin_login(email: str, password: str) -> dict | None:
     conn = _get_conn()
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch, can_receive_mail, can_send_mail FROM admin_users WHERE email = %s AND password = %s;",
-            (email, password)
-        )
-        row = cur.fetchone()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch, can_receive_mail, can_send_mail, allowed_menus FROM admin_users WHERE email = %s AND password = %s;",
+                (email, password)
+            )
+            row = cur.fetchone()
+    except Exception:
+        row = None
     conn.close()
     if row:
-        return {
-            "id": row[0], 
-            "name": row[1], 
-            "email": row[2], 
-            "access": row[3], 
-            "support_type": row[4], 
-            "is_first_login": row[5] if len(row) > 5 else True,
-            "receiver_position": row[6] if len(row) > 6 else None,
-            "branch": row[7] if len(row) > 7 else "",
-            "can_receive_mail": row[8] if len(row) > 8 else False,
-            "can_send_mail": row[9] if len(row) > 9 else False
-        }
+        return dict(row)
     return None
 
 def update_admin_password(user_id: int, new_password: str, security_question: str = None, security_answer: str = None) -> bool:
@@ -1276,14 +1356,14 @@ def get_categories(support_type: str = None) -> list:
     except Exception as e:
         return []
 
-def create_category(name: str, support_type: str) -> dict:
+def create_category(name: str, support_type: str, subcategories: str = '') -> dict:
     try:
         conn = _get_conn()
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO categories (name, support_type) VALUES (%s, %s) RETURNING id;",
-                    (name, support_type)
+                    "INSERT INTO categories (name, support_type, subcategories) VALUES (%s, %s, %s) RETURNING id;",
+                    (name, support_type, subcategories)
                 )
                 new_id = cur.fetchone()[0]
         conn.close()
@@ -1291,14 +1371,14 @@ def create_category(name: str, support_type: str) -> dict:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-def update_category(category_id: int, name: str, support_type: str) -> bool:
+def update_category(category_id: int, name: str, support_type: str, subcategories: str = '') -> bool:
     try:
         conn = _get_conn()
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE categories SET name = %s, support_type = %s WHERE id = %s",
-                    (name, support_type, category_id)
+                    "UPDATE categories SET name = %s, support_type = %s, subcategories = %s WHERE id = %s",
+                    (name, support_type, subcategories, category_id)
                 )
                 updated = cur.rowcount > 0
         conn.close()
@@ -1496,6 +1576,14 @@ def _row_to_asset(row: dict) -> dict:
         "images":        images_list,
         "qrCode":        f"/api/assets/{row.get('asset_id')}/qr" if row.get('asset_id') else "",
         "updatedAt":     row["updated_at"].strftime("%Y-%m-%d %H:%M:%S") if row.get("updated_at") else "",
+        "assetName":          row.get("asset_name", ""),
+        "location":           row.get("location", ""),
+        "assetProvidedTeam":  row.get("asset_provided_team", ""),
+        "type":               row.get("type", ""),
+        "quantity":           row.get("quantity", ""),
+        "status":             row.get("status", ""),
+        "warrantyExpiry":     row.get("warranty_expiry", ""),
+        "purchaseCost":       row.get("purchase_cost", ""),
     }
 
 
@@ -1525,8 +1613,9 @@ def create_asset(data: dict) -> dict:
                         (asset_id, category, brand, model, configuration, serial,
                          assignee, emp_code, cug, email, department, branch,
                          purchase_date, warranty, warranty_date, warranty_label,
-                         condition, remarks, images, qr_code, "group")
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                         condition, remarks, images, qr_code, "group",
+                         asset_name, location, asset_provided_team, type, quantity, status, warranty_expiry, purchase_cost)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, %s,%s,%s,%s,%s,%s,%s,%s)
                     RETURNING id, asset_id
                 """, (
                     data.get("assetId"),
@@ -1550,6 +1639,14 @@ def create_asset(data: dict) -> dict:
                     json.dumps(data.get("images") or []),
                     data.get("qrCode", ""),
                     data.get("group", "IT"),
+                    data.get("assetName", ""),
+                    data.get("location", ""),
+                    data.get("assetProvidedTeam", ""),
+                    data.get("type", ""),
+                    data.get("quantity", ""),
+                    data.get("status", ""),
+                    data.get("warrantyExpiry", ""),
+                    data.get("purchaseCost", ""),
                 ))
                 row = cur.fetchone()
         conn.close()
@@ -1576,7 +1673,10 @@ def update_asset(asset_id: int, data: dict) -> dict:
                         purchase_date = %s, warranty = %s,
                         warranty_date = %s, warranty_label = %s,
                         condition = %s, remarks = %s, images = %s,
-                        qr_code = %s, "group" = %s, updated_at = NOW()
+                        qr_code = %s, "group" = %s,
+                        asset_name = %s, location = %s, asset_provided_team = %s,
+                        type = %s, quantity = %s, status = %s, warranty_expiry = %s, purchase_cost = %s,
+                        updated_at = NOW()
                     WHERE id = %s
                 """, (
                     data.get("category", ""),
@@ -1599,6 +1699,14 @@ def update_asset(asset_id: int, data: dict) -> dict:
                     json.dumps(data.get("images") or []),
                     data.get("qrCode", ""),
                     data.get("group", "IT"),
+                    data.get("assetName", ""),
+                    data.get("location", ""),
+                    data.get("assetProvidedTeam", ""),
+                    data.get("type", ""),
+                    data.get("quantity", ""),
+                    data.get("status", ""),
+                    data.get("warrantyExpiry", ""),
+                    data.get("purchaseCost", ""),
                     asset_id,
                 ))
                 updated = cur.rowcount > 0
@@ -1624,6 +1732,132 @@ def delete_asset(asset_id: int) -> dict:
         return {"success": False, "error": str(e)}
 
 
+def _row_to_admin_asset(row: dict) -> dict:
+    return {
+        "id":             row.get("id"),
+        "assetId":        row.get("asset_id", ""),
+        "assetName":      row.get("asset_name", ""),
+        "department":     row.get("department", ""),
+        "serial":         row.get("serial_number", ""),
+        "assignee":       row.get("assignee", ""),
+        "location":       row.get("location", ""),
+        "group":          row.get("group", "Admin"),
+        "type":           row.get("type", ""),
+        "quantity":       row.get("quantity", ""),
+        "status":         row.get("status", ""),
+        "branch":         row.get("branch", ""),
+        "warrantyExpiry": row.get("warranty_expiry", ""),
+        "purchaseCost":   row.get("purchase_cost", ""),
+        "category":       row.get("category", ""),
+        "brandModel":     row.get("brand_model", ""),
+        "remarks":        row.get("remarks", ""),
+        "createdAt":      row["created_at"].strftime("%Y-%m-%d %H:%M:%S") if row.get("created_at") else "",
+        "updatedAt":      row["updated_at"].strftime("%Y-%m-%d %H:%M:%S") if row.get("updated_at") else ""
+    }
+
+def get_all_admin_assets() -> list:
+    try:
+        conn = _get_conn()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM admin_assets ORDER BY created_at DESC")
+            rows = cur.fetchall()
+        conn.close()
+        return [_row_to_admin_asset(r) for r in rows]
+    except Exception as e:
+        print(f"DEBUG: get_all_admin_assets error: {e}")
+        return []
+
+def create_admin_asset(data: dict) -> dict:
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO admin_assets
+                        (asset_id, asset_name, department, serial_number, assignee,
+                         location, "group", type, quantity, status, branch,
+                         warranty_expiry, purchase_cost, category, brand_model, remarks)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id, asset_id
+                """, (
+                    data.get("assetId"),
+                    data.get("assetName", ""),
+                    data.get("department", ""),
+                    data.get("serial", ""),
+                    data.get("assignee", ""),
+                    data.get("location", ""),
+                    data.get("group", "Admin"),
+                    data.get("type", ""),
+                    data.get("quantity", ""),
+                    data.get("status", ""),
+                    data.get("branch", ""),
+                    data.get("warrantyExpiry", ""),
+                    data.get("purchaseCost", ""),
+                    data.get("category", ""),
+                    data.get("brandModel", ""),
+                    data.get("remarks", "")
+                ))
+                row = cur.fetchone()
+        conn.close()
+        return {"success": True, "id": row[0], "assetId": row[1]}
+    except Exception as e:
+        print(f"DEBUG: create_admin_asset error: {e}")
+        return {"success": False, "error": str(e)}
+
+def update_admin_asset(asset_id: int, data: dict) -> dict:
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE admin_assets SET
+                        asset_name = %s, department = %s, asset_id = %s,
+                        serial_number = %s, assignee = %s, location = %s,
+                        "group" = %s, type = %s, quantity = %s, status = %s,
+                        branch = %s, warranty_expiry = %s, purchase_cost = %s,
+                        category = %s, brand_model = %s, remarks = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (
+                    data.get("assetName", ""),
+                    data.get("department", ""),
+                    data.get("assetId"),
+                    data.get("serial", ""),
+                    data.get("assignee", ""),
+                    data.get("location", ""),
+                    data.get("group", "Admin"),
+                    data.get("type", ""),
+                    data.get("quantity", ""),
+                    data.get("status", ""),
+                    data.get("branch", ""),
+                    data.get("warrantyExpiry", ""),
+                    data.get("purchaseCost", ""),
+                    data.get("category", ""),
+                    data.get("brandModel", ""),
+                    data.get("remarks", ""),
+                    asset_id
+                ))
+                updated = cur.rowcount > 0
+        conn.close()
+        return {"success": updated}
+    except Exception as e:
+        print(f"DEBUG: update_admin_asset error: {e}")
+        return {"success": False, "error": str(e)}
+
+def delete_admin_asset(asset_id: int) -> dict:
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM admin_assets WHERE id = %s", (asset_id,))
+                deleted = cur.rowcount > 0
+        conn.close()
+        return {"success": deleted}
+    except Exception as e:
+        print(f"DEBUG: delete_admin_asset error: {e}")
+        return {"success": False, "error": str(e)}
+
+
 
 # ---------------------------------------------------------------------------
 # Asset Types CRUD
@@ -1632,7 +1866,7 @@ def delete_asset(asset_id: int) -> dict:
 def get_asset_types() -> list:
     conn = _get_conn()
     with conn.cursor() as cur:
-        cur.execute("SELECT id, name, created_at FROM asset_types WHERE is_delete = FALSE ORDER BY created_at ASC;")
+        cur.execute("SELECT id, name, asset_group, prefix, created_at FROM asset_types WHERE is_delete = FALSE ORDER BY created_at ASC;")
         cols = [d[0] for d in cur.description]
         rows = [dict(zip(cols, r)) for r in cur.fetchall()]
     conn.close()
@@ -1641,25 +1875,25 @@ def get_asset_types() -> list:
             r["created_at"] = r["created_at"].strftime("%d-%m-%Y %I:%M %p")
     return rows
 
-def create_asset_type(name: str) -> dict:
+def create_asset_type(name: str, asset_group: str = 'IT', prefix: str = None) -> dict:
     conn = _get_conn()
     with conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO asset_types (name) VALUES (%s) RETURNING id;",
-                (name,)
+                "INSERT INTO asset_types (name, asset_group, prefix) VALUES (%s, %s, %s) RETURNING id;",
+                (name, asset_group, prefix)
             )
             new_id = cur.fetchone()[0]
     conn.close()
     return {"id": new_id}
 
-def update_asset_type(type_id: int, name: str) -> bool:
+def update_asset_type(type_id: int, name: str, asset_group: str = 'IT', prefix: str = None) -> bool:
     conn = _get_conn()
     with conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE asset_types SET name = %s WHERE id = %s;",
-                (name, type_id)
+                "UPDATE asset_types SET name = %s, asset_group = %s, prefix = %s WHERE id = %s;",
+                (name, asset_group, prefix, type_id)
             )
             updated = cur.rowcount > 0
     conn.close()

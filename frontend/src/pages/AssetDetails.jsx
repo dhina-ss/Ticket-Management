@@ -194,7 +194,13 @@ const AssetDetails = () => {
                 warranty: response.data.warranty || '',
                 condition: response.data.condition || 'Good',
                 remarks: response.data.remarks || '',
-                images: response.data.images || []
+                images: response.data.images || [],
+                assetName: response.data.assetName || '',
+                location: response.data.location || '',
+                status: response.data.status || '',
+                warrantyExpiry: response.data.warrantyExpiry || '',
+                purchaseCost: response.data.purchaseCost || '',
+                brandModel: response.data.brandModel || ''
             });
         } catch (err) {
             console.error("Error fetching asset details:", err);
@@ -295,33 +301,46 @@ const AssetDetails = () => {
             setSaving(false);
             return;
         }
-        if (!editForm.brand || !editForm.brand.trim()) {
-            setSaveError('Brand is a required field.');
-            setSaving(false);
-            return;
-        }
-        if (!editForm.model || !editForm.model.trim()) {
-            setSaveError('Model is a required field.');
-            setSaving(false);
-            return;
+        if (editForm.group !== 'Admin') {
+            if (!editForm.brand || !editForm.brand.trim()) {
+                setSaveError('Brand is a required field.');
+                setSaving(false);
+                return;
+            }
+            if (!editForm.model || !editForm.model.trim()) {
+                setSaveError('Model is a required field.');
+                setSaving(false);
+                return;
+            }
+            if (!editForm.empCode || !editForm.empCode.trim()) {
+                setSaveError('Employee Code is a required field.');
+                setSaving(false);
+                return;
+            }
+            if (!editForm.condition || !editForm.condition.trim()) {
+                setSaveError('Physical Condition is a required field.');
+                setSaving(false);
+                return;
+            }
+        } else {
+            if (!editForm.assetName || !editForm.assetName.trim()) {
+                setSaveError('Asset Name is a required field.');
+                setSaving(false);
+                return;
+            }
+            if (!editForm.status || !editForm.status.trim()) {
+                setSaveError('Status is a required field.');
+                setSaving(false);
+                return;
+            }
         }
         if (!editForm.assignee || !editForm.assignee.trim()) {
             setSaveError('Assignee Name is a required field.');
             setSaving(false);
             return;
         }
-        if (!editForm.empCode || !editForm.empCode.trim()) {
-            setSaveError('Employee Code is a required field.');
-            setSaving(false);
-            return;
-        }
         if (!editForm.branch || !editForm.branch.trim()) {
             setSaveError('Branch Location is a required field.');
-            setSaving(false);
-            return;
-        }
-        if (!editForm.condition || !editForm.condition.trim()) {
-            setSaveError('Physical Condition is a required field.');
             setSaving(false);
             return;
         }
@@ -332,7 +351,8 @@ const AssetDetails = () => {
         }
 
         try {
-            await api.put(`/api/assets/${asset.id}`, editForm);
+            const apiPath = editForm.group === 'Admin' ? `/api/admin-assets/${asset.id}` : `/api/assets/${asset.id}`;
+            await api.put(apiPath, editForm);
             if (submitAction === 'scan') {
                 navigate('/admin');
             } else {
@@ -446,21 +466,36 @@ const AssetDetails = () => {
                     <div>
                         <h2 className="text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 mb-4">Specifications</h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-sm">
-                            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
-                                <span className="text-slate-400 dark:text-slate-500 font-medium">Brand</span>
-                                <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.brand || '—'}</span>
-                            </div>
-                            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
-                                <span className="text-slate-400 dark:text-slate-500 font-medium">Model</span>
-                                <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.model || '—'}</span>
-                            </div>
+                            {asset.group === 'Admin' ? (
+                                <>
+                                    <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
+                                        <span className="text-slate-400 dark:text-slate-500 font-medium">Asset Name</span>
+                                        <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.assetName || '—'}</span>
+                                    </div>
+                                    <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
+                                        <span className="text-slate-400 dark:text-slate-500 font-medium">Brand/Model</span>
+                                        <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.brandModel || '—'}</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
+                                        <span className="text-slate-400 dark:text-slate-500 font-medium">Brand</span>
+                                        <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.brand || '—'}</span>
+                                    </div>
+                                    <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
+                                        <span className="text-slate-400 dark:text-slate-500 font-medium">Model</span>
+                                        <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.model || '—'}</span>
+                                    </div>
+                                </>
+                            )}
                             <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5 sm:col-span-2">
                                 <span className="text-slate-400 dark:text-slate-500 font-medium">Serial Number</span>
                                 <span className="text-slate-800 dark:text-slate-200 font-mono font-bold select-all break-all">{asset.serial || '—'}</span>
                             </div>
                             <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
-                                <span className="text-slate-400 dark:text-slate-500 font-medium">Condition</span>
-                                <span className="text-slate-800 dark:text-slate-200 font-bold uppercase">{asset.condition || '—'}</span>
+                                <span className="text-slate-400 dark:text-slate-500 font-medium">{asset.group === 'Admin' ? 'Status' : 'Condition'}</span>
+                                <span className="text-slate-800 dark:text-slate-200 font-bold uppercase">{(asset.group === 'Admin' ? asset.status : asset.condition) || '—'}</span>
                             </div>
                         </div>
                     </div>
@@ -481,10 +516,17 @@ const AssetDetails = () => {
                                 <span className="text-slate-400 dark:text-slate-500 font-medium">Assignee</span>
                                 <span className="text-slate-800 dark:text-slate-200 font-bold break-words">{asset.assignee || 'Unassigned'}</span>
                             </div>
-                            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
-                                <span className="text-slate-400 dark:text-slate-500 font-medium">Employee Code</span>
-                                <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.empCode || '—'}</span>
-                            </div>
+                            {asset.group === 'Admin' ? (
+                                <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
+                                    <span className="text-slate-400 dark:text-slate-500 font-medium">Location</span>
+                                    <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.location || '—'}</span>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
+                                    <span className="text-slate-400 dark:text-slate-500 font-medium">Employee Code</span>
+                                    <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.empCode || '—'}</span>
+                                </div>
+                            )}
                             <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
                                 <span className="text-slate-400 dark:text-slate-500 font-medium">Department</span>
                                 <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.department || '—'}</span>
@@ -493,14 +535,18 @@ const AssetDetails = () => {
                                 <span className="text-slate-400 dark:text-slate-500 font-medium">Branch Location</span>
                                 <span className="text-slate-800 dark:text-slate-200 font-bold break-words">{asset.branch || '—'}</span>
                             </div>
-                            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
-                                <span className="text-slate-400 dark:text-slate-500 font-medium">CUG (SIM Number)</span>
-                                <span className="text-slate-800 dark:text-slate-200 font-bold break-words">{asset.cug || '—'}</span>
-                            </div>
-                            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
-                                <span className="text-slate-400 dark:text-slate-500 font-medium">Email Address</span>
-                                <span className="text-slate-800 dark:text-slate-200 font-bold break-words break-all">{asset.email || '—'}</span>
-                            </div>
+                            {asset.group !== 'Admin' && (
+                                <>
+                                    <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
+                                        <span className="text-slate-400 dark:text-slate-500 font-medium">CUG (SIM Number)</span>
+                                        <span className="text-slate-800 dark:text-slate-200 font-bold break-words">{asset.cug || '—'}</span>
+                                    </div>
+                                    <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
+                                        <span className="text-slate-400 dark:text-slate-500 font-medium">Email Address</span>
+                                        <span className="text-slate-800 dark:text-slate-200 font-bold break-words break-all">{asset.email || '—'}</span>
+                                    </div>
+                                </>
+                            )}
                             <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
                                 <span className="text-slate-400 dark:text-slate-500 font-medium">Group</span>
                                 <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.group || 'IT'}</span>
@@ -512,18 +558,33 @@ const AssetDetails = () => {
                     <div>
                         <h2 className="text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 mb-4">Purchase & Warranty</h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-sm">
-                            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5 sm:col-span-2">
-                                <span className="text-slate-400 dark:text-slate-500 font-medium">Purchase Date</span>
-                                <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.purchaseDate || '—'}</span>
-                            </div>
-                            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
-                                <span className="text-slate-400 dark:text-slate-500 font-medium">Warranty Duration</span>
-                                <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.warrantyLabel || asset.warranty || '—'}</span>
-                            </div>
-                            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5 col-span-1">
-                                <span className="text-slate-400 dark:text-slate-500 font-medium">Warranty Expiry Date</span>
-                                <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.warrantyDate || '—'}</span>
-                            </div>
+                            {asset.group === 'Admin' ? (
+                                <>
+                                    <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5 sm:col-span-2">
+                                        <span className="text-slate-400 dark:text-slate-500 font-medium">Purchase Cost</span>
+                                        <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.purchaseCost || '—'}</span>
+                                    </div>
+                                    <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
+                                        <span className="text-slate-400 dark:text-slate-500 font-medium">Warranty Expiry</span>
+                                        <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.warrantyExpiry || '—'}</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5 sm:col-span-2">
+                                        <span className="text-slate-400 dark:text-slate-500 font-medium">Purchase Date</span>
+                                        <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.purchaseDate || '—'}</span>
+                                    </div>
+                                    <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
+                                        <span className="text-slate-400 dark:text-slate-500 font-medium">Warranty Duration</span>
+                                        <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.warrantyLabel || asset.warranty || '—'}</span>
+                                    </div>
+                                    <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5 col-span-1">
+                                        <span className="text-slate-400 dark:text-slate-500 font-medium">Warranty Expiry Date</span>
+                                        <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.warrantyDate || '—'}</span>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -582,7 +643,7 @@ const AssetDetails = () => {
                                     {saveError}
                                 </div>
                             )}
-                            {/* Row 1: Category + Brand */}
+                            {/* Row 1: Category + Brand/Asset Name */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Asset Type <span className="text-red-500">*</span></label>
@@ -596,30 +657,56 @@ const AssetDetails = () => {
                                         ))}
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Brand <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="text"
-                                        value={editForm.brand}
-                                        onChange={e => setEditForm(p => ({ ...p, brand: e.target.value }))}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                        placeholder="e.g. Apple"
-                                    />
-                                </div>
+                                {editForm.group === 'Admin' ? (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Asset Name <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="text"
+                                            value={editForm.assetName}
+                                            onChange={e => setEditForm(p => ({ ...p, assetName: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            placeholder="e.g. Workstation Table"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Brand <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="text"
+                                            value={editForm.brand}
+                                            onChange={e => setEditForm(p => ({ ...p, brand: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            placeholder="e.g. Apple"
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             {/* Row 2: Model + Serial */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Model <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="text"
-                                        value={editForm.model}
-                                        onChange={e => setEditForm(p => ({ ...p, model: e.target.value }))}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                        placeholder="e.g. MacBook Pro"
-                                    />
-                                </div>
+                                {editForm.group === 'Admin' ? (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Brand/Model</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.brandModel}
+                                            onChange={e => setEditForm(p => ({ ...p, brandModel: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            placeholder="e.g. Godrej Slim"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Model <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="text"
+                                            value={editForm.model}
+                                            onChange={e => setEditForm(p => ({ ...p, model: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            placeholder="e.g. MacBook Pro"
+                                        />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Serial Number</label>
                                     <input
@@ -643,7 +730,7 @@ const AssetDetails = () => {
                                 />
                             </div>
 
-                            {/* Row 4: Assignee + Emp Code */}
+                            {/* Row 4: Assignee + Emp Code / Location */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Assignee Name <span className="text-red-500">*</span></label>
@@ -654,26 +741,41 @@ const AssetDetails = () => {
                                         className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Employee Code <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="text"
-                                        value={editForm.empCode}
-                                        onChange={e => setEditForm(p => ({ ...p, empCode: e.target.value }))}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                        placeholder="e.g. EMP123"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Email Address</label>
-                                    <input
-                                        type="email"
-                                        value={editForm.email}
-                                        onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                        placeholder="e.g. user@company.com"
-                                    />
-                                </div>
+                                {editForm.group === 'Admin' ? (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Location</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.location}
+                                            onChange={e => setEditForm(p => ({ ...p, location: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            placeholder="e.g. Block A"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Employee Code <span className="text-red-500">*</span></label>
+                                        <input
+                                            type="text"
+                                            value={editForm.empCode}
+                                            onChange={e => setEditForm(p => ({ ...p, empCode: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            placeholder="e.g. EMP123"
+                                        />
+                                    </div>
+                                )}
+                                {editForm.group !== 'Admin' && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Email Address</label>
+                                        <input
+                                            type="email"
+                                            value={editForm.email}
+                                            onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            placeholder="e.g. user@company.com"
+                                        />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Group <span className="text-red-500">*</span></label>
                                     <select
@@ -689,16 +791,18 @@ const AssetDetails = () => {
 
                             {/* Row 4.5: CUG + Department */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">CUG (SIM Number)</label>
-                                    <input
-                                        type="text"
-                                        value={editForm.cug}
-                                        onChange={e => setEditForm(p => ({ ...p, cug: e.target.value }))}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                        placeholder="e.g. +91 98765 43210"
-                                    />
-                                </div>
+                                {editForm.group !== 'Admin' && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">CUG (SIM Number)</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.cug}
+                                            onChange={e => setEditForm(p => ({ ...p, cug: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            placeholder="e.g. +91 98765 43210"
+                                        />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Department</label>
                                     <select
@@ -727,40 +831,73 @@ const AssetDetails = () => {
                                 </select>
                             </div>
 
-                            {/* Row 6: Purchase Date + Warranty Duration */}
+                            {/* Row 6: Purchase Date + Warranty Duration / Cost / Expiry */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Purchase Date</label>
-                                    <input
-                                        type="date"
-                                        value={editForm.purchaseDate}
-                                        onChange={e => setEditForm(p => ({ ...p, purchaseDate: e.target.value }))}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Warranty</label>
-                                    <input
-                                        type="text"
-                                        value={editForm.warranty}
-                                        onChange={e => setEditForm(p => ({ ...p, warranty: e.target.value }))}
-                                        placeholder="e.g. 1 Year, 6 Months, or YYYY-MM-DD"
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                    />
-                                </div>
+                                {editForm.group === 'Admin' ? (
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Purchase Cost</label>
+                                            <input
+                                                type="text"
+                                                value={editForm.purchaseCost}
+                                                onChange={e => setEditForm(p => ({ ...p, purchaseCost: e.target.value }))}
+                                                placeholder="e.g. 15000"
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Warranty Expiry</label>
+                                            <input
+                                                type="text"
+                                                value={editForm.warrantyExpiry}
+                                                onChange={e => setEditForm(p => ({ ...p, warrantyExpiry: e.target.value }))}
+                                                placeholder="e.g. 2027-12-31"
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Purchase Date</label>
+                                            <input
+                                                type="date"
+                                                value={editForm.purchaseDate}
+                                                onChange={e => setEditForm(p => ({ ...p, purchaseDate: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Warranty</label>
+                                            <input
+                                                type="text"
+                                                value={editForm.warranty}
+                                                onChange={e => setEditForm(p => ({ ...p, warranty: e.target.value }))}
+                                                placeholder="e.g. 1 Year, 6 Months, or YYYY-MM-DD"
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
-                            {/* Row 7: Condition */}
+                            {/* Row 7: Condition / Status */}
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Condition <span className="text-red-500">*</span></label>
+                                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">{editForm.group === 'Admin' ? 'Status' : 'Condition'} <span className="text-red-500">*</span></label>
                                 <select
-                                    value={editForm.condition}
-                                    onChange={e => setEditForm(p => ({ ...p, condition: e.target.value }))}
+                                    value={editForm.group === 'Admin' ? editForm.status : editForm.condition}
+                                    onChange={e => setEditForm(p => (editForm.group === 'Admin' ? { ...p, status: e.target.value } : { ...p, condition: e.target.value }))}
                                     className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
                                 >
-                                    {CONDITION_OPTIONS.map((cond, idx) => (
-                                        <option key={idx} value={cond}>{cond}</option>
-                                    ))}
+                                    {editForm.group === 'Admin' ? (
+                                        ['Active', 'In Stock', 'Under Maintenance', 'Scrap'].map((statusOption, idx) => (
+                                            <option key={idx} value={statusOption}>{statusOption}</option>
+                                        ))
+                                    ) : (
+                                        CONDITION_OPTIONS.map((cond, idx) => (
+                                            <option key={idx} value={cond}>{cond}</option>
+                                        ))
+                                    )}
                                 </select>
                             </div>
 

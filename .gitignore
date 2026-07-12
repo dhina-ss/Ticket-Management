@@ -1,29 +1,39 @@
 # Python compilation files
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
 
 # Pytest cache
 .pytest_cache/
+**/.pytest_cache/
 
 # Environments and Virtual environments
 .env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 backend/env/
+venv/
+ENV/
 
 # Logs and databases
 ticket_log.txt
 *.log
 backend/uploads/
+*.db
+*.sqlite
+*.sqlite3
+**/instance/
+instance/
 
 # Build and package manager directories
 node_modules/
+**/node_modules/
 backend/dist/
-frontend/node_modules/
 frontend/dist/
 frontend/test-results/
 

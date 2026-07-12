@@ -10,6 +10,8 @@ import JSZip from 'jszip';
 import api from '../api';
 import logoImage from '../assets/logo.png';
 import logoDarkImage from '../assets/logo1.png';
+import ccLogo from '../assets/cc.png';
+import dtLogo from '../assets/dt.png';
 import { Scanner } from '@yudiel/react-qr-scanner';
 
 const EXPORT_COLUMNS = [
@@ -53,6 +55,8 @@ const supportBadgeColor = (type) => {
 
 const SUPPORT_TYPE_OPTIONS = ['IT Support', 'Admin Support'];
 
+const MENU_OPTIONS = ['Tickets', 'IT Assets', 'Admin Assets', 'Courier', 'Petty Cash', 'Users', 'Settings'];
+
 const formatCreatedAt = (dateStr) => {
     if (!dateStr) return '';
     if (dateStr === 'Just now') return 'Just now';
@@ -91,7 +95,7 @@ const BRANCH_OPTIONS = [
     'Doctor Towels_ Karur'
 ];
 
-const MultiSelectFormDropdown = ({ label, icon, options, selected, onChange }) => {
+const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onChange }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -113,12 +117,19 @@ const MultiSelectFormDropdown = ({ label, icon, options, selected, onChange }) =
         }
     };
 
-    const isSelected = (option) => selected.includes(option);
+    const getSelectedArray = () => {
+        if (!selected) return [];
+        if (Array.isArray(selected)) return selected;
+        return String(selected).split(',').map(s => s.trim()).filter(Boolean);
+    };
+
+    const selectedArray = getSelectedArray();
+    const isSelected = (option) => selectedArray.includes(option);
 
     const getDisplayValue = () => {
-        if (selected.includes('All')) return `All ${label}`;
-        if (selected.length === 1) return selected[0];
-        return `${selected.length} Selected`;
+        if (selectedArray.includes('All')) return `All ${label}`;
+        if (selectedArray.length === 1) return selectedArray[0];
+        return `${selectedArray.length} Selected`;
     };
 
     return (
@@ -128,15 +139,15 @@ const MultiSelectFormDropdown = ({ label, icon, options, selected, onChange }) =
                 className={`flex items-center gap-3 w-full pl-3 pr-10 py-2.5 text-sm rounded-xl border cursor-pointer transition-all bg-slate-50 dark:bg-slate-800 ${isOpen ? 'ring-2 ring-primary border-primary bg-white dark:bg-slate-900 shadow-sm' : 'border-slate-200 dark:border-slate-700'}`}
             >
                 {icon && <span className="material-symbols-outlined text-slate-400 text-lg">{icon}</span>}
-                <span className={`truncate font-medium ${selected.includes('All') ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`}>
+                <span className={`truncate font-medium ${selectedArray.includes('All') ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`}>
                     {getDisplayValue()}
                 </span>
                 <span className={`material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
             </div>
 
             {isOpen && (
-                <div className="absolute top-full left-0 mt-2 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] py-2 overflow-hidden animate-in fade-in zoom-in duration-150">
-                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                <div className="absolute top-full left-0 mt-2 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] overflow-hidden animate-in fade-in zoom-in duration-150">
+                    <div className="max-h-40 overflow-y-auto custom-scrollbar">
                         {options.map((option) => (
                             <label
                                 key={option}
@@ -163,7 +174,7 @@ const MultiSelectFormDropdown = ({ label, icon, options, selected, onChange }) =
     );
 };
 
-const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40' }) => {
+const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error }) => {
     const [isOpen, setIsOpen] = useState(false);
     const ref = useRef(null);
     useEffect(() => {
@@ -175,29 +186,30 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
         <div className="relative" ref={ref}>
             <div
                 onClick={() => setIsOpen(o => !o)}
-                className={`flex items-center justify-between w-full px-4 py-3 text-sm rounded-xl border cursor-pointer transition-all bg-slate-50 dark:bg-slate-800 font-medium ${
-                    isOpen ? 'ring-2 ring-primary border-primary' : 'border-slate-200 dark:border-slate-700'
-                }`}
+                className={`flex items-center justify-between w-full px-4 py-3 text-sm rounded-xl border cursor-pointer transition-all bg-slate-50 dark:bg-slate-800 font-medium ${error
+                    ? 'border-red-500 ring-2 ring-red-500/20'
+                    : isOpen
+                        ? 'ring-2 ring-primary border-primary'
+                        : 'border-slate-200 dark:border-slate-700'
+                    }`}
             >
                 <span className="text-slate-800 dark:text-white truncate">{value || label}</span>
                 <span className={`material-symbols-outlined text-slate-400 text-[18px] transition-transform duration-200 shrink-0 ml-1 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
             </div>
             {isOpen && (
-                <div className={`absolute left-0 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${
-                    direction === 'up' 
-                        ? 'bottom-full mb-1.5 origin-bottom' 
-                        : 'top-full mt-1.5 origin-top'
-                }`}>
+                <div className={`absolute left-0 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
+                    ? 'bottom-full mb-1.5 origin-bottom'
+                    : 'top-full mt-1.5 origin-top'
+                    }`}>
                     <div className={`${maxHeight} overflow-y-auto custom-scrollbar px-1.5 py-0.5 space-y-0.5`}>
                         {options.map(opt => (
                             <div
                                 key={opt.value ?? opt}
                                 onClick={() => { onChange(opt.value ?? opt); setIsOpen(false); }}
-                                className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium ${
-                                    (opt.value ?? opt) === value
-                                        ? 'bg-primary/10 text-primary'
-                                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                }`}
+                                className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium ${(opt.value ?? opt) === value
+                                    ? 'bg-primary/10 text-primary'
+                                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                    }`}
                             >
                                 {opt.label ?? opt}
                             </div>
@@ -209,22 +221,36 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
     );
 };
 
-const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser }) => {
+const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission }) => {
     const [newUser, setNewUser] = useState({
         name: '', email: '', password: '',
         access: ['View'],
         support_type: ['IT Support', 'Admin Support'],
+        allowed_menus: [],
+        branch: ['All'],
         add_as_assignee: false,
         can_receive_mail: false,
         can_send_mail: false,
-        receiver_position: '',
-        branch: ['All']
+        receiver_position: ''
     });
     const [addError, setAddError] = useState('');
     const [addLoading, setAddLoading] = useState(false);
     const [showPwd, setShowPwd] = useState(false);
     const [userToDelete, setUserToDelete] = useState(null);
     const [editingUser, setEditingUser] = useState(null);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 20;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
+
+    const totalPages = Math.max(1, Math.ceil(users.length / ITEMS_PER_PAGE));
+    const paginatedUsers = users.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
 
     const toggleAccess = (perm) => {
         setNewUser(p => ({
@@ -241,6 +267,15 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
             support_type: p.support_type.includes(type)
                 ? p.support_type.filter(t => t !== type)
                 : [...p.support_type, type]
+        }));
+    };
+
+    const toggleAllowedMenu = (menu) => {
+        setNewUser(p => ({
+            ...p,
+            allowed_menus: p.allowed_menus.includes(menu)
+                ? p.allowed_menus.filter(m => m !== menu)
+                : [...p.allowed_menus, menu]
         }));
     };
 
@@ -264,11 +299,12 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
             name: '', email: '', password: '',
             access: ['View'],
             support_type: ['IT Support', 'Admin Support'],
+            allowed_menus: [],
+            branch: ['All'],
             add_as_assignee: false,
             can_receive_mail: false,
             can_send_mail: false,
-            receiver_position: '',
-            branch: ['All']
+            receiver_position: ''
         });
     };
 
@@ -280,6 +316,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
             password: '', // Leave blank to not change
             access: (user.access || 'View').split(',').map(s => s.trim()),
             support_type: (user.support_type || 'IT Support,Admin Support').split(',').map(s => s.trim()),
+            allowed_menus: (user.allowed_menus || '').split(',').map(s => s.trim()).filter(Boolean),
             add_as_assignee: !!user.is_assignee,
             can_receive_mail: !!user.can_receive_mail,
             can_send_mail: !!user.can_send_mail,
@@ -302,7 +339,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
             const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users';
             const method = editingUser ? 'PUT' : 'POST';
 
-            const payload = { ...newUser, access: newUser.access.join(','), support_type: newUser.support_type.join(','), branch: newUser.branch.join(',') };
+            const payload = { ...newUser, access: newUser.access.join(','), support_type: newUser.support_type.join(','), allowed_menus: newUser.allowed_menus.join(','), branch: newUser.branch.join(',') };
 
             const res = await (method === 'PUT' ? api.put(url, payload) : api.post(url, payload));
             const data = await res.data;
@@ -315,6 +352,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                     email: newUser.email,
                     access: newUser.access.join(','),
                     support_type: newUser.support_type.join(','),
+                    allowed_menus: newUser.allowed_menus.join(','),
                     can_receive_mail: newUser.can_receive_mail,
                     can_send_mail: newUser.can_send_mail,
                     receiver_position: newUser.receiver_position,
@@ -327,6 +365,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                     email: newUser.email,
                     access: newUser.access.join(','),
                     support_type: newUser.support_type.join(','),
+                    allowed_menus: newUser.allowed_menus.join(','),
                     id: data.id,
                     created_at: 'Just now',
                     can_receive_mail: newUser.can_receive_mail,
@@ -351,7 +390,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
     };
 
     return (
-        <div className="flex-1 overflow-auto p-8">
+        <div className="flex-1 flex flex-col overflow-hidden px-20 pb-8 pt-0">
             {/* ── Add User Modal ── */}
             {showAddUser && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -448,53 +487,59 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                 </div>
                             </div>
 
-                            {/* Access */}
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
-                                    Access <span className="text-red-400">*</span>
-                                </label>
-                                <div className="flex gap-3">
-                                    {ACCESS_OPTIONS.map(perm => (
-                                        <label key={perm}
-                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all select-none text-sm font-semibold ${newUser.access.includes(perm)
-                                                ? 'border-primary bg-primary/10 text-primary'
-                                                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-primary/40'}`}>
-                                            <input type="checkbox" className="sr-only" checked={newUser.access.includes(perm)}
-                                                onChange={() => toggleAccess(perm)} />
-                                            <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 border-2 transition-colors ${newUser.access.includes(perm) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'}`}>
-                                                {newUser.access.includes(perm) && <span className="material-symbols-outlined text-white font-bold" style={{ fontSize: '13px' }}>check</span>}
-                                            </span>
-                                            {perm}
-                                        </label>
-                                    ))}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {/* Access */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                        Access <span className="text-red-400">*</span>
+                                    </label>
+                                    <MultiSelectFormDropdown
+                                        label="Access"
+                                        icon="admin_panel_settings"
+                                        options={ACCESS_OPTIONS}
+                                        selected={newUser.access}
+                                        onChange={toggleAccess}
+                                    />
+                                </div>
+
+                                {/* Support Type */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                        Support Type <span className="text-red-400">*</span>
+                                    </label>
+                                    <MultiSelectFormDropdown
+                                        label="Support Type"
+                                        icon="support_agent"
+                                        options={SUPPORT_TYPE_OPTIONS}
+                                        selected={newUser.support_type}
+                                        onChange={toggleSupportType}
+                                    />
+                                </div>
+
+                                {/* Allowed Menus */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                        Allowed Menus <span className="text-red-400">*</span>
+                                    </label>
+                                    <MultiSelectFormDropdown
+                                        label="Allowed Menus"
+                                        icon="menu"
+                                        options={MENU_OPTIONS}
+                                        selected={newUser.allowed_menus}
+                                        onChange={toggleAllowedMenu}
+                                    />
                                 </div>
                             </div>
 
-                            {/* Support Type */}
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
-                                    Support Type <span className="text-red-400">*</span>
-                                </label>
-                                <div className="flex flex-wrap gap-3">
-                                    {SUPPORT_TYPE_OPTIONS.map(type => (
-                                        <label key={type}
-                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all select-none text-sm font-semibold ${newUser.support_type.includes(type)
-                                                ? 'border-primary bg-primary/10 text-primary'
-                                                : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-primary/40'}`}>
-                                            <input type="checkbox" className="sr-only" checked={newUser.support_type.includes(type)}
-                                                onChange={() => toggleSupportType(type)} />
-                                            <span className={`h-4 w-4 rounded flex items-center justify-center shrink-0 border-2 transition-colors ${newUser.support_type.includes(type) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600'}`}>
-                                                {newUser.support_type.includes(type) && <span className="material-symbols-outlined text-white font-bold" style={{ fontSize: '13px' }}>check</span>}
-                                            </span>
-                                            {type}
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Add as Assignee & Need to send mail */}
-                            <div className="flex flex-col gap-3">
-                                <label className="flex items-center gap-2 cursor-pointer group">
+                            {/* Add as Assignee & Send Mail (Row 1) */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                <label className="flex items-center justify-between py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-pointer group hover:border-primary/40 hover:shadow-sm transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`h-7 w-7 rounded-lg flex items-center justify-center transition-colors ${newUser.add_as_assignee ? 'bg-primary/10 text-primary' : 'text-slate-400 group-hover:text-primary/70'}`}>
+                                            <span className="material-symbols-outlined text-lg">person_add</span>
+                                        </div>
+                                        <span className={`text-sm transition-colors ${newUser.add_as_assignee ? 'text-primary' : 'text-slate-700 dark:text-slate-200'}`}>Assignee</span>
+                                    </div>
                                     <div className="relative flex items-center">
                                         <input
                                             type="checkbox"
@@ -502,13 +547,40 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                             onChange={e => setNewUser(p => ({ ...p, add_as_assignee: e.target.checked }))}
                                             className="sr-only"
                                         />
-                                        <div className={`w-10 h-5 rounded-full transition-colors ${newUser.add_as_assignee ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                                        <div className={`w-10 h-5 rounded-full transition-colors ${newUser.add_as_assignee ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'}`}></div>
                                         <div className={`absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform ${newUser.add_as_assignee ? 'translate-x-5' : 'translate-x-0'}`}></div>
                                     </div>
-                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Add as Assignee</span>
                                 </label>
 
-                                <label className="flex items-center gap-2 cursor-pointer group">
+                                <label className="flex items-center justify-between py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-pointer group hover:border-emerald-500/40 hover:shadow-sm transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`h-7 w-7 rounded-lg flex items-center justify-center transition-colors ${newUser.can_send_mail ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 group-hover:text-emerald-500/70'}`}>
+                                            <span className="material-symbols-outlined text-lg">forward_to_inbox</span>
+                                        </div>
+                                        <span className={`text-sm transition-colors ${newUser.can_send_mail ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>Send Mail</span>
+                                    </div>
+                                    <div className="relative flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={newUser.can_send_mail}
+                                            onChange={e => setNewUser(p => ({ ...p, can_send_mail: e.target.checked }))}
+                                            className="sr-only"
+                                        />
+                                        <div className={`w-10 h-5 rounded-full transition-colors ${newUser.can_send_mail ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}></div>
+                                        <div className={`absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform ${newUser.can_send_mail ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            {/* Receive Mail & Receiver's Position (Row 2) */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <label className="flex items-center justify-between py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 cursor-pointer group hover:border-emerald-500/40 hover:shadow-sm transition-all h-full">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`h-7 w-7 rounded-lg flex items-center justify-center transition-colors ${newUser.can_receive_mail ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 group-hover:text-emerald-500/70'}`}>
+                                            <span className="material-symbols-outlined text-lg">mark_email_read</span>
+                                        </div>
+                                        <span className={`text-sm transition-colors ${newUser.can_receive_mail ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>Receive Mail</span>
+                                    </div>
                                     <div className="relative flex items-center">
                                         <input
                                             type="checkbox"
@@ -520,48 +592,28 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                             }))}
                                             className="sr-only"
                                         />
-                                        <div className={`w-10 h-5 rounded-full transition-colors ${newUser.can_receive_mail ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                                        <div className={`w-10 h-5 rounded-full transition-colors ${newUser.can_receive_mail ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}></div>
                                         <div className={`absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform ${newUser.can_receive_mail ? 'translate-x-5' : 'translate-x-0'}`}></div>
                                     </div>
-                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Access to receive mail</span>
                                 </label>
 
-                                <label className="flex items-center gap-2 cursor-pointer group">
-                                    <div className="relative flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={newUser.can_send_mail}
-                                            onChange={e => setNewUser(p => ({ ...p, can_send_mail: e.target.checked }))}
-                                            className="sr-only"
-                                        />
-                                        <div className={`w-10 h-5 rounded-full transition-colors ${newUser.can_send_mail ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
-                                        <div className={`absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform ${newUser.can_send_mail ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                {newUser.can_receive_mail ? (
+                                    <div className="animate-in fade-in zoom-in duration-200 h-full">
+                                        <div className="relative h-full group">
+                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none transition-colors group-hover:text-primary/70">
+                                                <span className="material-symbols-outlined text-base">badge</span>
+                                            </div>
+                                            <div className="w-full h-full [&>div>div:first-child]:pl-[38px] [&>div>div:first-child]:h-full [&>div]:h-full">
+                                                <SelectDropdown
+                                                    value={newUser.receiver_position || 'Management'}
+                                                    onChange={val => setNewUser(p => ({ ...p, receiver_position: val }))}
+                                                    options={['Manager', 'Management']}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Access to send mail</span>
-                                </label>
+                                ) : <div className="hidden md:block"></div>}
                             </div>
-
-                            {/* Receiver Position Dropdown */}
-                            {newUser.can_receive_mail && (
-                                <div className="animate-fade-in">
-                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                                        Receiver's Position <span className="text-red-400">*</span>
-                                    </label>
-                                    <div className="relative">
-                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">badge</span>
-                                        <select
-                                            value={newUser.receiver_position}
-                                            onChange={e => setNewUser(p => ({ ...p, receiver_position: e.target.value }))}
-                                            className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-2 focus:ring-primary text-slate-800 dark:text-white appearance-none transition-shadow"
-                                            required
-                                        >
-                                            <option value="Manager">Manager</option>
-                                            <option value="Management">Management</option>
-                                        </select>
-                                        <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
-                                    </div>
-                                </div>
-                            )}
                         </div>
 
                         {/* Footer */}
@@ -612,13 +664,12 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                     <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
                     Loading users…
                 </div>
-            ) : users.length === 0 ? (
-                <div className="text-center py-20 text-slate-400">No users found.</div>
             ) : (
-                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-                            <tr>
+                <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                    <div className="flex-1 overflow-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
+                                <tr>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">#</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Name</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Email</th>
@@ -627,18 +678,22 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Branch</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Created At</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Mail</th>
-                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Actions</th>
+                                {hasEditPermission && <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Actions</th>}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {users.map((user, idx) => (
+                            {users.length === 0 ? (
+                                <tr>
+                                    <td colSpan={hasEditPermission ? "9" : "8"} className="text-center py-20 text-slate-400">
+                                        No users
+                                    </td>
+                                </tr>
+                            ) : (
+                                paginatedUsers.map((user, idx) => (
                                 <tr key={user.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                    <td className="px-6 py-4 text-slate-400 font-mono text-xs">{idx + 1}</td>
+                                    <td className="px-6 py-4 text-slate-400 font-mono text-xs">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                                                {user.name?.[0]?.toUpperCase() || '?'}
-                                            </div>
                                             <span className="font-semibold text-slate-800 dark:text-white">{user.name}</span>
                                         </div>
                                     </td>
@@ -678,34 +733,85 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser 
                                             <span className="text-[10px] text-slate-400 uppercase font-medium">No Mail</span>
                                         )}
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex gap-2">
-                                            <button
-                                                title="Edit User"
-                                                onClick={() => handleOpenEdit(user)}
-                                                className="flex items-center justify-center w-8 h-8 text-blue-600 border border-blue-200 dark:border-blue-900/40 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer"
-                                            >
-                                                <span className="material-symbols-outlined text-[16px]">edit</span>
-                                            </button>
-                                            <button
-                                                title={user.email === 'admin@support.com' ? "Cannot delete primary admin" : "Delete User"}
-                                                onClick={() => {
-                                                    if (user.email !== 'admin@support.com') setUserToDelete(user);
-                                                }}
-                                                disabled={user.email === 'admin@support.com'}
-                                                className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors
-                                                    ${user.email === 'admin@support.com'
-                                                        ? 'text-slate-300 dark:text-slate-600 border border-slate-200 dark:border-slate-800 cursor-not-allowed bg-slate-50 dark:bg-slate-800/30'
-                                                        : 'text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer'}`}
-                                            >
-                                                <span className="material-symbols-outlined text-[16px]">delete</span>
-                                            </button>
-                                        </div>
-                                    </td>
+                                    {hasEditPermission && (
+                                        <td className="px-6 py-4">
+                                            <div className="flex gap-2">
+                                                <button
+                                                    title="Edit User"
+                                                    onClick={() => handleOpenEdit(user)}
+                                                    className="flex items-center justify-center w-8 h-8 text-blue-600 border border-blue-200 dark:border-blue-900/40 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer"
+                                                >
+                                                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                </button>
+                                                <button
+                                                    title={user.email === 'admin@support.com' ? "Cannot delete primary admin" : "Delete User"}
+                                                    onClick={() => {
+                                                        if (user.email !== 'admin@support.com') setUserToDelete(user);
+                                                    }}
+                                                    disabled={user.email === 'admin@support.com'}
+                                                    className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors
+                                                        ${user.email === 'admin@support.com'
+                                                            ? 'text-slate-300 dark:text-slate-600 border border-slate-200 dark:border-slate-800 cursor-not-allowed bg-slate-50 dark:bg-slate-800/30'
+                                                            : 'text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer'}`}
+                                                >
+                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    )}
                                 </tr>
-                            ))}
+                            ))
+                            )}
                         </tbody>
                     </table>
+                    </div>
+                    {/* Pagination Footer */}
+                    <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between shrink-0">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 min-w-[240px]">
+                            Showing <span className="font-medium">{users.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}</span> to <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, users.length)}</span> of <span className="font-medium">{users.length}</span> users
+                        </p>
+                        <div className="flex justify-center flex-1"></div>
+                        <div className="flex items-center gap-2 min-w-[240px] justify-end">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-1 py-1 border border-1 border-solid border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center text-slate-600 dark:text-slate-400"
+                                title="Previous Page"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+                            </button>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                                .reduce((acc, p, idx, arr) => {
+                                    if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                                    acc.push(p);
+                                    return acc;
+                                }, [])
+                                .map((item, idx) =>
+                                    item === '...' ? (
+                                        <span key={`ellipsis-${idx}`} className="px-2 py-1 text-sm text-slate-400">…</span>
+                                    ) : (
+                                        <button
+                                            key={item}
+                                            onClick={() => setCurrentPage(item)}
+                                            className={`px-3 py-1 text-sm rounded transition-colors ${currentPage === item
+                                                ? 'bg-primary text-white'
+                                                : 'border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                }`}
+                                        >{item}</button>
+                                    )
+                                )
+                            }
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-1 py-1 border border-1 border-solid border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center text-slate-600 dark:text-slate-400"
+                                title="Next Page"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
@@ -733,11 +839,14 @@ const AssetsView = ({
     dateRange,
     selectedAssetIds,
     setSelectedAssetIds,
-    departments
+    departments,
+    activeView,
+    hasEditPermission
 }) => {
     const [currentStep, setCurrentStep] = useState(1);
     const [qrLightbox, setQrLightbox] = useState(null); // holds base64 src when open
     const [currentPage, setCurrentPage] = useState(1);
+    const [validationErrors, setValidationErrors] = useState({});
     const ITEMS_PER_PAGE = 20;
 
     const photosInputRef = useRef(null);
@@ -836,6 +945,7 @@ const AssetsView = ({
         setShowAddModal(false);
         setIsEditing(false);
         setEditingId(null);
+        setValidationErrors({});
     };
 
     useEffect(() => {
@@ -919,27 +1029,30 @@ const AssetsView = ({
 
     const filteredAssets = (Array.isArray(assets) ? assets : []).filter(a => {
         const matchesSearch = (a.assetId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              a.assignee.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              (a.empCode || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              (a.category || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              (normalizeCategory(a.category) || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              (a.brand || '').toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesCategory = categoryFilter.some(f => f.trim().toLowerCase() === 'all') || categoryFilter.some(f => f.trim().toLowerCase() === (a.category || '').trim().toLowerCase());
+            (a.assignee || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (a.empCode || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (a.location || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (a.assetName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (a.category || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (normalizeCategory(a.category) || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (a.brand || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (a.brandModel || '').toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = categoryFilter.some(f => f.trim().toLowerCase() === 'all') || categoryFilter.some(f => f.trim().toLowerCase() === ((activeView === 'admin_assets' || String(a.group).toLowerCase() === 'admin' ? a.type : a.category) || '').trim().toLowerCase());
         const matchesBranch = branchFilter.some(f => f.trim().toLowerCase() === 'all') || branchFilter.some(f => f.trim().toLowerCase() === (a.branch || '').trim().toLowerCase());
         const matchesDepartment = departmentFilter.some(f => f.trim().toLowerCase() === 'all') || departmentFilter.some(f => f.trim().toLowerCase() === (a.department || '').trim().toLowerCase());
-        const matchesCondition = conditionFilter.some(f => f.trim().toLowerCase() === 'all') || conditionFilter.some(f => f.trim().toLowerCase() === (a.condition || '').trim().toLowerCase());
-        
+        const matchesCondition = conditionFilter.some(f => f.trim().toLowerCase() === 'all') || conditionFilter.some(f => f.trim().toLowerCase() === ((activeView === 'admin_assets' || String(a.group).toLowerCase() === 'admin' ? a.status : a.condition) || '').trim().toLowerCase());
+
         let matchesDate = true;
         if (isDateFilterActive && dateRange[0] && a.date) {
             const assetDate = new Date(a.date);
             const start = new Date(dateRange[0].startDate);
             const end = new Date(dateRange[0].endDate);
-            assetDate.setHours(0,0,0,0);
-            start.setHours(0,0,0,0);
-            end.setHours(0,0,0,0);
+            assetDate.setHours(0, 0, 0, 0);
+            start.setHours(0, 0, 0, 0);
+            end.setHours(0, 0, 0, 0);
             matchesDate = assetDate >= start && assetDate <= end;
         }
-        
+
         return matchesSearch && matchesCategory && matchesBranch && matchesDepartment && matchesCondition && matchesDate;
     });
 
@@ -951,13 +1064,14 @@ const AssetsView = ({
 
     const handleAdd = async (e) => {
         e.preventDefault();
-        
-        const resolvedCategory = newAsset.category || 'Laptop';
+
+        const resolvedCategory = newAsset.category || (String(newAsset.group).toLowerCase() === 'admin' ? 'Furniture' : 'Laptop');
         const resolvedBranch = newAsset.branch || 'Cotton Concepts HO_ Coimbatore';
         const resolvedWarranty = newAsset.warranty || '1 Year';
         const resolvedCondition = newAsset.condition || 'Excellent';
         const resolvedDepartment = newAsset.department || 'IT';
         const resolvedGroup = newAsset.group || 'IT';
+        const resolvedType = newAsset.type || (String(newAsset.group).toLowerCase() === 'admin' ? 'Building' : '');
 
         const resolvedAsset = {
             ...newAsset,
@@ -966,15 +1080,16 @@ const AssetsView = ({
             warranty: resolvedWarranty,
             condition: resolvedCondition,
             department: resolvedDepartment,
-            group: resolvedGroup
+            group: resolvedGroup,
+            type: resolvedType
         };
 
-        if (!resolvedAsset.assignee || !resolvedAsset.assignee.trim()) {
+        if (resolvedAsset.group !== 'Admin' && (!resolvedAsset.assignee || !resolvedAsset.assignee.trim())) {
             const el = document.getElementById('asset-assignee');
             if (el) el.reportValidity();
             return;
         }
-        if (!resolvedAsset.empCode || !resolvedAsset.empCode.trim()) {
+        if (resolvedAsset.group !== 'Admin' && (!resolvedAsset.empCode || !resolvedAsset.empCode.trim())) {
             const el = document.getElementById('asset-emp-code');
             if (el) el.reportValidity();
             return;
@@ -985,15 +1100,16 @@ const AssetsView = ({
         }
 
         try {
+            const apiPath = activeView === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
             if (isEditing) {
-                await api.put(`/api/assets/${editingId}`, resolvedAsset);
+                await api.put(`${apiPath}/${editingId}`, resolvedAsset);
                 const updatedObj = { ...selectedAsset, ...resolvedAsset, qrCode: `/api/assets/${selectedAsset?.assetId || resolvedAsset.assetId}/qr` };
                 setAssets(prev => prev.map(a => a.id === editingId ? updatedObj : a));
                 setSelectedAsset(updatedObj);
                 setIsEditing(false);
                 setEditingId(null);
             } else {
-                const res = await api.post('/api/assets', resolvedAsset);
+                const res = await api.post(apiPath, resolvedAsset);
                 const data = res.data;
                 setAssets(prev => [...prev, { ...resolvedAsset, id: data.id, assetId: data.assetId, qrCode: `/api/assets/${data.assetId}/qr`, date: new Date().toISOString().split('T')[0] }]);
             }
@@ -1002,7 +1118,10 @@ const AssetsView = ({
             alert('Failed to save asset: ' + (err.response?.data?.error || err.message));
         }
         setShowAddModal(false);
-        setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Excellent', remarks: '', images: [], qrCode: '', group: 'IT' });
+        const resetGroup = activeView === 'admin_assets' ? 'Admin' : 'IT';
+        const resetCategory = activeView === 'admin_assets' ? 'Furniture' : 'Laptop';
+        const resetDept = activeView === 'admin_assets' ? 'ADMIN' : 'IT';
+        setNewAsset({ assetId: '', category: resetCategory, brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: resetDept, branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Excellent', remarks: '', images: [], qrCode: '', group: resetGroup, assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
     };
 
     const handleEdit = (asset) => {
@@ -1015,7 +1134,8 @@ const AssetsView = ({
     const handleDelete = async (id) => {
         if (confirm('Are you sure you want to delete this asset?')) {
             try {
-                await api.delete(`/api/assets/${id}`);
+                const apiPath = activeView === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
+                await api.delete(`${apiPath}/${id}`);
                 setAssets(prev => prev.filter(a => a.id !== id));
             } catch {
                 alert('Failed to delete asset.');
@@ -1024,6 +1144,30 @@ const AssetsView = ({
     };
 
     const handleNextStep = () => {
+        if (String(newAsset.group).toLowerCase() === 'admin') {
+            const errs = {};
+            if (!newAsset.assetName || !newAsset.assetName.trim()) {
+                errs.assetName = true;
+            }
+            if (!newAsset.type || !newAsset.type.trim()) {
+                errs.type = true;
+            }
+            if (newAsset.quantity === undefined || newAsset.quantity === null || String(newAsset.quantity).trim() === '') {
+                errs.quantity = true;
+            }
+            if (!newAsset.status || !newAsset.status.trim()) {
+                errs.status = true;
+            }
+
+            if (Object.keys(errs).length > 0) {
+                setValidationErrors(errs);
+                return;
+            }
+            setValidationErrors({});
+            setCurrentStep(2);
+            return;
+        }
+
         const brandInput = document.getElementById('asset-brand');
         const modelInput = document.getElementById('asset-model');
         const serialInput = document.getElementById('asset-serial');
@@ -1069,6 +1213,24 @@ const AssetsView = ({
     };
 
     const handleNextToStep3 = () => {
+        if (String(newAsset.group).toLowerCase() === 'admin') {
+            const errs = {};
+            if (!newAsset.department || !newAsset.department.trim()) {
+                errs.department = true;
+            }
+            if (!newAsset.branch || !newAsset.branch.trim()) {
+                errs.branch = true;
+            }
+
+            if (Object.keys(errs).length > 0) {
+                setValidationErrors(errs);
+                return;
+            }
+            setValidationErrors({});
+            setCurrentStep(3);
+            return;
+        }
+
         const assigneeInput = document.getElementById('asset-assignee');
         const empCodeInput = document.getElementById('asset-emp-code');
 
@@ -1084,7 +1246,7 @@ const AssetsView = ({
             if (assigneeInput) assigneeInput.reportValidity();
             return;
         }
-        if (!newAsset.empCode || !newAsset.empCode.trim()) {
+        if (newAsset.group !== 'Admin' && (!newAsset.empCode || !newAsset.empCode.trim())) {
             if (empCodeInput) empCodeInput.reportValidity();
             return;
         }
@@ -1151,32 +1313,34 @@ const AssetsView = ({
     };
 
     return (
-        <div className="flex-1 flex flex-col overflow-hidden p-8 gap-8 animate-in fade-in duration-200">
+        <div className="flex-1 flex flex-col px-20 py-8 pt-0 gap-8 animate-in fade-in duration-200">
 
             {/* Assets Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col min-h-0 flex-1 overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col max-h-[600px] flex-1 overflow-hidden">
                 <div className="flex flex-col w-full flex-1 min-h-0">
-                    <table className="w-full text-left border-collapse table-fixed select-none">
-                        <thead>
-                            <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[4%]">
-                                    <input 
-                                        type="checkbox" 
-                                        onChange={handleSelectAll} 
-                                        checked={filteredAssets.length > 0 && filteredAssets.every(a => selectedAssetIds.includes(a.id))}
-                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-primary focus:ring-primary cursor-pointer" 
-                                    />
-                                </th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset ID</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset Type</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[18%]">Brand</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">Serial Number</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">User Name</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">Emp Code</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">Condition</th>
-                            </tr>
-                        </thead>
-                    </table>
+                    <div className="w-full bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700" style={{ paddingRight: '5px' }}>
+                        <table className="w-full text-left border-collapse table-fixed select-none">
+                            <thead>
+                                <tr className="bg-transparent">
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[4%]">
+                                        <input
+                                            type="checkbox"
+                                            onChange={handleSelectAll}
+                                            checked={filteredAssets.length > 0 && filteredAssets.every(a => selectedAssetIds.includes(a.id))}
+                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-primary focus:ring-primary cursor-pointer"
+                                        />
+                                    </th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset ID</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset Type</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[18%]">{activeView === 'admin_assets' ? 'Asset Name' : 'Brand'}</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">Serial Number</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">{activeView === 'admin_assets' ? 'Assignee' : 'User Name'}</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">{activeView === 'admin_assets' ? 'Location' : 'Emp Code'}</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">{activeView === 'admin_assets' ? 'Status' : 'Condition'}</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
                         <table className="w-full text-left border-collapse table-fixed">
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1188,36 +1352,35 @@ const AssetsView = ({
                                     pagedAssets.map((asset, idx) => (
                                         <tr key={asset.id} onClick={() => setSelectedAsset(asset)} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer">
                                             <td className="px-6 py-4 w-[4%]" onClick={e => e.stopPropagation()}>
-                                                <input 
-                                                    type="checkbox" 
+                                                <input
+                                                    type="checkbox"
                                                     onChange={(e) => handleSelectAsset(e, asset.id)}
                                                     checked={selectedAssetIds.includes(asset.id)}
-                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-primary focus:ring-primary cursor-pointer" 
+                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-primary focus:ring-primary cursor-pointer"
                                                 />
                                             </td>
                                             {/* <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[4%]">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td> */}
                                             <td className="px-6 py-4 w-[12%]">
                                                 <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{asset.assetId}</span>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 w-[12%] truncate" title={normalizeCategory(asset.category)}>{normalizeCategory(asset.category)}</td>
+                                            <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 w-[12%] truncate" title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.type : normalizeCategory(asset.category)}>{(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.type : normalizeCategory(asset.category)}</td>
                                             <td className="px-6 py-4 w-[18%]">
-                                                <div className="text-sm font-medium text-slate-900 dark:text-white truncate" title={`${asset.brand || ''} ${asset.model || ''}`.trim() || asset.name}>
-                                                    {asset.brand ? `${asset.brand} ${asset.model}` : asset.name}
+                                                <div className="text-sm font-medium text-slate-900 dark:text-white truncate" title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.assetName : (`${asset.brand || ''} ${asset.model || ''}`.trim() || asset.name)}>
+                                                    {(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.assetName : (asset.brand ? `${asset.brand} ${asset.model}` : asset.name)}
                                                 </div>
                                                 <div className="text-[11px] text-slate-400 truncate" title={`${asset.branch}`}>{asset.branch}</div>
                                             </td>
                                             <td className="px-6 py-4 text-sm font-mono text-slate-500 dark:text-slate-400 w-[13%] truncate" title={asset.serial}>{asset.serial}</td>
                                             <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[15%] truncate" title={asset.assignee}>{asset.assignee}</td>
-                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[13%] truncate" title={asset.empCode}>{asset.empCode || '—'}</td>
+                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[13%] truncate" title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.location : (asset.empCode || '—')}>{(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.location : (asset.empCode || '—')}</td>
                                             <td className="px-6 py-4 w-[13%]">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                                                    asset.condition?.toLowerCase() === 'excellent' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
-                                                    asset.condition?.toLowerCase() === 'good' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
-                                                    asset.condition?.toLowerCase() === 'medium' || asset.condition?.toLowerCase() === 'fair' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
-                                                    asset.condition?.toLowerCase() === 'scrap' || asset.condition?.toLowerCase() === 'poor' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
-                                                    'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                                                }`}>
-                                                    {asset.condition || '—'}
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'excellent' || ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+                                                    ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'good' || ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'in stock' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
+                                                        ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'medium' || ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'fair' || ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'under maintenance' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
+                                                            ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'scrap' || ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'poor' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
+                                                                'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                                    }`}>
+                                                    {(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition || '—'}
                                                 </span>
                                             </td>
                                         </tr>
@@ -1239,12 +1402,15 @@ const AssetsView = ({
                                 </span>
                             )}
                         </div>
-                        <div className="flex items-center gap-1 min-w-[240px] justify-end">
+                        <div className="flex items-center gap-2 min-w-[240px] justify-end">
                             <button
                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                 disabled={currentPage === 1}
-                                className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >Previous</button>
+                                className="px-1 py-1 border border-1 border-solid border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center text-slate-600 dark:text-slate-400"
+                                title="Previous Page"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+                            </button>
                             {Array.from({ length: totalPages }, (_, i) => i + 1)
                                 .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
                                 .reduce((acc, p, idx, arr) => {
@@ -1270,8 +1436,11 @@ const AssetsView = ({
                             <button
                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                 disabled={currentPage === totalPages}
-                                className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >Next</button>
+                                className="px-1 py-1 border border-1 border-solid border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center text-slate-600 dark:text-slate-400"
+                                title="Next Page"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1305,14 +1474,16 @@ const AssetsView = ({
                                         View QR Code
                                     </button>
                                 )}
-                                <button
-                                    onClick={() => { handleEdit(selectedAsset); setSelectedAsset(null); }}
-                                    title="Edit Asset"
-                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                                >
-                                    <span className="material-symbols-outlined text-[15px]">edit</span>
-                                    Edit
-                                </button>
+                                {hasEditPermission && (
+                                    <button
+                                        onClick={() => { handleEdit(selectedAsset); setSelectedAsset(null); }}
+                                        title="Edit Asset"
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                    >
+                                        <span className="material-symbols-outlined text-[15px]">edit</span>
+                                        Edit
+                                    </button>
+                                )}
                                 <button onClick={() => setSelectedAsset(null)} className="hidden lg:flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-all cursor-pointer">
                                     <span className="material-symbols-outlined text-[18px]">close</span>
                                 </button>
@@ -1321,104 +1492,176 @@ const AssetsView = ({
 
                         {/* Body */}
                         <div className="p-6 space-y-6">
-                            {/* Device Info */}
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Device Info</p>
-                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Brand</p>
-                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">{selectedAsset.brand || '—'}</p>
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Model</p>
-                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">{selectedAsset.model || '—'}</p>
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 col-span-2 lg:col-span-1">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Serial Number</p>
-                                        <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{selectedAsset.serial || '—'}</p>
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 col-span-2">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Configuration</p>
-                                        <p className="text-sm text-slate-700 dark:text-slate-300">{selectedAsset.configuration || '—'}</p>
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Group</p>
-                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.group || 'IT'}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Condition & Dates */}
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Condition &amp; Dates</p>
-                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Condition</p>
-                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
-                                            selectedAsset.condition === 'Excellent' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                                            selectedAsset.condition === 'Good' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                                            selectedAsset.condition === 'Fair' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                        }`}>
-                                            <span className="h-1.5 w-1.5 rounded-full bg-current"></span>
-                                            {selectedAsset.condition || '—'}
-                                        </span>
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Purchase Date</p>
-                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.purchaseDate || '—'}</p>
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Warranty Duration</p>
-                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                            {selectedAsset.warrantyLabel || selectedAsset.warranty || '—'}
-                                        </p>
-                                    </div>
-                                    {/* <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Warranty Expiry</p>
-                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                            {selectedAsset.warrantyDate || '—'}
-                                        </p>
-                                    </div> */}
-                                </div>
-                            </div>
-
-                            {/* Assignment */}
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Assignment</p>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Assigned To</p>
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-sm font-medium text-slate-800 dark:text-white">{selectedAsset.assignee || '—'}</p>
+                            {String(selectedAsset.group).toLowerCase() === 'admin' ? (
+                                <>
+                                    {/* Admin Asset Info */}
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Asset Info</p>
+                                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Asset Name</p>
+                                                <p className="text-sm font-semibold text-slate-800 dark:text-white">{selectedAsset.assetName || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Sub-type</p>
+                                                <p className="text-sm font-semibold text-slate-800 dark:text-white">{selectedAsset.category || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Type</p>
+                                                <p className="text-sm font-semibold text-slate-800 dark:text-white">{selectedAsset.type || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Brand/Model</p>
+                                                <p className="text-sm font-semibold text-slate-800 dark:text-white">{selectedAsset.brandModel || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Serial Number</p>
+                                                <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{selectedAsset.serial || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Quantity (Nos)</p>
+                                                <p className="text-sm font-semibold text-slate-800 dark:text-white">{selectedAsset.quantity || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Status</p>
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${selectedAsset.status?.toLowerCase() === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                                    selectedAsset.status?.toLowerCase() === 'in stock' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                        selectedAsset.status?.toLowerCase() === 'under maintenance' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                    }`}>
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-current"></span>
+                                                    {selectedAsset.status || '—'}
+                                                </span>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Purchase Cost</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.purchaseCost || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Warranty Expiry</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.warrantyExpiry || '—'}</p>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Emp Code</p>
-                                        <p className="text-sm font-mono font-medium text-slate-700 dark:text-slate-300">{selectedAsset.empCode || '—'}</p>
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Department</p>
-                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.department || '—'}</p>
-                                    </div>
-                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Branch</p>
-                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.branch || '—'}</p>
-                                    </div>
-                                    {(selectedAsset.cug || selectedAsset.email) && (
-                                        <>
+
+                                    {/* Admin Assignment */}
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Assignment</p>
+                                        <div className="grid grid-cols-2 gap-4">
                                             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">CUG Number</p>
-                                                <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{selectedAsset.cug || '—'}</p>
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Assigned To</p>
+                                                <p className="text-sm font-medium text-slate-800 dark:text-white">{selectedAsset.assignee || '—'}</p>
                                             </div>
                                             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
-                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Email</p>
-                                                <p className="text-sm text-slate-700 dark:text-slate-300 break-all">{selectedAsset.email || '—'}</p>
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Department</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.department || '—'}</p>
                                             </div>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Branch</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.branch || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Location</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.location || '—'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* Device Info */}
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Device Info</p>
+                                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Brand</p>
+                                                <p className="text-sm font-semibold text-slate-800 dark:text-white">{selectedAsset.brand || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Model</p>
+                                                <p className="text-sm font-semibold text-slate-800 dark:text-white">{selectedAsset.model || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 col-span-2 lg:col-span-1">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Serial Number</p>
+                                                <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{selectedAsset.serial || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 col-span-2">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Configuration</p>
+                                                <p className="text-sm text-slate-700 dark:text-slate-300">{selectedAsset.configuration || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Group</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.group || 'IT'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Condition & Dates */}
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Condition &amp; Dates</p>
+                                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Condition</p>
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${selectedAsset.condition === 'Excellent' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                                    selectedAsset.condition === 'Good' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                        selectedAsset.condition === 'Fair' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                    }`}>
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-current"></span>
+                                                    {selectedAsset.condition || '—'}
+                                                </span>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Purchase Date</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.purchaseDate || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Warranty Duration</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                                    {selectedAsset.warrantyLabel || selectedAsset.warranty || '—'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Assignment */}
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Assignment</p>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Assigned To</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-medium text-slate-800 dark:text-white">{selectedAsset.assignee || '—'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Emp Code</p>
+                                                <p className="text-sm font-mono font-medium text-slate-700 dark:text-slate-300">{selectedAsset.empCode || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Department</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.department || '—'}</p>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Branch</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{selectedAsset.branch || '—'}</p>
+                                            </div>
+                                            {(selectedAsset.cug || selectedAsset.email) && (
+                                                <>
+                                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">CUG Number</p>
+                                                        <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{selectedAsset.cug || '—'}</p>
+                                                    </div>
+                                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Email</p>
+                                                        <p className="text-sm text-slate-700 dark:text-slate-300 break-all">{selectedAsset.email || '—'}</p>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
                             {/* Device Images - always visible */}
                             <div>
@@ -1440,7 +1683,7 @@ const AssetsView = ({
                                     <div className="flex flex-wrap gap-3">
                                         {selectedAsset.images.map((img, i) => (
                                             <div key={i} className="flex flex-col items-center gap-1.5">
-                                                <div 
+                                                <div
                                                     onClick={() => setActiveImage(img)}
                                                     className="relative w-28 h-28 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all active:scale-[0.98] group/thumb"
                                                 >
@@ -1490,12 +1733,12 @@ const AssetsView = ({
 
             {/* FULL SCREEN LIGHTBOX FOR DEVICE IMAGES */}
             {activeImage && (
-                <div 
+                <div
                     className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-[300] flex items-center justify-center p-4 animate-in fade-in duration-200"
                     onClick={() => setActiveImage(null)}
                 >
                     {/* Close Button */}
-                    <button 
+                    <button
                         onClick={() => setActiveImage(null)}
                         className="absolute top-4 right-4 sm:top-6 sm:right-6 w-11 h-11 rounded-full bg-slate-900/60 hover:bg-slate-800/80 text-white/90 hover:text-white flex items-center justify-center transition-all border border-slate-800 cursor-pointer shadow-lg z-[310]"
                         title="Close Full Screen"
@@ -1505,7 +1748,7 @@ const AssetsView = ({
 
                     {/* Left Navigation Arrow */}
                     {selectedAsset?.images?.length > 1 && (
-                        <button 
+                        <button
                             onClick={handlePrevImage}
                             className="absolute left-4 sm:left-6 w-11 h-11 rounded-full bg-slate-900/60 hover:bg-slate-800/80 text-white/90 hover:text-white flex items-center justify-center transition-all border border-slate-800 cursor-pointer shadow-lg z-[310] active:scale-95"
                             title="Previous Image"
@@ -1516,7 +1759,7 @@ const AssetsView = ({
 
                     {/* Right Navigation Arrow */}
                     {selectedAsset?.images?.length > 1 && (
-                        <button 
+                        <button
                             onClick={handleNextImage}
                             className="absolute right-4 sm:right-6 w-11 h-11 rounded-full bg-slate-900/60 hover:bg-slate-800/80 text-white/90 hover:text-white flex items-center justify-center transition-all border border-slate-800 cursor-pointer shadow-lg z-[310] active:scale-95"
                             title="Next Image"
@@ -1526,13 +1769,13 @@ const AssetsView = ({
                     )}
 
                     {/* Image Container with Page Indicator */}
-                    <div 
+                    <div
                         className="relative max-w-full max-h-[85vh] flex flex-col items-center justify-center gap-4"
                         onClick={e => e.stopPropagation()}
                     >
-                        <img 
-                            src={activeImage} 
-                            alt="Device Photo Fullscreen" 
+                        <img
+                            src={activeImage}
+                            alt="Device Photo Fullscreen"
                             className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-slate-900/50 animate-in zoom-in-95 duration-200"
                         />
                         {selectedAsset?.images?.length > 1 && (
@@ -1558,118 +1801,259 @@ const AssetsView = ({
                         <form onSubmit={handleAdd} className="space-y-4 overflow-y-auto flex-1 px-6 pb-6">
                             {currentStep === 1 && (
                                 <div className="space-y-4 animate-in fade-in duration-200">
-                                    {/* Row 1: Asset Type + Brand */}
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Asset Type <span className="text-red-500">*</span></label>
-                                            <SelectDropdown
-                                                value={newAsset.category || 'Laptop'}
-                                                onChange={v => setNewAsset(p => ({ ...p, category: v }))}
-                                                options={assetTypes?.map(t => t.name) || []}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Brand <span className="text-red-500">*</span></label>
-                                            <input
-                                                id="asset-brand"
-                                                type="text"
-                                                required
-                                                value={newAsset.brand || ''}
-                                                onChange={e => setNewAsset(p => ({ ...p, brand: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                                placeholder="e.g. Apple"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Model <span className="text-red-500">*</span></label>
-                                            <input
-                                                id="asset-model"
-                                                type="text"
-                                                required
-                                                value={newAsset.model || ''}
-                                                onChange={e => setNewAsset(p => ({ ...p, model: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                                placeholder='e.g. MacBook Pro 16"'
-                                            />
-                                        </div>
-                                    </div>
+                                    {String(newAsset.group).toLowerCase() === 'admin' ? (
+                                        <div className="space-y-4">
+                                            {/* Row 1: Asset Name + Sub-type + Type */}
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Asset Name <span className="text-red-500">*</span></label>
+                                                    <input
+                                                        type="text"
+                                                        required
+                                                        value={newAsset.assetName || ''}
+                                                        onChange={e => {
+                                                            setNewAsset(p => ({ ...p, assetName: e.target.value }));
+                                                            setValidationErrors(prev => ({ ...prev, assetName: false }));
+                                                        }}
+                                                        className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm focus:ring-2 outline-none text-slate-800 dark:text-white font-medium ${validationErrors.assetName
+                                                            ? 'border-red-500 focus:ring-red-500/20'
+                                                            : 'border-slate-200 dark:border-slate-700 focus:ring-primary'
+                                                            }`}
+                                                        placeholder="e.g. Office Desk"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Type <span className="text-red-500">*</span></label>
+                                                    <SelectDropdown
+                                                        label="Select Type"
+                                                        value={newAsset.type || ''}
+                                                        onChange={v => {
+                                                            setNewAsset(p => ({ ...p, type: v }));
+                                                            setValidationErrors(prev => ({ ...prev, type: false }));
+                                                        }}
+                                                        options={assetTypes?.filter(t => (t.asset_group || 'IT').split(',').includes('Admin')).map(t => t.name).sort((a, b) => a.localeCompare(b)) || []}
+                                                        error={validationErrors.type}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Sub-type</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newAsset.category || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, category: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                        placeholder="e.g. Chair"
+                                                    />
+                                                </div>
+                                            </div>
 
-                                    {/* Row 2: Model + Serial Number + Configuration + Branch */}
-                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Serial Number</label>
-                                            <input
-                                                id="asset-serial"
-                                                type="text"
-                                                value={newAsset.serial}
-                                                onChange={e => setNewAsset(p => ({ ...p, serial: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-mono"
-                                                placeholder="e.g. C02F123XYZ45"
-                                            />
-                                        </div>
-                                        <div className="col-span-2 lg:col-span-1">
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Configuration <span className="text-red-500">*</span></label>
-                                            <input
-                                                id="asset-config"
-                                                type="text"
-                                                required
-                                                value={newAsset.configuration || ''}
-                                                onChange={e => setNewAsset(p => ({ ...p, configuration: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                                placeholder="e.g. M3 Pro, 18GB, 512GB"
-                                            />
-                                        </div>
-                                        <div className="col-span-2 lg:col-span-1">
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Branch <span className="text-red-500">*</span></label>
-                                            <SelectDropdown
-                                                value={newAsset.branch || 'Cotton Concepts HO_ Coimbatore'}
-                                                onChange={v => setNewAsset(p => ({ ...p, branch: v }))}
-                                                options={['Cotton Concepts HO_ Coimbatore','Doctor Towels HO','Cotton Concepts_ Vengamedu','Cotton Concepts_ Karur','Doctor Towels_ Karur']}
-                                            />
-                                        </div>
-                                    </div>
+                                            {/* Row 2: Brand/Model + Serial No + Quantity (Nos) */}
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Brand/Model</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newAsset.brand || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, brand: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                        placeholder="e.g. Godrej"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Serial No</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newAsset.serial || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, serial: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-mono"
+                                                        placeholder="e.g. SN-12345"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Quantity (Nos) <span className="text-red-500">*</span></label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        required
+                                                        value={newAsset.quantity || ''}
+                                                        onChange={e => {
+                                                            setNewAsset(p => ({ ...p, quantity: e.target.value }));
+                                                            setValidationErrors(prev => ({ ...prev, quantity: false }));
+                                                        }}
+                                                        className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm focus:ring-2 outline-none text-slate-800 dark:text-white font-medium ${validationErrors.quantity
+                                                            ? 'border-red-500 focus:ring-red-500/20'
+                                                            : 'border-slate-200 dark:border-slate-700 focus:ring-primary'
+                                                            }`}
+                                                        placeholder="e.g. 1"
+                                                    />
+                                                </div>
+                                            </div>
 
-                                    {/* Row 3: Purchase Date + Warranty (date) + Condition */}
-                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Purchase Date</label>
-                                            <input
-                                                id="asset-purchase-date"
-                                                type="date"
-                                                value={newAsset.purchaseDate || ''}
-                                                onChange={e => setNewAsset(p => ({ ...p, purchaseDate: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Warranty</label>
-                                            <SelectDropdown
-                                                value={newAsset.warranty || '1 Year'}
-                                                onChange={v => setNewAsset(p => ({ ...p, warranty: v }))}
-                                                options={['6 Months', '1 Year', '2 Years', '3 Years', '4 Years', '5 Years']}
-                                            />
-                                        </div>
-                                        <div className="col-span-2 lg:col-span-1">
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Condition <span className="text-red-500">*</span></label>
-                                            <SelectDropdown
-                                                value={newAsset.condition || 'Excellent'}
-                                                onChange={v => setNewAsset(p => ({ ...p, condition: v }))}
-                                                options={['Excellent','Good','Medium','Average','Scrap', "Stock"]}
-                                            />
-                                        </div>
-                                    </div>
+                                            {/* Row 3: Status + Purchase Cost + Warranty Expiry */}
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Status <span className="text-red-500">*</span></label>
+                                                    <SelectDropdown
+                                                        label="Select Status"
+                                                        value={newAsset.status || ''}
+                                                        onChange={v => {
+                                                            setNewAsset(p => ({ ...p, status: v }));
+                                                            setValidationErrors(prev => ({ ...prev, status: false }));
+                                                        }}
+                                                        options={['Active', 'In Stock', 'Under Maintenance', 'Scrap']}
+                                                        error={validationErrors.status}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Purchase Cost</label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={newAsset.purchaseCost || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, purchaseCost: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                        placeholder="e.g. 5000"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Warranty Expiry</label>
+                                                    <input
+                                                        type="date"
+                                                        value={newAsset.warrantyExpiry || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, warrantyExpiry: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                    />
+                                                </div>
+                                            </div>
 
-                                    {/* Row 4: Remarks (full width) */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Remarks</label>
-                                        <textarea
-                                            value={newAsset.remarks || ''}
-                                            onChange={e => setNewAsset(p => ({ ...p, remarks: e.target.value }))}
-                                            rows="2"
-                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium resize-none"
-                                            placeholder="e.g. Write remarks about the device..."
-                                        />
-                                    </div>
+                                            {/* Row 4: Remarks */}
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Remarks</label>
+                                                <textarea
+                                                    value={newAsset.remarks || ''}
+                                                    onChange={e => setNewAsset(p => ({ ...p, remarks: e.target.value }))}
+                                                    rows="2"
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium resize-none"
+                                                    placeholder="e.g. Location specifics or conditions..."
+                                                />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {/* Row 1: Asset Type + Brand */}
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Asset Type <span className="text-red-500">*</span></label>
+                                                    <SelectDropdown
+                                                        value={newAsset.category || ''}
+                                                        onChange={v => setNewAsset(p => ({ ...p, category: v }))}
+                                                        options={assetTypes?.filter(t => (t.asset_group || 'IT') === 'IT').map(t => t.name) || []}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Brand <span className="text-red-500">*</span></label>
+                                                    <input
+                                                        id="asset-brand"
+                                                        type="text"
+                                                        required
+                                                        value={newAsset.brand || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, brand: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                        placeholder="e.g. Apple"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Model <span className="text-red-500">*</span></label>
+                                                    <input
+                                                        id="asset-model"
+                                                        type="text"
+                                                        required
+                                                        value={newAsset.model || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, model: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                        placeholder='e.g. MacBook Pro 16"'
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Row 2: Model + Serial Number + Configuration + Branch */}
+                                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Serial Number</label>
+                                                    <input
+                                                        id="asset-serial"
+                                                        type="text"
+                                                        value={newAsset.serial}
+                                                        onChange={e => setNewAsset(p => ({ ...p, serial: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-mono"
+                                                        placeholder="e.g. C02F123XYZ45"
+                                                    />
+                                                </div>
+                                                <div className="col-span-2 lg:col-span-1">
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Configuration <span className="text-red-500">*</span></label>
+                                                    <input
+                                                        id="asset-config"
+                                                        type="text"
+                                                        required
+                                                        value={newAsset.configuration || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, configuration: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                        placeholder="e.g. M3 Pro, 18GB, 512GB"
+                                                    />
+                                                </div>
+                                                <div className="col-span-2 lg:col-span-1">
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Branch <span className="text-red-500">*</span></label>
+                                                    <SelectDropdown
+                                                        value={newAsset.branch || 'Cotton Concepts HO_ Coimbatore'}
+                                                        onChange={v => setNewAsset(p => ({ ...p, branch: v }))}
+                                                        options={['Cotton Concepts HO_ Coimbatore', 'Doctor Towels HO', 'Cotton Concepts_ Vengamedu', 'Cotton Concepts_ Karur', 'Doctor Towels_ Karur']}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Row 3: Purchase Date + Warranty (date) + Condition */}
+                                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Purchase Date</label>
+                                                    <input
+                                                        id="asset-purchase-date"
+                                                        type="date"
+                                                        value={newAsset.purchaseDate || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, purchaseDate: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Warranty</label>
+                                                    <SelectDropdown
+                                                        value={newAsset.warranty || '1 Year'}
+                                                        onChange={v => setNewAsset(p => ({ ...p, warranty: v }))}
+                                                        options={['6 Months', '1 Year', '2 Years', '3 Years', '4 Years', '5 Years']}
+                                                    />
+                                                </div>
+                                                <div className="col-span-2 lg:col-span-1">
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Condition <span className="text-red-500">*</span></label>
+                                                    <SelectDropdown
+                                                        value={newAsset.condition || 'Excellent'}
+                                                        onChange={v => setNewAsset(p => ({ ...p, condition: v }))}
+                                                        options={['Excellent', 'Good', 'Medium', 'Average', 'Scrap', "Stock"]}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Row 4: Remarks (full width) */}
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Remarks</label>
+                                                <textarea
+                                                    value={newAsset.remarks || ''}
+                                                    onChange={e => setNewAsset(p => ({ ...p, remarks: e.target.value }))}
+                                                    rows="2"
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium resize-none"
+                                                    placeholder="e.g. Write remarks about the device..."
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="flex flex-col-reverse lg:flex-row gap-3 pt-4">
                                         <button type="button" onClick={handleCloseAddModal} className="flex-1 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer">
@@ -1689,63 +2073,133 @@ const AssetsView = ({
 
                             {currentStep === 2 && (
                                 <div className="space-y-4 animate-in fade-in duration-200">
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">User Name <span className="text-red-500">*</span></label>
-                                            <input
-                                                id="asset-assignee"
-                                                type="text"
-                                                required
-                                                value={newAsset.assignee || ''}
-                                                onChange={e => setNewAsset(p => ({ ...p, assignee: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                                placeholder="e.g. John Doe or Unassigned"
-                                            />
+                                    {String(newAsset.group).toLowerCase() === 'admin' ? (
+                                        <div className="space-y-4">
+                                            {/* Row 1: Assigned To + Department */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Assigned To</label>
+                                                    <input
+                                                        id="asset-assignee"
+                                                        type="text"
+                                                        value={newAsset.assignee || ''}
+                                                        onChange={e => {
+                                                            setNewAsset(p => ({ ...p, assignee: e.target.value }));
+                                                            setValidationErrors(prev => ({ ...prev, assignee: false }));
+                                                        }}
+                                                        className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm focus:ring-2 outline-none text-slate-800 dark:text-white font-medium ${validationErrors.assignee
+                                                            ? 'border-red-500 focus:ring-red-500/20'
+                                                            : 'border-slate-200 dark:border-slate-700 focus:ring-primary'
+                                                            }`}
+                                                        placeholder="e.g. John Doe"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Department <span className="text-red-500">*</span></label>
+                                                    <SelectDropdown
+                                                        label="Select Department"
+                                                        value={newAsset.department || ''}
+                                                        onChange={v => {
+                                                            setNewAsset(p => ({ ...p, department: v }));
+                                                            setValidationErrors(prev => ({ ...prev, department: false }));
+                                                        }}
+                                                        options={departments?.length > 0 ? departments.map(d => d.name) : ['Admin', 'HR', 'Finance', 'Sales', 'Production', 'Logistics']}
+                                                        maxHeight="max-h-20"
+                                                        error={validationErrors.department}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Row 2: Branch + Location */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Branch <span className="text-red-500">*</span></label>
+                                                    <SelectDropdown
+                                                        label="Select Branch"
+                                                        value={newAsset.branch || ''}
+                                                        onChange={v => {
+                                                            setNewAsset(p => ({ ...p, branch: v }));
+                                                            setValidationErrors(prev => ({ ...prev, branch: false }));
+                                                        }}
+                                                        options={['Cotton Concepts HO_ Coimbatore', 'Doctor Towels HO', 'Cotton Concepts_ Vengamedu', 'Cotton Concepts_ Karur', 'Doctor Towels_ Karur']}
+                                                        direction='up'
+                                                        maxHeight='max-h-20'
+                                                        error={validationErrors.branch}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Location</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newAsset.location || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, location: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                        placeholder="e.g. First Floor Cabin 2"
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Employee Code <span className="text-red-500">*</span></label>
-                                            <input
-                                                id="asset-emp-code"
-                                                type="text"
-                                                required
-                                                value={newAsset.empCode || ''}
-                                                onChange={e => setNewAsset(p => ({ ...p, empCode: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                                placeholder="e.g. EMP001"
-                                            />
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">User Name <span className="text-red-500">*</span></label>
+                                                    <input
+                                                        id="asset-assignee"
+                                                        type="text"
+                                                        required
+                                                        value={newAsset.assignee || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, assignee: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                        placeholder="e.g. John Doe or Unassigned"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Employee Code <span className="text-red-500">*</span></label>
+                                                    <input
+                                                        id="asset-emp-code"
+                                                        type="text"
+                                                        required
+                                                        value={newAsset.empCode || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, empCode: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                        placeholder="e.g. EMP001"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Department <span className="text-red-500">*</span></label>
+                                                    <SelectDropdown
+                                                        value={newAsset.department || 'IT'}
+                                                        onChange={v => setNewAsset(p => ({ ...p, department: v }))}
+                                                        options={departments?.length > 0 ? departments.map(d => d.name) : ['IT', 'HR', 'Finance', 'Sales', 'Production', 'Logistics']}
+                                                        maxHeight="max-h-35"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Email Address</label>
+                                                    <input
+                                                        type="email"
+                                                        value={newAsset.email || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, email: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                        placeholder="e.g. user@company.com"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">CUG (SIM Number)</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newAsset.cug || ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, cug: e.target.value }))}
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                        placeholder="e.g. +91 98765 43210"
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Department <span className="text-red-500">*</span></label>
-                                            <SelectDropdown
-                                                value={newAsset.department || 'IT'}
-                                                onChange={v => setNewAsset(p => ({ ...p, department: v }))}
-                                                options={departments?.length > 0 ? departments.map(d => d.name) : ['IT','HR','Finance','Sales','Production','Logistics']}
-                                                maxHeight="max-h-35"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Email Address</label>
-                                            <input
-                                                type="email"
-                                                value={newAsset.email || ''}
-                                                onChange={e => setNewAsset(p => ({ ...p, email: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                                placeholder="e.g. user@company.com"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">CUG (SIM Number)</label>
-                                            <input
-                                                type="text"
-                                                value={newAsset.cug || ''}
-                                                onChange={e => setNewAsset(p => ({ ...p, cug: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                                placeholder="e.g. +91 98765 43210"
-                                            />
-                                        </div>
-                                    </div>
+                                    )}
 
                                     <div className="flex flex-col-reverse lg:flex-row gap-3 pt-4">
                                         <button
@@ -1772,7 +2226,7 @@ const AssetsView = ({
                                 <div className="space-y-4 animate-in fade-in duration-200">
                                     <div className="flex flex-col gap-3">
                                         <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 font-display">Asset Photos <span className="font-normal text-slate-400">(max 2)</span></label>
-                                        <div 
+                                        <div
                                             onClick={handleUploadContainerClick}
                                             className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-900/30 transition-all hover:bg-slate-50 dark:hover:bg-slate-900/50 relative group min-h-[140px] cursor-pointer"
                                         >
@@ -1866,10 +2320,10 @@ const AssetsView = ({
                                     <span className="text-xs font-semibold">Generating Sticker...</span>
                                 </div>
                             ) : qrImageBlobUrl ? (
-                                <img 
-                                    src={qrImageBlobUrl} 
-                                    alt="Asset Tag sticker" 
-                                    className="w-full max-w-[240px] sm:max-w-[320px] lg:max-w-full h-auto object-contain rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 bg-white" 
+                                <img
+                                    src={qrImageBlobUrl}
+                                    alt="Asset Tag sticker"
+                                    className="w-full max-w-[240px] sm:max-w-[320px] lg:max-w-full h-auto object-contain rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 bg-white"
                                 />
                             ) : (
                                 <div className="flex flex-col items-center justify-center gap-2 text-red-500 py-8 font-medium">
@@ -1886,11 +2340,10 @@ const AssetsView = ({
                                     e.preventDefault();
                                 }
                             }}
-                            className={`w-full flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg ${
-                                qrLoading || !qrImageBlobUrl 
-                                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none' 
-                                    : 'bg-primary text-white hover:bg-primary/90 shadow-primary/20 cursor-pointer'
-                            }`}
+                            className={`w-full flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg ${qrLoading || !qrImageBlobUrl
+                                ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'
+                                : 'bg-primary text-white hover:bg-primary/90 shadow-primary/20 cursor-pointer'
+                                }`}
                         >
                             <span className="material-symbols-outlined text-[18px]">download</span>
                             {qrLoading ? 'Loading Tag...' : 'Download Label PNG'}
@@ -1947,8 +2400,13 @@ const AssetsView = ({
     );
 };
 
-const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, onToggle }) => {
+const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, onToggle, hasEditPermission }) => {
     const [showAddAssignee, setShowAddAssignee] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const filteredAssignees = (assignees || []).filter(a =>
+        (a.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (a.support_type || '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
     const [editingAssignee, setEditingAssignee] = useState(null);
     const [name, setName] = useState('');
     const [supportType, setSupportType] = useState('IT Support');
@@ -1961,6 +2419,12 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
         setError('');
         if (!name.trim() || !supportType) {
             setError('Name and support type are required.');
+            return;
+        }
+        const lowerName = name.trim().toLowerCase();
+        const exists = assignees.some(a => a.name.trim().toLowerCase() === lowerName && (!editingAssignee || a.id !== editingAssignee.id));
+        if (exists) {
+            setError('Assignee name already exists.');
             return;
         }
         setIsSubmitting(true);
@@ -2012,7 +2476,7 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
     };
 
     return (
-        <div className="w-full shrink-0 p-8 border-b border-slate-200 dark:border-slate-800">
+        <div className="w-full shrink-0 px-20 py-8 border-b border-slate-200 dark:border-slate-800">
             <div className="mb-4 flex items-end justify-between">
                 <div onClick={onToggle} className="cursor-pointer group select-none">
                     <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
@@ -2024,13 +2488,25 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
                     <p className="text-sm text-slate-500 dark:text-slate-400">Manage support staff who can be assigned to tickets.</p>
                 </div>
                 {isExpanded && (
-                    <button
-                        onClick={() => setShowAddAssignee(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm transition-colors"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">add</span>
-                        Add Assignee
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <div className="relative w-64 animate-in fade-in zoom-in-95 duration-200">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+                            <input
+                                type="text"
+                                placeholder="Search assignees..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary text-slate-800 dark:text-white"
+                            />
+                        </div>
+                        <button
+                            onClick={() => setShowAddAssignee(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm transition-colors shrink-0"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">add</span>
+                            Add Assignee
+                        </button>
+                    </div>
                 )}
             </div>
 
@@ -2039,53 +2515,57 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
                 <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-hidden h-fit">
                     {assigneesLoading ? (
                         <div className="p-10 text-center text-slate-500">Loading assignees...</div>
-                    ) : assignees.length === 0 ? (
+                    ) : (assignees || []).length === 0 ? (
                         <div className="p-10 text-center text-slate-500">No assignees found. Add one on the left.</div>
+                    ) : filteredAssignees.length === 0 ? (
+                        <div className="p-10 text-center text-slate-500">No assignees match your search criteria.</div>
                     ) : (
                         <div className="flex flex-col w-full">
                             <table className="w-full text-left border-collapse table-fixed">
                                 <thead>
                                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">S.No</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[48%]">Assignee Name</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[25%]">Support Type</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[12%]' : 'w-[15%]'}`}>S.No</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[48%]' : 'w-[55%]'}`}>Assignee Name</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[25%]' : 'w-[30%]'}`}>Support Type</th>
+                                        {hasEditPermission && <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>}
                                     </tr>
                                 </thead>
                             </table>
                             <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
                                 <table className="w-full text-left border-collapse table-fixed">
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {Array.isArray(assignees) && assignees.map((a, idx) => (
+                                        {Array.isArray(filteredAssignees) && filteredAssignees.map((a, idx) => (
                                             <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
-                                                <td className="px-6 py-4 w-[48%]">
+                                                <td className={`px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 ${hasEditPermission ? 'w-[12%]' : 'w-[15%]'}`}>{idx + 1}</td>
+                                                <td className={`px-6 py-4 ${hasEditPermission ? 'w-[48%]' : 'w-[55%]'}`}>
                                                     <div className="text-sm font-medium text-slate-900 dark:text-white">{a.name}</div>
                                                     <div className="text-xs text-slate-400">Added {formatCreatedAt(a.created_at)}</div>
                                                 </td>
-                                                <td className="px-6 py-4 w-[25%]">
+                                                <td className={`px-6 py-4 ${hasEditPermission ? 'w-[25%]' : 'w-[30%]'}`}>
                                                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${a.support_type === 'IT Support' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : a.support_type === 'Admin Support' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300'}`}>
                                                         {a.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : a.support_type}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 w-[15%]">
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            title="Edit Assignee"
-                                                            onClick={() => handleOpenEdit(a)}
-                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-blue-600 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[16px]">edit</span>
-                                                        </button>
-                                                        <button
-                                                            title="Delete Assignee"
-                                                            onClick={() => handleDeleteClick(a)}
-                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                        >
-                                                            <span className="material-symbols-outlined text-[16px]">delete</span>
-                                                        </button>
-                                                    </div>
-                                                </td>
+                                                {hasEditPermission && (
+                                                    <td className="px-6 py-4 w-[15%]">
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                title="Edit Assignee"
+                                                                onClick={() => handleOpenEdit(a)}
+                                                                className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-blue-600 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                            </button>
+                                                            <button
+                                                                title="Delete Assignee"
+                                                                onClick={() => handleDeleteClick(a)}
+                                                                className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                )}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -2199,10 +2679,18 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
     );
 };
 
-const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpanded, onToggle }) => {
+const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpanded, onToggle, hasEditPermission }) => {
     const [showAddType, setShowAddType] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const filteredAssetTypes = (assetTypes || []).filter(t =>
+        (t.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.prefix || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.asset_group || '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
     const [editingType, setEditingType] = useState(null);
     const [name, setName] = useState('');
+    const [assetGroup, setAssetGroup] = useState(['IT']);
+    const [prefix, setPrefix] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [typeToDelete, setTypeToDelete] = useState(null);
@@ -2214,12 +2702,36 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
             setError('Name is required.');
             return;
         }
+        const lowerName = name.trim().toLowerCase();
+        const exists = assetTypes.some(t => t.name.trim().toLowerCase() === lowerName && (!editingType || t.id !== editingType.id));
+        if (exists) {
+            setError('Asset type name already exists.');
+            return;
+        }
+        if (assetGroup.length === 0) {
+            setError('At least one group must be selected.');
+            return;
+        }
+        if (!prefix.trim()) {
+            setError('Prefix code is required.');
+            return;
+        }
+        const cleanedPrefix = prefix.trim().toUpperCase();
+        if (cleanedPrefix.length < 2 || cleanedPrefix.length > 3) {
+            setError('Prefix value must be 2 to 3 characters.');
+            return;
+        }
         setIsSubmitting(true);
         try {
+            const payload = {
+                name: name.trim(),
+                asset_group: assetGroup.join(','),
+                prefix: cleanedPrefix
+            };
             if (editingType) {
-                await api.put(`/api/asset_types/${editingType.id}`, { name });
+                await api.put(`/api/asset_types/${editingType.id}`, payload);
             } else {
-                await api.post('/api/asset_types', { name });
+                await api.post('/api/asset_types', payload);
             }
             const res = await api.get('/api/asset_types');
             setAssetTypes(res.data);
@@ -2235,12 +2747,16 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
         setShowAddType(false);
         setEditingType(null);
         setName('');
+        setAssetGroup(['IT']);
+        setPrefix('');
         setError('');
     };
 
     const handleOpenEdit = (type) => {
         setEditingType(type);
         setName(type.name);
+        setAssetGroup(type.asset_group ? type.asset_group.split(',') : ['IT']);
+        setPrefix(type.prefix || '');
         setShowAddType(true);
     };
 
@@ -2261,7 +2777,7 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
     };
 
     return (
-        <div className="w-full shrink-0 p-8 border-b border-slate-200 dark:border-slate-800">
+        <div className="w-full shrink-0 px-20 py-8 border-b border-slate-200 dark:border-slate-800">
             <div className="mb-4 flex items-end justify-between">
                 <div onClick={onToggle} className="cursor-pointer group select-none">
                     <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
@@ -2273,13 +2789,25 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
                     <p className="text-sm text-slate-500 dark:text-slate-400">Manage asset categories dynamically.</p>
                 </div>
                 {isExpanded && (
-                    <button
-                        onClick={() => setShowAddType(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm transition-colors"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">add</span>
-                        Add Type
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <div className="relative w-64 animate-in fade-in zoom-in-95 duration-200">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+                            <input
+                                type="text"
+                                placeholder="Search asset types..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary text-slate-800 dark:text-white"
+                            />
+                        </div>
+                        <button
+                            onClick={() => setShowAddType(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm transition-colors shrink-0"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">add</span>
+                            Add Type
+                        </button>
+                    </div>
                 )}
             </div>
 
@@ -2288,29 +2816,46 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
                 <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-hidden h-fit">
                     {assetTypesLoading ? (
                         <div className="p-10 text-center text-slate-500">Loading asset types...</div>
-                    ) : assetTypes.length === 0 ? (
+                    ) : (assetTypes || []).length === 0 ? (
                         <div className="p-10 text-center text-slate-500">No asset types found. Add one on the left.</div>
+                    ) : filteredAssetTypes.length === 0 ? (
+                        <div className="p-10 text-center text-slate-500">No asset types match your search criteria.</div>
                     ) : (
                         <div className="flex flex-col w-full">
                             <table className="w-full text-left border-collapse table-fixed">
                                 <thead>
                                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">S.No</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[73%]">Type Name</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[10%]' : 'w-[12%]'}`}>S.No</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[40%]' : 'w-[45%]'}`}>Type Name</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[20%]' : 'w-[25%]'}`}>Group</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[15%]' : 'w-[18%]'}`}>Prefix</th>
+                                        {hasEditPermission && <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>}
                                     </tr>
                                 </thead>
-                            </table>
-                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
-                                <table className="w-full text-left border-collapse table-fixed">
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {Array.isArray(assetTypes) && assetTypes.map((c, idx) => (
-                                            <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
-                                                <td className="px-6 py-4 w-[73%]">
-                                                    <div className="text-sm font-medium text-slate-900 dark:text-white">{c.name}</div>
-                                                    <div className="text-xs text-slate-400">Added {formatCreatedAt(c.created_at)}</div>
-                                                </td>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {Array.isArray(filteredAssetTypes) && filteredAssetTypes.map((c, idx) => (
+                                        <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                            <td className={`px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 ${hasEditPermission ? 'w-[10%]' : 'w-[12%]'}`}>{idx + 1}</td>
+                                            <td className={`px-6 py-4 ${hasEditPermission ? 'w-[40%]' : 'w-[45%]'}`}>
+                                                <div className="text-sm font-medium text-slate-900 dark:text-white">{c.name}</div>
+                                                <div className="text-xs text-slate-400">Added {formatCreatedAt(c.created_at)}</div>
+                                            </td>
+                                            <td className={`px-6 py-4 ${hasEditPermission ? 'w-[20%]' : 'w-[25%]'}`}>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {(c.asset_group || 'IT').split(',').map(grp => (
+                                                        <span key={grp} className={`px-3 py-1.5 rounded-full text-[12px] font-semibold leading-none ${grp === 'Admin'
+                                                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                                                            : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                            }`}>
+                                                            {grp}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </td>
+                                            <td className={`px-6 py-4 text-sm font-semibold text-slate-800 dark:text-slate-200 ${hasEditPermission ? 'w-[15%]' : 'w-[18%]'}`}>
+                                                {c.prefix || '—'}
+                                            </td>
+                                            {hasEditPermission && (
                                                 <td className="px-6 py-4 w-[15%]">
                                                     <div className="flex items-center gap-2">
                                                         <button
@@ -2323,17 +2868,17 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
                                                         <button
                                                             title="Delete Type"
                                                             onClick={() => handleDeleteClick(c)}
-                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-650 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20"
                                                         >
                                                             <span className="material-symbols-outlined text-[16px]">delete</span>
                                                         </button>
                                                     </div>
                                                 </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>
@@ -2406,9 +2951,60 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
                                     value={name}
                                     onChange={e => setName(e.target.value)}
                                     placeholder="e.g. Printer"
-                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all"
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all text-sm font-medium"
                                     required
                                 />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Group</label>
+                                    <div className="flex gap-4 items-center bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl p-3 h-[46px]">
+                                        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer font-medium select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={assetGroup.includes('IT')}
+                                                onChange={e => {
+                                                    if (e.target.checked) {
+                                                        setAssetGroup(p => [...p, 'IT']);
+                                                    } else {
+                                                        setAssetGroup(p => p.filter(x => x !== 'IT'));
+                                                    }
+                                                }}
+                                                className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                                            />
+                                            IT
+                                        </label>
+                                        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer font-medium select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={assetGroup.includes('Admin')}
+                                                onChange={e => {
+                                                    if (e.target.checked) {
+                                                        setAssetGroup(p => [...p, 'Admin']);
+                                                    } else {
+                                                        setAssetGroup(p => p.filter(x => x !== 'Admin'));
+                                                    }
+                                                }}
+                                                className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+                                            />
+                                            Admin
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Prefix Code (2-3 chars)</label>
+                                    <input
+                                        type="text"
+                                        value={prefix}
+                                        onChange={e => setPrefix(e.target.value.toUpperCase())}
+                                        placeholder="e.g. PRN"
+                                        maxLength={3}
+                                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all uppercase text-sm font-medium h-[46px]"
+                                        required
+                                    />
+                                </div>
                             </div>
 
                             <div className="flex justify-end gap-3 pt-4">
@@ -2435,11 +3031,17 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
     );
 };
 
-const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpanded, onToggle }) => {
+const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpanded, onToggle, hasEditPermission }) => {
     const [showAddCategory, setShowAddCategory] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const filteredCategories = (categories || []).filter(c =>
+        (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.support_type || '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
     const [editingCategory, setEditingCategory] = useState(null);
     const [name, setName] = useState('');
     const [supportType, setSupportType] = useState('IT Support');
+    const [subcategories, setSubcategories] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [categoryToDelete, setCategoryToDelete] = useState(null);
@@ -2451,12 +3053,23 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
             setError('Name and support type are required.');
             return;
         }
+        const lowerName = name.trim().toLowerCase();
+        const exists = categories.some(c => c.name.trim().toLowerCase() === lowerName && (!editingCategory || c.id !== editingCategory.id));
+        if (exists) {
+            setError('Category name already exists.');
+            return;
+        }
         setIsSubmitting(true);
         try {
+            const payload = { 
+                name, 
+                support_type: supportType, 
+                subcategories: supportType === 'Petty Cash' ? subcategories : '' 
+            };
             if (editingCategory) {
-                await api.put(`/api/categories/${editingCategory.id}`, { name, support_type: supportType });
+                await api.put(`/api/categories/${editingCategory.id}`, payload);
             } else {
-                await api.post('/api/categories', { name, support_type: supportType });
+                await api.post('/api/categories', payload);
             }
             const res = await api.get('/api/categories');
             setCategories(res.data);
@@ -2473,6 +3086,7 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
         setEditingCategory(null);
         setName('');
         setSupportType('IT Support');
+        setSubcategories('');
         setError('');
     };
 
@@ -2480,6 +3094,7 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
         setEditingCategory(category);
         setName(category.name);
         setSupportType(category.support_type);
+        setSubcategories(category.subcategories || '');
         setShowAddCategory(true);
     };
 
@@ -2500,7 +3115,7 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
     };
 
     return (
-        <div className="w-full shrink-0 p-8 border-b border-slate-200 dark:border-slate-800">
+        <div className="w-full shrink-0 px-20 py-8 border-b border-slate-200 dark:border-slate-800">
             <div className="mb-4 flex items-end justify-between">
                 <div onClick={onToggle} className="cursor-pointer group select-none">
                     <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
@@ -2512,13 +3127,25 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
                     <p className="text-sm text-slate-500 dark:text-slate-400">Manage issue categories for ticket routing.</p>
                 </div>
                 {isExpanded && (
-                    <button
-                        onClick={() => setShowAddCategory(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm transition-colors"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">add</span>
-                        Add Category
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <div className="relative w-64 animate-in fade-in zoom-in-95 duration-200">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+                            <input
+                                type="text"
+                                placeholder="Search categories..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary text-slate-800 dark:text-white"
+                            />
+                        </div>
+                        <button
+                            onClick={() => setShowAddCategory(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm transition-colors shrink-0"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">add</span>
+                            Add Category
+                        </button>
+                    </div>
                 )}
             </div>
 
@@ -2527,36 +3154,46 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
                 <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-hidden h-fit">
                     {categoriesLoading ? (
                         <div className="p-10 text-center text-slate-500">Loading categories...</div>
-                    ) : categories.length === 0 ? (
+                    ) : (categories || []).length === 0 ? (
                         <div className="p-10 text-center text-slate-500">No categories found. Add one on the left.</div>
+                    ) : filteredCategories.length === 0 ? (
+                        <div className="p-10 text-center text-slate-500">No categories match your search criteria.</div>
                     ) : (
                         <div className="flex flex-col w-full">
                             <table className="w-full text-left border-collapse table-fixed">
                                 <thead>
                                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">S.No</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[48%]">Category Name</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[25%]">Support Type</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[10%]' : 'w-[12%]'}`}>S.No</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[28%]' : 'w-[32%]'}`}>Category Name</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[32%]' : 'w-[36%]'}`}>Sub Category</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[18%]' : 'w-[20%]'}`}>Support Type</th>
+                                        {hasEditPermission && <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Actions</th>}
                                     </tr>
                                 </thead>
-                            </table>
-                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
-                                <table className="w-full text-left border-collapse table-fixed">
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {Array.isArray(categories) && categories.map((c, idx) => (
-                                            <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
-                                                <td className="px-6 py-4 w-[48%]">
-                                                    <div className="text-sm font-medium text-slate-900 dark:text-white">{c.name}</div>
-                                                    <div className="text-xs text-slate-400">Added {formatCreatedAt(c.created_at)}</div>
-                                                </td>
-                                                <td className="px-6 py-4 w-[25%]">
-                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${c.support_type?.includes('IT Support') ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'}`}>
-                                                        {c.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : c.support_type}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 w-[15%]">
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {Array.isArray(filteredCategories) && filteredCategories.map((c, idx) => (
+                                        <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                            <td className={`px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 ${hasEditPermission ? 'w-[10%]' : 'w-[12%]'}`}>{idx + 1}</td>
+                                            <td className={`px-6 py-4 ${hasEditPermission ? 'w-[28%]' : 'w-[32%]'}`}>
+                                                <div className="text-sm font-medium text-slate-900 dark:text-white">{c.name}</div>
+                                                <div className="text-xs text-slate-400 mt-0.5">Added {formatCreatedAt(c.created_at)}</div>
+                                            </td>
+                                            <td className={`px-6 py-4 text-sm text-slate-650 dark:text-slate-350 truncate ${hasEditPermission ? 'w-[32%]' : 'w-[36%]'}`} title={c.subcategories || '-'}>
+                                                {c.subcategories || '-'}
+                                            </td>
+                                            <td className={`px-6 py-4 ${hasEditPermission ? 'w-[18%]' : 'w-[20%]'}`}>
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                                                    c.support_type === 'IT Support' 
+                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' 
+                                                    : c.support_type === 'Petty Cash'
+                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300'
+                                                    : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'
+                                                }`}>
+                                                    {c.support_type}
+                                                </span>
+                                            </td>
+                                            {hasEditPermission && (
+                                                <td className="px-6 py-4 w-[12%]">
                                                     <div className="flex items-center gap-2">
                                                         <button
                                                             title="Edit Category"
@@ -2568,17 +3205,17 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
                                                         <button
                                                             title="Delete Category"
                                                             onClick={() => handleDeleteClick(c)}
-                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-605 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20"
                                                         >
                                                             <span className="material-symbols-outlined text-[16px]">delete</span>
                                                         </button>
                                                     </div>
                                                 </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>
@@ -2660,9 +3297,22 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
                                 >
                                     <option value="IT Support">IT Support</option>
                                     <option value="Admin Support">Admin Support</option>
-                                    <option value="IT Support,Admin Support">Both (IT & Admin Support)</option>
+                                    <option value="Petty Cash">Petty Cash</option>
                                 </select>
                             </div>
+                            {supportType === 'Petty Cash' && (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Sub Categories (comma-separated)</label>
+                                    <input
+                                        type="text"
+                                        className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                                        placeholder="e.g. Office Supplies, Travel, Food"
+                                        value={subcategories}
+                                        onChange={e => setSubcategories(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            )}
                             <div className="flex justify-end gap-3 pt-2">
                                 <button
                                     type="button"
@@ -2687,8 +3337,13 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
     );
 };
 
-const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isExpanded, onToggle, showToast }) => {
+const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isExpanded, onToggle, showToast, hasEditPermission }) => {
     const [showAddDepartment, setShowAddDepartment] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const filteredDepartments = (departments || []).filter(d =>
+        (d.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (d.support_type || '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
     const [editingDepartment, setEditingDepartment] = useState(null);
     const [name, setName] = useState('');
     const [supportType, setSupportType] = useState('IT Support');
@@ -2701,6 +3356,12 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
         setError('');
         if (!name.trim() || !supportType) {
             setError('Name and support type are required.');
+            return;
+        }
+        const lowerName = name.trim().toLowerCase();
+        const exists = departments.some(d => d.name.trim().toLowerCase() === lowerName && (!editingDepartment || d.id !== editingDepartment.id));
+        if (exists) {
+            setError('Department name already exists.');
             return;
         }
         setIsSubmitting(true);
@@ -2757,7 +3418,7 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
     // Note: I missed showToast in the prop list, I'll need to pass it from AdminDashboard
     // But for now let's just use alert or similar if needed, or pass showToast
     return (
-        <div className="w-full shrink-0 p-8 border-b border-slate-200 dark:border-slate-800">
+        <div className="w-full shrink-0 px-20 py-8 border-b border-slate-200 dark:border-slate-800">
             <div className="mb-4 flex items-end justify-between">
                 <div onClick={onToggle} className="cursor-pointer group select-none">
                     <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
@@ -2769,13 +3430,25 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
                     <p className="text-sm text-slate-500 dark:text-slate-400">Manage organizational departments and their support types.</p>
                 </div>
                 {isExpanded && (
-                    <button
-                        onClick={() => setShowAddDepartment(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm transition-colors"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">add</span>
-                        Add Department
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <div className="relative w-64 animate-in fade-in zoom-in-95 duration-200">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+                            <input
+                                type="text"
+                                placeholder="Search departments..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary text-slate-800 dark:text-white"
+                            />
+                        </div>
+                        <button
+                            onClick={() => setShowAddDepartment(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm transition-colors shrink-0"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">add</span>
+                            Add Department
+                        </button>
+                    </div>
                 )}
             </div>
 
@@ -2783,35 +3456,35 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
                 <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-hidden h-fit">
                     {departmentsLoading ? (
                         <div className="p-10 text-center text-slate-500">Loading departments...</div>
-                    ) : departments.length === 0 ? (
+                    ) : (departments || []).length === 0 ? (
                         <div className="p-10 text-center text-slate-500">No departments found.</div>
+                    ) : filteredDepartments.length === 0 ? (
+                        <div className="p-10 text-center text-slate-500">No departments match your search criteria.</div>
                     ) : (
                         <div className="flex flex-col w-full">
                             <table className="w-full text-left border-collapse table-fixed">
                                 <thead>
                                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">S.No</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[48%]">Department Name</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[25%]">Support Type</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[12%]' : 'w-[15%]'}`}>S.No</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[48%]' : 'w-[55%]'}`}>Department Name</th>
+                                        <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[25%]' : 'w-[30%]'}`}>Support Type</th>
+                                        {hasEditPermission && <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>}
                                     </tr>
                                 </thead>
-                            </table>
-                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
-                                <table className="w-full text-left border-collapse table-fixed">
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {Array.isArray(departments) && departments.map((d, idx) => (
-                                            <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[12%]">{idx + 1}</td>
-                                                <td className="px-6 py-4 w-[48%]">
-                                                    <div className="text-sm font-medium text-slate-900 dark:text-white">{d.name}</div>
-                                                    <div className="text-xs text-slate-400">Added {formatCreatedAt(d.created_at)}</div>
-                                                </td>
-                                                <td className="px-6 py-4 w-[25%]">
-                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${d.support_type?.includes('IT Support') ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'}`}>
-                                                        {d.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : d.support_type}
-                                                    </span>
-                                                </td>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {Array.isArray(filteredDepartments) && filteredDepartments.map((d, idx) => (
+                                        <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                            <td className={`px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 ${hasEditPermission ? 'w-[12%]' : 'w-[15%]'}`}>{idx + 1}</td>
+                                            <td className={`px-6 py-4 ${hasEditPermission ? 'w-[48%]' : 'w-[55%]'}`}>
+                                                <div className="text-sm font-medium text-slate-900 dark:text-white">{d.name}</div>
+                                                <div className="text-xs text-slate-400">Added {formatCreatedAt(d.created_at)}</div>
+                                            </td>
+                                            <td className={`px-6 py-4 ${hasEditPermission ? 'w-[25%]' : 'w-[30%]'}`}>
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${d.support_type?.includes('IT Support') ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'}`}>
+                                                    {d.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : d.support_type}
+                                                </span>
+                                            </td>
+                                            {hasEditPermission && (
                                                 <td className="px-6 py-4 w-[15%]">
                                                     <div className="flex items-center gap-2">
                                                         <button
@@ -2830,11 +3503,11 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
                                                         </button>
                                                     </div>
                                                 </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>
@@ -2949,7 +3622,7 @@ const MultiSelectFilter = ({ label, icon, options, selected, onChange, widthClas
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className={`flex items-center justify-between gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700 outline-none cursor-pointer ${widthClass} ${isOpen ? 'ring-2 ring-primary border-primary bg-white dark:bg-slate-900 shadow-sm' : ''}`}
+                className={`flex items-center justify-between gap-2 px-3 py-2 bg-[#eceef0] dark:bg-slate-900 border border-transparent rounded-lg text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700 outline-none cursor-pointer ${widthClass} ${isOpen ? 'ring-2 ring-primary border-primary bg-white dark:bg-slate-900 shadow-sm' : ''}`}
             >
                 <div className="flex items-center gap-2 truncate">
                     {icon && <span className="material-symbols-outlined text-slate-400 text-lg">{icon}</span>}
@@ -2961,7 +3634,7 @@ const MultiSelectFilter = ({ label, icon, options, selected, onChange, widthClas
             </button>
 
             {isOpen && (
-                <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] py-2 overflow-hidden animate-in fade-in zoom-in duration-150">
+                <div className="absolute top-full left-0 mt-2 min-w-50 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] py-2 overflow-hidden animate-in fade-in zoom-in duration-150">
                     <div className="max-h-72 overflow-y-auto custom-scrollbar">
                         {options.map((option) => (
                             <label
@@ -3005,6 +3678,7 @@ const AdminDashboard = () => {
     const { user, logout, refreshUser } = useAuth();
     const isSuperAdmin = user?.email === 'admin@support.com';
     const isPowerUser = user?.receiver_position === 'Management' || user?.receiver_position === 'Manager';
+    const hasEditPermission = user?.email === 'admin@support.com' || (user?.access && user.access.includes('Edit'));
 
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -3038,10 +3712,11 @@ const AdminDashboard = () => {
             return 'assets';
         }
         return 'tickets';
-    }); // 'tickets' | 'users' | 'assets'
+    }); // 'tickets' | 'users' | 'assets' | 'admin_assets'
     const [users, setUsers] = useState([]);
     const [usersLoading, setUsersLoading] = useState(false);
     const [showAddUser, setShowAddUser] = useState(false);
+    const [userSearchQuery, setUserSearchQuery] = useState('');
     const [assignees, setAssignees] = useState([]);
     const [assigneesLoading, setAssigneesLoading] = useState(false);
     const [categories, setCategories] = useState([]);
@@ -3059,8 +3734,7 @@ const AdminDashboard = () => {
     const [assetDepartmentFilter, setAssetDepartmentFilter] = useState(['All']);
     const [assetConditionFilter, setAssetConditionFilter] = useState(['All']);
     const [showAddAssetModal, setShowAddAssetModal] = useState(false);
-    const [showAddAssetDropdown, setShowAddAssetDropdown] = useState(false);
-    const [newAsset, setNewAsset] = useState({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT' });
+    const [newAsset, setNewAsset] = useState({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
     const [isEditingAsset, setIsEditingAsset] = useState(false);
     const [editingAssetId, setEditingAssetId] = useState(null);
     const [selectedAssetIds, setSelectedAssetIds] = useState([]);
@@ -3074,6 +3748,7 @@ const AdminDashboard = () => {
     const [departmentFilter, setDepartmentFilter] = useState(['All']);
     const [categoryFilter, setCategoryFilter] = useState(['All']);
     const [assigneeFilter, setAssigneeFilter] = useState(['All']);
+    const [mailApprovalFilter, setMailApprovalFilter] = useState(['All']);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
     const downloadDropdownRef = useRef(null);
@@ -3105,8 +3780,6 @@ const AdminDashboard = () => {
         }
     ]);
 
-
-
     const handleDownloadSelectedAssets = () => {
         if (selectedAssetIds.length === 0) return;
         const selectedList = assets.filter(a => selectedAssetIds.includes(a.id));
@@ -3119,6 +3792,7 @@ const AdminDashboard = () => {
             "Serial Number": asset.serial || '',
             "User Name": asset.assignee || '',
             "Emp Code": asset.empCode || '',
+            "Email": asset.email || '',
             "Branch": asset.branch || '',
             "Department": asset.department || '',
             "Purchase Date": asset.purchaseDate || '',
@@ -3134,12 +3808,12 @@ const AdminDashboard = () => {
 
     const handleDownloadSelectedQRs = async () => {
         if (selectedAssetIds.length === 0) return;
-        
+
         setIsGeneratingQRs(true);
-        
+
         try {
             const selectedList = assets.filter(a => selectedAssetIds.includes(a.id));
-            
+
             // Helper to convert blob to base64
             const blobToBase64 = (blob) => {
                 return new Promise((resolve, reject) => {
@@ -3152,38 +3826,54 @@ const AdminDashboard = () => {
 
             const qrImages = [];
             const batchSize = 10;
-            
+
             // Resilient batching to avoid connection timeouts or browser concurrency throttling
             for (let i = 0; i < selectedList.length; i += batchSize) {
                 const batch = selectedList.slice(i, i + batchSize);
                 const batchPromises = batch.map(async (asset) => {
                     if (!asset.assetId) return null;
                     try {
-                        const response = await api.get(`/api/assets/${asset.assetId}/qr?t=${Date.now()}`, { responseType: 'blob' });
-                        const base64 = await blobToBase64(response.data);
-                        return { assetId: asset.assetId, base64 };
+                        const isAdminAsset = asset.group === 'Admin' || asset.group === 'ADMIN';
+                        const qty = isAdminAsset ? parseInt(asset.quantity || 1, 10) : 1;
+                        
+                        if (qty > 1) {
+                            const subPromises = [];
+                            for (let j = 1; j <= qty; j++) {
+                                subPromises.push((async () => {
+                                    const subId = `${asset.assetId}-${j}`;
+                                    const response = await api.get(`/api/assets/${subId}/qr?t=${Date.now()}`, { responseType: 'blob' });
+                                    const base64 = await blobToBase64(response.data);
+                                    return { assetId: subId, base64 };
+                                })());
+                            }
+                            return await Promise.all(subPromises);
+                        } else {
+                            const response = await api.get(`/api/assets/${asset.assetId}/qr?t=${Date.now()}`, { responseType: 'blob' });
+                            const base64 = await blobToBase64(response.data);
+                            return [{ assetId: asset.assetId, base64 }];
+                        }
                     } catch (err) {
                         console.error(`Failed to fetch QR label for asset ${asset.assetId}:`, err);
                         return null; // Gracefully continue if a single request fails
                     }
                 });
-                
+
                 const batchResults = await Promise.all(batchPromises);
-                qrImages.push(...batchResults.filter(Boolean));
+                qrImages.push(...batchResults.flat().filter(Boolean));
             }
-            
+
             if (qrImages.length === 0) {
                 setIsGeneratingQRs(false);
                 showToast("No valid QR labels could be compiled.", "error");
                 return;
             }
-            
+
             // Partition into chunks of 40 labels (4 columns x 10 rows)
             const chunks = [];
             for (let i = 0; i < qrImages.length; i += 40) {
                 chunks.push(qrImages.slice(i, i + 40));
             }
-            
+
             let pagesHtml = '';
             chunks.forEach((chunk) => {
                 pagesHtml += `<div class="a4-page">`;
@@ -3194,7 +3884,7 @@ const AdminDashboard = () => {
                         </div>
                     `;
                 });
-                
+
                 // Pad remaining cells on last page to preserve 4x10 grid format
                 const remaining = 40 - chunk.length;
                 for (let i = 0; i < remaining; i++) {
@@ -3313,7 +4003,7 @@ const AdminDashboard = () => {
             setTimeout(() => {
                 iframe.contentWindow.focus();
                 iframe.contentWindow.print();
-                
+
                 document.body.removeChild(iframe);
                 setIsGeneratingQRs(false);
             }, 500);
@@ -3364,6 +4054,20 @@ const AdminDashboard = () => {
         const saved = localStorage.getItem('darkMode');
         return saved ? saved === 'true' : false;
     });
+
+    // User profile popup
+    const [showUserPopup, setShowUserPopup] = useState(false);
+    const userPopupRef = useRef(null);
+
+    useEffect(() => {
+        const handleOutsideClick = (e) => {
+            if (userPopupRef.current && !userPopupRef.current.contains(e.target)) {
+                setShowUserPopup(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutsideClick);
+        return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, []);
 
     // Detailed View Mode
     const [detailedView, setDetailedView] = useState(() => {
@@ -3489,10 +4193,11 @@ const AdminDashboard = () => {
         }
     };
 
-    const fetchAssets = async () => {
+    const fetchAssets = async (view = activeView) => {
         setAssetsLoading(true);
         try {
-            const response = await api.get('/api/assets');
+            const endpoint = view === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
+            const response = await api.get(endpoint);
             setAssets(Array.isArray(response.data) ? response.data : []);
         } catch (err) {
             console.error("Failed to fetch assets:", err);
@@ -3506,7 +4211,9 @@ const AdminDashboard = () => {
         if (user) {
             refreshUser(); // Sync user permissions (e.g. can_send_mail) from the backend
             // Initial load of assets and global metadata
-            fetchAssets();
+            const path = window.location.pathname;
+            const view = (path === '/admin-assets' || path === '/admin-assets/add') ? 'admin_assets' : 'assets';
+            fetchAssets(view);
             fetchAssignees();
             fetchCategories();
             fetchDepartments();
@@ -3514,27 +4221,57 @@ const AdminDashboard = () => {
         }
     }, [user?.email]);
 
-    useEffect(() => {
-        const handleOutsideClick = (e) => {
-            if (!e.target.closest('.add-asset-dropdown-container')) {
-                setShowAddAssetDropdown(false);
-            }
-        };
-        if (showAddAssetDropdown) {
-            document.addEventListener('mousedown', handleOutsideClick);
-        }
-        return () => document.removeEventListener('mousedown', handleOutsideClick);
-    }, [showAddAssetDropdown]);
+
+
+
 
     useEffect(() => {
         if (!user) return;
         const path = location.pathname;
+        if (path === '/assets/add' && !hasEditPermission) {
+            navigate('/assets');
+            return;
+        }
+        if (path === '/admin-assets/add' && !hasEditPermission) {
+            navigate('/admin-assets');
+            return;
+        }
         if (path === '/assets' || path === '/assets/add') {
             setActiveView('assets');
+            fetchAssets('assets');
+            fetchAssignees();
+            fetchCategories();
+            fetchDepartments();
+            fetchAssetTypes();
+            setAssetCategoryFilter(['All']);
+            setAssetBranchFilter(['All']);
+            setAssetDepartmentFilter(['All']);
+            setAssetConditionFilter(['All']);
+            setAssetSearchQuery('');
             if (path === '/assets/add') {
                 setIsEditingAsset(false);
                 const initialGroup = location.state?.group || 'IT';
-                setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: initialGroup });
+                if (initialGroup === 'Admin') {
+                    setNewAsset({ assetId: '', category: '', brand: '', model: '', configuration: '', serial: '', assignee: '', empCode: '', cug: '', email: '', department: '', branch: '', purchaseDate: '', warranty: '', condition: '', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                } else {
+                    setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                }
+            }
+        } else if (path === '/admin-assets' || path === '/admin-assets/add') {
+            setActiveView('admin_assets');
+            fetchAssets('admin_assets');
+            fetchAssignees();
+            fetchCategories();
+            fetchDepartments();
+            fetchAssetTypes();
+            setAssetCategoryFilter(['All']);
+            setAssetBranchFilter(['All']);
+            setAssetDepartmentFilter(['All']);
+            setAssetConditionFilter(['All']);
+            setAssetSearchQuery('');
+            if (path === '/admin-assets/add') {
+                setIsEditingAsset(false);
+                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
             }
         } else if (path === '/users') {
             setActiveView('users');
@@ -3741,7 +4478,8 @@ const AdminDashboard = () => {
         if (selectedAssetIds.length === 0) return;
         setIsUpdating(true);
         try {
-            const response = await api.post('/api/bulk-delete-assets', {
+            const apiPath = activeView === 'admin_assets' ? '/api/bulk-delete-admin-assets' : '/api/bulk-delete-assets';
+            const response = await api.post(apiPath, {
                 asset_ids: selectedAssetIds,
                 admin_email: user?.email
             });
@@ -3803,9 +4541,9 @@ const AdminDashboard = () => {
         setIsUpdating(true);
         try {
             // 1. Save status & assignee to DB first
-            await api.put(`/api/tickets/${ticketId}`, { 
+            await api.put(`/api/tickets/${ticketId}`, {
                 status: updateStatus,
-                assignee: updateAssignee 
+                assignee: updateAssignee
             });
 
             // 2. Send approval email
@@ -3852,36 +4590,75 @@ const AdminDashboard = () => {
         if (s === 'completed' || s === 'resolved') {
             return (
                 <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                    {/* <span className="h-2 w-2 rounded-full bg-green-500"></span> */}
                     {status}
                 </span>
             );
         } else if (s === 'in progress') {
             return (
                 <span className="flex items-center gap-1.5 text-sm text-blue-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-blue-500"></span>
+                    {/* <span className="h-2 w-2 rounded-full bg-blue-500"></span> */}
                     {status}
                 </span>
             );
         } else if (s === 'pending') {
             return (
                 <span className="flex items-center gap-1.5 text-sm text-amber-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                    {/* <span className="h-2 w-2 rounded-full bg-amber-500"></span> */}
                     {status}
                 </span>
             );
         } else if (s === 'rejected') {
             return (
                 <span className="flex items-center gap-1.5 text-sm text-red-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-red-500"></span>
+                    {/* <span className="h-2 w-2 rounded-full bg-red-500"></span> */}
                     {status}
                 </span>
             );
         } else {
             return (
                 <span className="flex items-center gap-1.5 text-sm text-slate-500 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"></span>
+                    {/* <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"></span> */}
                     {status}
+                </span>
+            );
+        }
+    };
+
+    const getMailStatusBadge = (ticket) => {
+        const hasAdminMail = ticket.adminManagerHasMail || (ticket.adminManagerMailTime && ticket.adminManagerMailTime !== "");
+        const hasMgmtMail = ticket.managementMailTime && ticket.managementMailTime !== "";
+
+        let mailStatus = "no mail";
+        if (hasAdminMail || hasMgmtMail) {
+            const isMgrPending = hasAdminMail && (!ticket.adminManagerStatus || ticket.adminManagerStatus.toLowerCase().includes('pending'));
+            const isMgmtPending = hasMgmtMail && (!ticket.managementStatus || ticket.managementStatus.toLowerCase().includes('pending'));
+            if (isMgrPending || isMgmtPending) {
+                mailStatus = "pending";
+            } else {
+                mailStatus = "approved";
+            }
+        }
+
+        if (mailStatus === 'approved') {
+            return (
+                <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
+                    {/* <span className="h-2 w-2 rounded-full bg-green-500"></span> */}
+                    Approved
+                </span>
+            );
+        } else if (mailStatus === 'pending') {
+            return (
+                <span className="flex items-center gap-1.5 text-sm text-amber-600 font-medium">
+                    {/* <span className="h-2 w-2 rounded-full bg-amber-500"></span> */}
+                    Pending
+                </span>
+            );
+        } else {
+            return (
+                <span className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 font-medium">
+                    {/* <span className="h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-500"></span> */}
+                    No mail
                 </span>
             );
         }
@@ -4043,7 +4820,7 @@ const AdminDashboard = () => {
         `);
 
         printWindow.document.close();
-        
+
         // Wait for styles/images to load
         setTimeout(() => {
             printWindow.focus();
@@ -4090,7 +4867,19 @@ const AdminDashboard = () => {
         return matchesSearch && matchesBranch && matchesDepartment && matchesCategory && matchesAssignee && matchesDate;
     });
 
-    const filteredTickets = baseFilteredTickets.filter(ticket => statusFilter.includes('All') || statusFilter.includes(ticket.status));
+    const getMailApprovalStatus = (ticket) => {
+        const hasAdminMail = ticket.adminManagerHasMail || (ticket.adminManagerMailTime && ticket.adminManagerMailTime !== '');
+        const hasMgmtMail = ticket.managementMailTime && ticket.managementMailTime !== '';
+        if (!hasAdminMail && !hasMgmtMail) return 'No Mail';
+        const isMgrPending = hasAdminMail && (!ticket.adminManagerStatus || ticket.adminManagerStatus.toLowerCase().includes('pending'));
+        const isMgmtPending = hasMgmtMail && (!ticket.managementStatus || ticket.managementStatus.toLowerCase().includes('pending'));
+        if (isMgrPending || isMgmtPending) return 'Pending';
+        return 'Approved';
+    };
+
+    const filteredTickets = baseFilteredTickets
+        .filter(ticket => statusFilter.includes('All') || statusFilter.includes(ticket.status))
+        .filter(ticket => mailApprovalFilter.includes('All') || mailApprovalFilter.includes(getMailApprovalStatus(ticket)));
 
     // Calculate Summary Stats based on current base filters (date, search, etc.)
     const totalTickets = baseFilteredTickets.length;
@@ -4099,6 +4888,16 @@ const AdminDashboard = () => {
     const inProgressTickets = baseFilteredTickets.filter(t => t.status?.toLowerCase() === 'in progress').length;
     const completedTickets = baseFilteredTickets.filter(t => t.status?.toLowerCase() === 'completed' || t.status?.toLowerCase() === 'resolved').length;
     const rejectedTickets = baseFilteredTickets.filter(t => t.status?.toLowerCase() === 'rejected').length;
+    const mailPendingTickets = baseFilteredTickets.filter(ticket => {
+        const hasAdminMail = ticket.adminManagerHasMail || (ticket.adminManagerMailTime && ticket.adminManagerMailTime !== "");
+        const hasMgmtMail = ticket.managementMailTime && ticket.managementMailTime !== "";
+        if (hasAdminMail || hasMgmtMail) {
+            const isMgrPending = hasAdminMail && (!ticket.adminManagerStatus || ticket.adminManagerStatus.toLowerCase().includes('pending'));
+            const isMgmtPending = hasMgmtMail && (!ticket.managementStatus || ticket.managementStatus.toLowerCase().includes('pending'));
+            return isMgrPending || isMgmtPending;
+        }
+        return false;
+    }).length;
 
     const ITEMS_PER_PAGE = 20;
     const totalPages = Math.max(1, Math.ceil(filteredTickets.length / ITEMS_PER_PAGE));
@@ -4109,13 +4908,16 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, statusFilter, branchFilter, departmentFilter, categoryFilter, assigneeFilter, dateRange, isDateFilterActive]);
+    }, [searchQuery, statusFilter, branchFilter, departmentFilter, categoryFilter, assigneeFilter, mailApprovalFilter, dateRange, isDateFilterActive]);
 
     const uniqueBranches = ['All', ...new Set(tickets.map(t => t.branch).filter(Boolean))];
     const uniqueDepartments = ['All', ...new Set(tickets.map(t => t.department).filter(Boolean))];
     const uniqueCategories = ['All', ...new Set(tickets.map(t => t.category).filter(Boolean))];
     const uniqueAssignees = ['All', ...new Set(tickets.map(t => t.assignee).filter(Boolean))];
-    const uniqueAssetTypes = ['All', ...new Set((assetTypes || []).map(t => t.name).filter(Boolean))];
+    const uniqueAssetBranches = ['All', ...new Set((assets || []).map(a => a.branch).filter(Boolean).sort((a, b) => a.localeCompare(b)))];
+    const uniqueAssetDepartments = ['All', ...new Set((assets || []).map(a => a.department).filter(Boolean).sort((a, b) => a.localeCompare(b)))];
+    const uniqueAssetTypes = ['All', ...new Set((assets || []).map(a => activeView === 'admin_assets' ? a.type : a.category).filter(Boolean).sort((a, b) => a.localeCompare(b)))];
+    const uniqueAssetConditions = ['All', ...new Set((assets || []).map(a => activeView === 'admin_assets' ? a.status : a.condition).filter(Boolean).sort((a, b) => a.localeCompare(b)))];
 
     if (isMobile) {
         return (
@@ -4137,9 +4939,9 @@ const AdminDashboard = () => {
                                 <span className="material-symbols-outlined text-4xl text-amber-500 mb-3 animate-pulse">photo_camera_off</span>
                                 <h3 className="text-sm font-bold text-white mb-2">Camera Access Blocked</h3>
                                 <p className="text-xs text-slate-400 max-w-[240px] leading-relaxed">
-                                    {!window.isSecureContext 
+                                    {!window.isSecureContext
                                         ? "Camera access requires a secure HTTPS connection. Please access this app via HTTPS."
-                                        : qrScannerError 
+                                        : qrScannerError
                                             ? `Error: ${qrScannerError}`
                                             : "Unable to find or access camera. Please check your browser's camera permissions."
                                     }
@@ -4164,7 +4966,7 @@ const AdminDashboard = () => {
                                         } catch (e) {
                                             // Ignore invalid URL error, try fallback string matching
                                         }
-                                        
+
                                         if (qrContent.includes('/asset/')) {
                                             const assetPath = qrContent.substring(qrContent.indexOf('/asset/'));
                                             navigate(assetPath + (assetPath.includes('?') ? '&' : '?') + 'edit=true');
@@ -4185,7 +4987,7 @@ const AdminDashboard = () => {
                             />
                         )}
                     </div>
-                    
+
                     <button
                         onClick={handleLogout}
                         className="mt-8 flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all cursor-pointer w-full"
@@ -4199,145 +5001,471 @@ const AdminDashboard = () => {
     }
 
     return (
-        <div className="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 h-screen flex overflow-hidden">
-            <aside className="w-64 h-screen bg-sidebar-light dark:bg-sidebar-dark border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0">
-                <div className="h-24 flex items-center justify-center px-4 py-2 border-b border-slate-200 dark:border-slate-600">
-                    <img src={logoImage} alt="Logo" className="h-20 w-auto object-contain dark:hidden" />
-                    <img src={logoDarkImage} alt="Logo" className="h-20 w-auto object-contain hidden dark:block" />
-                </div>
-                <nav className="flex-1 space-y-1">
-                    <button
-                        onClick={() => {
-                            navigate('/tickets');
-                        }}
-                        className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-colors cursor-pointer ${activeView === 'tickets'
-                            ? 'text-primary bg-primary/10 border-r-4 border-primary'
-                            : 'text-slate-600 dark:text-slate-400 hover:bg-primary/5 dark:hover:bg-primary/10 hover:text-primary'
-                            }`}>
-                        <span className="material-symbols-outlined mr-3">confirmation_number</span>
-                        <span>Tickets</span>
-                    </button>
-                    <button
-                        onClick={() => {
-                            navigate('/assets');
-                        }}
-                        className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-colors cursor-pointer ${activeView === 'assets'
-                            ? 'text-primary bg-primary/10 border-r-4 border-primary'
-                            : 'text-slate-600 dark:text-slate-400 hover:bg-primary/5 dark:hover:bg-primary/10 hover:text-primary'
-                            }`}>
-                        <span className="material-symbols-outlined mr-3">inventory_2</span>
-                        <span>Assets</span>
-                    </button>
-                    {user?.email === 'admin@support.com' && (
-                        <button
-                            onClick={() => {
-                                navigate('/users');
-                            }}
-                            className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-colors cursor-pointer ${activeView === 'users'
-                                ? 'text-primary bg-primary/10 border-r-4 border-primary'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-primary/5 dark:hover:bg-primary/10 hover:text-primary'
-                                }`}>
-                            <span className="material-symbols-outlined mr-3">group</span>
-                            <span>Users</span>
-                        </button>
-                    )}
-                    {user?.email === 'admin@support.com' && (
-                        <button
-                            onClick={() => {
-                                navigate('/settings');
-                            }}
-                            className={`w-full flex items-center px-6 py-3 text-sm font-medium transition-colors cursor-pointer ${activeView === 'settings'
-                                ? 'text-primary bg-primary/10 border-r-4 border-primary'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-primary/5 dark:hover:bg-primary/10 hover:text-primary'
-                                }`}>
-                            <span className="material-symbols-outlined mr-3">settings</span>
-                            <span>Settings</span>
-                        </button>
-                    )}
-                </nav>
-                <div className="p-6 border-t border-slate-200 dark:border-slate-600">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div
-                            className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                            {user?.name?.[0]?.toUpperCase() || 'A'}
+        <div className="font-display bg-background-light dark:bg-[#181D27] text-slate-900 dark:text-[#f0f0f2] min-h-screen flex flex-col">
+            <main className="flex-1 flex flex-col min-w-0">
+
+                {/* ── Page Title Header Bar ───────────────────────────────────── */}
+                {(() => {
+                    const pageConfig = {
+                        tickets: { icon: 'confirmation_number', label: 'Tickets', desc: 'View and manage all support tickets', iconBg: 'bg-[#E0F2FE]', iconColor: 'text-[#0080FF]', border: 'border-[#0080FF]/20' },
+                        assets: { icon: 'laptop_mac', label: 'IT Assets', desc: 'Track and manage all IT equipment', iconBg: 'bg-[#ECFDF5]', iconColor: 'text-[#059669]', border: 'border-[#059669]/20' },
+                        admin_assets: { icon: 'corporate_fare', label: 'Admin Assets', desc: 'Manage furniture, fixtures and office assets', iconBg: 'bg-[#E0E7FF]', iconColor: 'text-[#4F46E5]', border: 'border-[#4F46E5]/20' },
+                        users: { icon: 'group', label: 'Users', desc: 'Manage user accounts and permissions', iconBg: 'bg-[#F5F3FF]', iconColor: 'text-[#7C3AED]', border: 'border-[#7C3AED]/20' },
+                        settings: { icon: 'settings', label: 'Settings', desc: 'Configure assignees, categories and more', iconBg: 'bg-slate-100 dark:bg-slate-800', iconColor: 'text-slate-600 dark:text-slate-300', border: 'border-slate-200 dark:border-slate-700' },
+                    };
+                    const cfg = pageConfig[activeView];
+                    if (!cfg) return null;
+                    return (
+                        <div className="sticky top-0 z-40 flex items-center justify-between gap-5 px-20 py-4 bg-white dark:bg-[#1C212B] shrink-0">
+                            <div className="flex items-center gap-5">
+                                <button
+                                    onClick={() => navigate('/')}
+                                    className="flex items-center gap-2 px-2 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer border border-slate-200 dark:border-slate-700 shadow-sm"
+                                >
+                                    <span className="material-symbols-outlined text-sm">arrow_back</span>
+                                </button>
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl ${cfg.iconBg} ${cfg.iconColor} flex items-center justify-center shrink-0`}>
+                                        <span className="material-symbols-outlined text-xl">{cfg.icon}</span>
+                                    </div>
+                                    <div>
+                                        <h1 className="text-base font-bold text-slate-800 dark:text-white leading-tight">{cfg.label}</h1>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{cfg.desc}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                {(activeView === 'assets' || activeView === 'admin_assets') && hasEditPermission && (
+                                    <button
+                                        onClick={() => {
+                                            setIsEditingAsset(false);
+                                            if (activeView === 'admin_assets') {
+                                                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                                                navigate('/admin-assets/add', { state: { group: 'Admin' } });
+                                            } else {
+                                                setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                                                navigate('/assets/add', { state: { group: 'IT' } });
+                                            }
+                                        }}
+                                        className={`flex items-center gap-2 px-4 py-2.5 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer border-0 text-sm font-display ${
+                                            activeView === 'admin_assets' 
+                                                ? 'bg-[#4F46E5] hover:bg-[#4338CA]' 
+                                                : 'bg-[#059669] hover:bg-[#047857]'
+                                        }`}
+                                    >
+                                        <span className="material-symbols-outlined text-lg">add</span>
+                                        Add Asset
+                                    </button>
+                                )}
+
+                                <div className="relative flex items-center" ref={userPopupRef}>
+                                    {/* User Avatar Button */}
+                                    <button
+                                        onClick={() => setShowUserPopup(prev => !prev)}
+                                        aria-label="User profile"
+                                        className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-[#ec1d22] to-[#780003] text-white font-bold text-sm shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer select-none shrink-0"
+                                    >
+                                        {user?.name ? user.name.charAt(0).toUpperCase() : (
+                                            <span className="material-symbols-outlined text-[18px]">person</span>
+                                        )}
+                                    </button>
+
+                                    {/* Profile Popup */}
+                                    {showUserPopup && (
+                                        <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 z-[300] overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-right">
+                                            {/* User info header */}
+                                            <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center justify-center w-11 h-11 rounded-full bg-gradient-to-br from-[#0080FF] to-[#6366F1] text-white font-bold text-base shrink-0">
+                                                    {user?.name ? user.name.charAt(0).toUpperCase() : (
+                                                        <span className="material-symbols-outlined text-[18px]">person</span>
+                                                    )}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-slate-800 dark:text-white text-sm truncate">{user?.name || 'User'}</p>
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate capitalize">{user?.role || 'Staff'}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Dark / Light mode row */}
+                                            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                                                <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                                                    <span className="material-symbols-outlined text-[18px] text-slate-400">
+                                                        {darkMode ? 'dark_mode' : 'light_mode'}
+                                                    </span>
+                                                    {darkMode ? 'Dark Mode' : 'Light Mode'}
+                                                </span>
+                                                <button
+                                                    onClick={toggleDarkMode}
+                                                    aria-label="Toggle dark mode"
+                                                    className={`relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer focus:outline-none ${darkMode ? 'bg-[#6366F1]' : 'bg-slate-200'}`}
+                                                >
+                                                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow flex items-center justify-center transition-transform duration-200 ${darkMode ? 'translate-x-5' : 'translate-x-0'}`}>
+                                                        <span className="material-symbols-outlined text-[11px] text-slate-500">
+                                                            {darkMode ? 'dark_mode' : 'light_mode'}
+                                                        </span>
+                                                    </span>
+                                                </button>
+                                            </div>
+
+                                            {/* Logout */}
+                                            <div className="px-3 py-2">
+                                                <button
+                                                    onClick={() => { setShowUserPopup(false); handleLogout(); }}
+                                                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer border-none"
+                                                >
+                                                    <span className="material-symbols-outlined text-[18px]">logout</span>
+                                                    Sign Out
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                        <div className="overflow-hidden">
-                            <p className="text-sm font-semibold truncate">{user?.name || 'Admin User'}</p>
-                            <p className="text-xs text-slate-500 truncate">{user?.email || 'admin@support.com'}</p>
+                    );
+                })()}
+
+                {/* ── Tickets View Analysis Section ────────────────────────────────── */}
+                {activeView === 'tickets' && (
+                    <div className="px-20 pt-6 bg-[#F8FAFC] dark:bg-[#181D27] shrink-0">
+                        <style>{`
+                            .ticket-stat-card {
+                                border: 1.5px solid transparent;
+                                box-shadow: 0 10px 30px -10px rgba(0,0,0,0.07);
+                                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                            }
+                            .ticket-stat-card:hover {
+                                transform: translateY(-4px);
+                            }
+                            .ticket-stat-blue:hover  { border-color: #0080FF; box-shadow: 0 16px 36px -10px rgba(0,128,255,0.25); }
+                            .ticket-stat-red:hover   { border-color: #DC2626; box-shadow: 0 16px 36px -10px rgba(220,38,38,0.22); }
+                            .ticket-stat-amber:hover { border-color: #F59E0B; box-shadow: 0 16px 36px -10px rgba(245,158,11,0.22); }
+                            .ticket-stat-green:hover { border-color: #059669; box-shadow: 0 16px 36px -10px rgba(5,150,105,0.22); }
+                            .ticket-stat-purple:hover{ border-color: #7C3AED; box-shadow: 0 16px 36px -10px rgba(124,58,237,0.22); }
+                            .ticket-table-card {
+                                box-shadow: 0 10px 30px -10px rgba(0,0,0,0.07);
+                            }
+                        `}</style>
+                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-5">
+                            <div className="ticket-stat-card ticket-stat-blue bg-white dark:bg-slate-900 p-5 rounded-2xl flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Tickets</p>
+                                    <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : totalTickets}</h3>
+                                </div>
+                                <div className="h-12 w-12 bg-[#E0F2FE] text-[#0080FF] rounded-2xl flex items-center justify-center shrink-0">
+                                    <span className="material-symbols-outlined text-xl">analytics</span>
+                                </div>
+                            </div>
+                            <div className="ticket-stat-card ticket-stat-red bg-white dark:bg-slate-900 p-5 rounded-2xl flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Not Started</p>
+                                    <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : notStartedTickets}</h3>
+                                </div>
+                                <div className="h-12 w-12 bg-[#FEE2E2] text-[#DC2626] rounded-2xl flex items-center justify-center shrink-0">
+                                    <span className="material-symbols-outlined text-xl">priority_high</span>
+                                </div>
+                            </div>
+                            <div className="ticket-stat-card ticket-stat-amber bg-white dark:bg-slate-900 p-5 rounded-2xl flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Pending</p>
+                                    <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : pendingTickets}</h3>
+                                </div>
+                                <div className="h-12 w-12 bg-[#FFF7ED] text-[#F59E0B] rounded-2xl flex items-center justify-center shrink-0">
+                                    <span className="material-symbols-outlined text-xl">hourglass_empty</span>
+                                </div>
+                            </div>
+                            <div className="ticket-stat-card ticket-stat-blue bg-white dark:bg-slate-900 p-5 rounded-2xl flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">In Progress</p>
+                                    <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : inProgressTickets}</h3>
+                                </div>
+                                <div className="h-12 w-12 bg-[#E0F2FE] text-[#0080FF] rounded-2xl flex items-center justify-center shrink-0">
+                                    <span className="material-symbols-outlined text-xl">running_with_errors</span>
+                                </div>
+                            </div>
+                            <div className="ticket-stat-card ticket-stat-green bg-white dark:bg-slate-900 p-5 rounded-2xl flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Completed</p>
+                                    <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : completedTickets}</h3>
+                                </div>
+                                <div className="h-12 w-12 bg-[#ECFDF5] text-[#059669] rounded-2xl flex items-center justify-center shrink-0">
+                                    <span className="material-symbols-outlined text-xl">task_alt</span>
+                                </div>
+                            </div>
+                            <div className="ticket-stat-card ticket-stat-purple bg-white dark:bg-slate-900 p-5 rounded-2xl flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Mail Pending</p>
+                                    <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : mailPendingTickets}</h3>
+                                </div>
+                                <div className="h-12 w-12 bg-[#F5F3FF] text-[#7C3AED] rounded-2xl flex items-center justify-center shrink-0">
+                                    <span className="material-symbols-outlined text-xl">mail</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <button onClick={handleLogout} className="w-full flex items-center justify-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors border border-red-200 dark:border-red-600">
-                        <span className="material-symbols-outlined mr-2 text-lg">logout</span>
-                        <span className="font-medium">Logout</span>
-                    </button>
-                </div>
-            </aside>
-            <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                <header
-                    className="h-24 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 shrink-0">
-                    {activeView === 'users' && (
-                        <div>
-                            <h2 className="text-lg font-bold text-slate-800 dark:text-white">Users</h2>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">The user dashboard has admin users data</p>
-                        </div>
-                    )}
-                    {activeView === 'assets' && <>
-                        <div className="relative flex-1 max-w-sm mr-6">
-                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-                            <input
-                                type="text"
-                                placeholder="Search asset id, type, brand, username..."
-                                value={assetSearchQuery}
-                                onChange={e => setAssetSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                            />
-                        </div>
-                        <div className="flex items-center gap-2 mx-4">
-                            <MultiSelectFilter
-                                label="Type"
-                                icon="category"
-                                options={uniqueAssetTypes}
-                                selected={assetCategoryFilter}
-                                onChange={setAssetCategoryFilter}
-                                widthClass="w-38"
-                            />
-                            <MultiSelectFilter
-                                label="Branch"
-                                icon="location_on"
-                                options={[
-                                    'All',
-                                    'Cotton Concepts HO_ Coimbatore',
-                                    'Doctor Towels HO',
-                                    'Cotton Concepts_ Vengamedu',
-                                    'Cotton Concepts_ Karur',
-                                    'Doctor Towels_ Karur'
-                                ]}
-                                selected={assetBranchFilter}
-                                onChange={setAssetBranchFilter}
-                                widthClass="w-38"
-                            />
-                            <MultiSelectFilter
-                                label="Dept"
-                                icon="corporate_fare"
-                                options={['All', ...(departments?.length > 0 ? departments.map(d => d.name) : ['IT', 'HR', 'Finance', 'Sales', 'Production', 'Logistics'])]}
-                                selected={assetDepartmentFilter}
-                                onChange={setAssetDepartmentFilter}
-                                widthClass="w-38"
-                            />
-                            <MultiSelectFilter
-                                label="Condition"
-                                icon="healing"
-                                options={['All', 'Excellent', 'Good', 'Medium', 'Average', 'Scrap', 'Stock']}
-                                selected={assetConditionFilter}
-                                onChange={setAssetConditionFilter}
-                                widthClass="w-38"
-                            />
-                            <div className="relative flex items-center gap-2">
+                )}
+
+                {activeView !== 'settings' && (
+                    <header
+                        className="h-24 flex items-center justify-between px-20 shrink-0 dark:bg-[#181D27]">
+
+                        {activeView === 'users' && (
+                            <div className="relative flex-1 max-w-sm mr-auto animate-in fade-in slide-in-from-left-2 duration-200">
+                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                                <input
+                                    type="text"
+                                    placeholder="Search users by name, email or branch..."
+                                    value={userSearchQuery}
+                                    onChange={e => setUserSearchQuery(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-200 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                />
+                            </div>
+                        )}
+
+                        {(activeView === 'assets' || activeView === 'admin_assets') && <>
+                            <div className="relative flex-1 max-w-sm mr-6">
+                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                                <input
+                                    type="text"
+                                    placeholder="Search asset id, type, brand, username..."
+                                    value={assetSearchQuery}
+                                    onChange={e => setAssetSearchQuery(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <MultiSelectFilter
+                                    label="Type"
+                                    icon="category"
+                                    options={uniqueAssetTypes}
+                                    selected={assetCategoryFilter}
+                                    onChange={setAssetCategoryFilter}
+                                    widthClass="w-38"
+                                />
+                                <MultiSelectFilter
+                                    label="Branch"
+                                    icon="location_on"
+                                    options={uniqueAssetBranches}
+                                    selected={assetBranchFilter}
+                                    onChange={setAssetBranchFilter}
+                                    widthClass="w-38"
+                                />
+                                <MultiSelectFilter
+                                    label="Dept"
+                                    icon="corporate_fare"
+                                    options={uniqueAssetDepartments}
+                                    selected={assetDepartmentFilter}
+                                    onChange={setAssetDepartmentFilter}
+                                    widthClass="w-38"
+                                />
+                                <MultiSelectFilter
+                                    label={activeView === 'admin_assets' ? 'Status' : 'Condition'}
+                                    icon={activeView === 'admin_assets' ? 'check_circle' : 'healing'}
+                                    options={uniqueAssetConditions}
+                                    selected={assetConditionFilter}
+                                    onChange={setAssetConditionFilter}
+                                    widthClass="w-38"
+                                />
+                                <div className="relative flex items-center gap-2">
+                                    <button
+                                        onClick={() => setShowDatePicker(!showDatePicker)}
+                                        aria-label="Toggle date filter"
+                                        title="Date Range Filter"
+                                        className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-colors shadow-sm relative
+                                        ${isDateFilterActive || showDatePicker
+                                                ? 'bg-primary text-white border-primary'
+                                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">
+                                            calendar_today
+                                        </span>
+                                        {isDateFilterActive && (
+                                            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-white dark:border-slate-900"></span>
+                                            </span>
+                                        )}
+                                    </button>
+
+                                    {showDatePicker && (
+                                        <div className="absolute top-12 right-0 z-50 shadow-2xl rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col">
+                                            <DateRangePicker
+                                                onChange={handleDateChange}
+                                                moveRangeOnFirstSelection={false}
+                                                months={2}
+                                                ranges={dateRange}
+                                                direction="horizontal"
+                                                rangeColors={['#137fec']}
+                                                staticRanges={[]}
+                                                inputRanges={[]}
+                                            />
+                                            <div className="bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-700/50 p-3 flex justify-between items-center">
+                                                {isDateFilterActive ? (
+                                                    <button
+                                                        onClick={clearDateFilter}
+                                                        className="text-sm font-medium text-slate-500 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400 transition-colors ml-2"
+                                                    >
+                                                        Clear filter
+                                                    </button>
+                                                ) : (
+                                                    <div></div>
+                                                )}
+                                                <button
+                                                    onClick={() => setShowDatePicker(false)}
+                                                    className="px-4 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors"
+                                                >
+                                                    Done
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="relative" ref={downloadDropdownRef}>
+                                    <button
+                                        onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
+                                        disabled={selectedAssetIds.length === 0}
+                                        title={selectedAssetIds.length === 0 ? "Select assets to download" : "Download Options"}
+                                        className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-all shadow-sm
+                                        ${selectedAssetIds.length > 0
+                                                ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 cursor-pointer animate-in fade-in scale-in-95 duration-200'
+                                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50'}`}
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">
+                                            download
+                                        </span>
+                                    </button>
+                                    {selectedAssetIds.length > 0 && (
+                                        <div
+                                            className={`absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 py-1.5 transition-all duration-200 
+                                            ${showDownloadDropdown
+                                                    ? 'opacity-100 visible translate-y-0 pointer-events-auto'
+                                                    : 'opacity-0 invisible translate-y-1 pointer-events-none'
+                                                }`}
+                                        >
+                                            <button
+                                                onClick={() => {
+                                                    handleDownloadSelectedQRs();
+                                                    setShowDownloadDropdown(false);
+                                                }}
+                                                className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-2.5 transition-colors cursor-pointer"
+                                            >
+                                                <span className="material-symbols-outlined text-base">qr_code</span>
+                                                <span>QR Code</span>
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    handleDownloadSelectedAssets();
+                                                    setShowDownloadDropdown(false);
+                                                }}
+                                                className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-2.5 transition-colors border-t border-slate-100 dark:border-slate-800/80 cursor-pointer"
+                                            >
+                                                <span className="material-symbols-outlined text-base">description</span>
+                                                <span>Export</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                {isSuperAdmin && (
+                                    <button
+                                        onClick={() => setShowAssetDeleteConfirm(true)}
+                                        disabled={selectedAssetIds.length === 0}
+                                        title={selectedAssetIds.length === 0 ? "Select assets to delete" : "Delete Selected Assets"}
+                                        className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-all shadow-sm
+                                        ${selectedAssetIds.length > 0
+                                                ? 'bg-red-600 text-white border-red-600 hover:bg-red-700 cursor-pointer animate-in fade-in scale-in-95 duration-200'
+                                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50'}`}
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">
+                                            delete
+                                        </span>
+                                    </button>
+                                )}
+                                {((assetSearchQuery !== '') || !assetCategoryFilter.includes('All') || !assetBranchFilter.includes('All') || !assetDepartmentFilter.includes('All') || !assetConditionFilter.includes('All') || isDateFilterActive) && (
+                                    <button
+                                        onClick={() => {
+                                            setAssetSearchQuery('');
+                                            setAssetCategoryFilter(['All']);
+                                            setAssetBranchFilter(['All']);
+                                            setAssetDepartmentFilter(['All']);
+                                            setAssetConditionFilter(['All']);
+                                            setIsDateFilterActive(false);
+                                            setDateRange([{ startDate: new Date(), endDate: new Date(), key: 'selection' }]);
+                                        }}
+                                        aria-label="Clear all filters"
+                                        title="Clear all filters"
+                                        className="flex items-center justify-center w-9 h-9 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm animate-in fade-in zoom-in duration-200"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
+                                    </button>
+                                )}
+                            </div>
+                        </>}
+
+                        {activeView === 'tickets' && <>
+                            <div className="relative flex-1 max-w-md">
+                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                                <input
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2.5 bg-[#eceef0] dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
+                                    placeholder="Search tickets..."
+                                    type="text" />
+                            </div>
+                            <div className="flex items-center gap-2 mx-4">
+                                <MultiSelectFilter
+                                    label="Branch"
+                                    icon="location_on"
+                                    options={uniqueBranches}
+                                    selected={branchFilter}
+                                    onChange={setBranchFilter}
+                                    widthClass="w-38"
+                                />
+                                <MultiSelectFilter
+                                    label="Dept"
+                                    icon="corporate_fare"
+                                    options={uniqueDepartments}
+                                    selected={departmentFilter}
+                                    onChange={setDepartmentFilter}
+                                    widthClass="w-38"
+                                />
+                                <MultiSelectFilter
+                                    label="Category"
+                                    icon="category"
+                                    options={uniqueCategories}
+                                    selected={categoryFilter}
+                                    onChange={setCategoryFilter}
+                                    widthClass="w-38"
+                                />
+                                <MultiSelectFilter
+                                    label="Status"
+                                    icon="checklist"
+                                    options={['All', 'Not Started', 'In Progress', 'Pending', 'Completed', 'Rejected']}
+                                    selected={statusFilter}
+                                    onChange={setStatusFilter}
+                                    widthClass="w-38"
+                                />
+                                <MultiSelectFilter
+                                    label="Assignee"
+                                    icon="person"
+                                    options={uniqueAssignees}
+                                    selected={assigneeFilter}
+                                    onChange={setAssigneeFilter}
+                                    widthClass="w-38"
+                                />
+                                <MultiSelectFilter
+                                    label="Mail"
+                                    icon="mail"
+                                    options={['All', 'No Mail', 'Pending', 'Approved']}
+                                    selected={mailApprovalFilter}
+                                    onChange={setMailApprovalFilter}
+                                    widthClass="w-38"
+                                />
                                 <button
                                     onClick={() => setShowDatePicker(!showDatePicker)}
                                     aria-label="Toggle date filter"
                                     title="Date Range Filter"
-                                    className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-colors shadow-sm relative
+                                    className={`flex items-center justify-center w-10 h-10 rounded-lg border transition-colors shadow-sm relative
                                     ${isDateFilterActive || showDatePicker
                                             ? 'bg-primary text-white border-primary'
                                             : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
@@ -4352,7 +5480,58 @@ const AdminDashboard = () => {
                                         </span>
                                     )}
                                 </button>
-                                
+
+                                {/* Clear Filters Button */}
+                                {(searchQuery !== '' || !statusFilter.includes('All') || !branchFilter.includes('All') || !departmentFilter.includes('All') || !categoryFilter.includes('All') || !assigneeFilter.includes('All') || !mailApprovalFilter.includes('All') || isDateFilterActive) && (
+                                    <button
+                                        onClick={() => {
+                                            setSearchQuery('');
+                                            setStatusFilter(['All']);
+                                            setBranchFilter(['All']);
+                                            setDepartmentFilter(['All']);
+                                            setCategoryFilter(['All']);
+                                            setAssigneeFilter(['All']);
+                                            setMailApprovalFilter(['All']);
+                                            setIsDateFilterActive(false);
+                                            setDateRange([{ startDate: new Date(), endDate: new Date(), key: 'selection' }]);
+                                        }}
+                                        aria-label="Clear all filters"
+                                        title="Clear all filters"
+                                        className="flex items-center justify-center w-9 h-9 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm animate-in fade-in zoom-in duration-200"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
+                                    </button>
+                                )}
+                            </div>
+                            <div className="relative flex items-center gap-2">
+
+                                {isSuperAdmin && selectedTickets.size > 0 && (
+                                    <button
+                                        onClick={() => setShowDeleteConfirm(true)}
+                                        aria-label="Bulk delete"
+                                        title={`Delete ${selectedTickets.size} selected tickets`}
+                                        className="flex items-center justify-center h-9 w-9 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm cursor-pointer"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                                    </button>
+                                )}
+
+                                <button
+                                    aria-label="Export to CSV"
+                                    title={!user?.access?.includes('Export') ? "You don't have permission to export" : "Export to CSV"}
+                                    disabled={!user?.access?.includes('Export')}
+                                    className={`flex items-center justify-center h-10 w-10 rounded-lg border transition-colors shadow-sm text-sm font-medium
+                                    ${user?.access?.includes('Export')
+                                        ? 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer'
+                                        : 'bg-slate-100 dark:bg-slate-800/30 text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50'}`}
+                                    onClick={() => {
+                                        if (!user?.access?.includes('Export')) return;
+                                        setShowExportModal(true);
+                                    }}
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">download</span>
+                                </button>
+
                                 {showDatePicker && (
                                     <div className="absolute top-12 right-0 z-50 shadow-2xl rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col">
                                         <DateRangePicker
@@ -4386,243 +5565,8 @@ const AdminDashboard = () => {
                                     </div>
                                 )}
                             </div>
-                            <div className="relative" ref={downloadDropdownRef}>
-                                <button
-                                    onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
-                                    disabled={selectedAssetIds.length === 0}
-                                    title={selectedAssetIds.length === 0 ? "Select assets to download" : "Download Options"}
-                                    className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-all shadow-sm
-                                    ${selectedAssetIds.length > 0
-                                        ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 cursor-pointer animate-in fade-in scale-in-95 duration-200'
-                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50'}`}
-                                >
-                                    <span className="material-symbols-outlined text-[20px]">
-                                        download
-                                    </span>
-                                </button>
-                                {selectedAssetIds.length > 0 && (
-                                    <div 
-                                        className={`absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 py-1.5 transition-all duration-200 
-                                        ${showDownloadDropdown 
-                                            ? 'opacity-100 visible translate-y-0 pointer-events-auto' 
-                                            : 'opacity-0 invisible translate-y-1 pointer-events-none'
-                                        }`}
-                                    >
-                                        <button
-                                            onClick={() => {
-                                                handleDownloadSelectedQRs();
-                                                setShowDownloadDropdown(false);
-                                            }}
-                                            className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-2.5 transition-colors cursor-pointer"
-                                        >
-                                            <span className="material-symbols-outlined text-base">qr_code</span>
-                                            <span>QR Code</span>
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                handleDownloadSelectedAssets();
-                                                setShowDownloadDropdown(false);
-                                            }}
-                                            className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-2.5 transition-colors border-t border-slate-100 dark:border-slate-800/80 mt-1 pt-1 cursor-pointer"
-                                        >
-                                            <span className="material-symbols-outlined text-base">description</span>
-                                            <span>Asset Details</span>
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                            {isSuperAdmin && (
-                                <button
-                                    onClick={() => setShowAssetDeleteConfirm(true)}
-                                    disabled={selectedAssetIds.length === 0}
-                                    title={selectedAssetIds.length === 0 ? "Select assets to delete" : "Delete Selected Assets"}
-                                    className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-all shadow-sm
-                                    ${selectedAssetIds.length > 0
-                                        ? 'bg-red-600 text-white border-red-600 hover:bg-red-700 cursor-pointer animate-in fade-in scale-in-95 duration-200'
-                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50'}`}
-                                >
-                                    <span className="material-symbols-outlined text-[20px]">
-                                        delete
-                                    </span>
-                                </button>
-                            )}
-                            {((assetSearchQuery !== '') || !assetCategoryFilter.includes('All') || !assetBranchFilter.includes('All') || !assetDepartmentFilter.includes('All') || !assetConditionFilter.includes('All') || isDateFilterActive) && (
-                                <button
-                                    onClick={() => {
-                                        setAssetSearchQuery('');
-                                        setAssetCategoryFilter(['All']);
-                                        setAssetBranchFilter(['All']);
-                                        setAssetDepartmentFilter(['All']);
-                                        setAssetConditionFilter(['All']);
-                                        setIsDateFilterActive(false);
-                                        setDateRange([{ startDate: new Date(), endDate: new Date(), key: 'selection' }]);
-                                    }}
-                                    aria-label="Clear all filters"
-                                    title="Clear all filters"
-                                    className="flex items-center justify-center w-9 h-9 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm animate-in fade-in zoom-in duration-200"
-                                >
-                                    <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
-                                </button>
-                            )}
-                        </div>
                     </>}
-                    {activeView === 'settings' && (
-                        <div>
-                            <h2 className="text-lg font-bold text-slate-800 dark:text-white">Settings</h2>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Manage application settings</p>
-                        </div>
-                    )}
-                    {activeView === 'tickets' && <>
-                        <div className="relative flex-1 max-w-sm mr-6">
-                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-                            <input
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none"
-                                placeholder="Search tickets..."
-                                type="text" />
-                        </div>
-                        <div className="flex items-center gap-2 mx-4">
-                            <MultiSelectFilter
-                                label="Branch"
-                                icon="location_on"
-                                options={uniqueBranches}
-                                selected={branchFilter}
-                                onChange={setBranchFilter}
-                            />
-                            <MultiSelectFilter
-                                label="Dept"
-                                icon="corporate_fare"
-                                options={uniqueDepartments}
-                                selected={departmentFilter}
-                                onChange={setDepartmentFilter}
-                            />
-                            <MultiSelectFilter
-                                label="Category"
-                                icon="category"
-                                options={uniqueCategories}
-                                selected={categoryFilter}
-                                onChange={setCategoryFilter}
-                            />
-                            <MultiSelectFilter
-                                label="Status"
-                                icon="checklist"
-                                options={['All', 'Not Started', 'In Progress', 'Pending', 'Completed', 'Rejected']}
-                                selected={statusFilter}
-                                onChange={setStatusFilter}
-                            />
-                            <MultiSelectFilter
-                                label="Assignee"
-                                icon="person"
-                                options={uniqueAssignees}
-                                selected={assigneeFilter}
-                                onChange={setAssigneeFilter}
-                            />
-                            <button
-                                onClick={() => setShowDatePicker(!showDatePicker)}
-                                aria-label="Toggle date filter"
-                                title="Date Range Filter"
-                                className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-colors shadow-sm relative
-                                ${isDateFilterActive || showDatePicker
-                                        ? 'bg-primary text-white border-primary'
-                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                            >
-                                <span className="material-symbols-outlined text-[20px]">
-                                    calendar_today
-                                </span>
-                                {isDateFilterActive && (
-                                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-white dark:border-slate-900"></span>
-                                    </span>
-                                )}
-                            </button>
-
-                            {/* Clear Filters Button */}
-                            {(searchQuery !== '' || !statusFilter.includes('All') || !branchFilter.includes('All') || !departmentFilter.includes('All') || !categoryFilter.includes('All') || !assigneeFilter.includes('All') || isDateFilterActive) && (
-                                <button
-                                    onClick={() => {
-                                        setSearchQuery('');
-                                        setStatusFilter(['All']);
-                                        setBranchFilter(['All']);
-                                        setDepartmentFilter(['All']);
-                                        setCategoryFilter(['All']);
-                                        setAssigneeFilter(['All']);
-                                        setIsDateFilterActive(false);
-                                        setDateRange([{ startDate: new Date(), endDate: new Date(), key: 'selection' }]);
-                                    }}
-                                    aria-label="Clear all filters"
-                                    title="Clear all filters"
-                                    className="flex items-center justify-center w-9 h-9 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm animate-in fade-in zoom-in duration-200"
-                                >
-                                    <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
-                                </button>
-                            )}
-                        </div>
-                        <div className="relative mx-2 flex items-center gap-2">
-
-                            {isSuperAdmin && selectedTickets.size > 0 && (
-                                <button
-                                    onClick={() => setShowDeleteConfirm(true)}
-                                    aria-label="Bulk delete"
-                                    title={`Delete ${selectedTickets.size} selected tickets`}
-                                    className="flex items-center justify-center h-9 w-9 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm cursor-pointer"
-                                >
-                                    <span className="material-symbols-outlined text-[18px]">delete</span>
-                                </button>
-                            )}
-
-                            <button
-                                aria-label="Export to CSV"
-                                title={!user?.access?.includes('Export') ? "You don't have permission to export" : "Export to CSV"}
-                                disabled={!user?.access?.includes('Export')}
-                                className={`flex items-center justify-center h-9 w-9 rounded-lg border transition-colors shadow-sm text-sm font-medium
-                                    ${user?.access?.includes('Export')
-                                        ? 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer'
-                                        : 'bg-slate-100 dark:bg-slate-800/30 text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50'}`}
-                                onClick={() => {
-                                    if (!user?.access?.includes('Export')) return;
-                                    setShowExportModal(true);
-                                }}
-                            >
-                                <span className="material-symbols-outlined text-[18px]">download</span>
-                            </button>
-
-                            {showDatePicker && (
-                                <div className="absolute top-12 right-0 z-50 shadow-2xl rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col">
-                                    <DateRangePicker
-                                        onChange={handleDateChange}
-                                        moveRangeOnFirstSelection={false}
-                                        months={2}
-                                        ranges={dateRange}
-                                        direction="horizontal"
-                                        rangeColors={['#137fec']}
-                                        staticRanges={[]}
-                                        inputRanges={[]}
-                                    />
-                                    <div className="bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-700/50 p-3 flex justify-between items-center">
-                                        {isDateFilterActive ? (
-                                            <button
-                                                onClick={clearDateFilter}
-                                                className="text-sm font-medium text-slate-500 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400 transition-colors ml-2"
-                                            >
-                                                Clear filter
-                                            </button>
-                                        ) : (
-                                            <div></div>
-                                        )}
-                                        <button
-                                            onClick={() => setShowDatePicker(false)}
-                                            className="px-4 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors"
-                                        >
-                                            Done
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </>}
-                    <div className="flex items-center gap-4 ml-auto">
+                    <div className="flex items-center gap-4">
                         {activeView === 'users' && (
                             <button
                                 onClick={() => setShowAddUser(p => !p)}
@@ -4632,55 +5576,25 @@ const AdminDashboard = () => {
                                 {showAddUser ? 'Cancel' : 'Add User'}
                             </button>
                         )}
-                        {activeView === 'assets' && (
-                            <div className="relative add-asset-dropdown-container">
-                                <button
-                                    onClick={() => setShowAddAssetDropdown(p => !p)}
-                                    className="flex items-center gap-2 p-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors shadow cursor-pointer font-display"
-                                >
-                                    <span className="material-symbols-outlined text-base">add</span>
-                                    Add Asset
-                                    <span className="material-symbols-outlined text-sm leading-none">keyboard_arrow_down</span>
-                                </button>
-                                {showAddAssetDropdown && (
-                                    <div className="absolute right-0 mt-1.5 w-36 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-[250] py-1">
-                                        <button
-                                            onClick={() => {
-                                                setShowAddAssetDropdown(false);
-                                                setIsEditingAsset(false);
-                                                setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT' });
-                                                navigate('/assets/add', { state: { group: 'IT' } });
-                                            }}
-                                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 font-medium transition-colors cursor-pointer"
-                                        >
-                                            IT
-                                        </button>
-                                        <button
-                                            disabled
-                                            className="w-full text-left px-4 py-2.5 text-sm text-slate-300 dark:text-slate-700 font-medium cursor-not-allowed"
-                                        >
-                                            Admin
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        <button
-                            onClick={toggleDarkMode}
-                            aria-label="Toggle dark mode"
-                            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                            className="flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shadow-sm"
-                        >
-                            <span className="material-symbols-outlined text-[20px]">
-                                {darkMode ? 'light_mode' : 'dark_mode'}
-                            </span>
-                        </button>
                     </div>
                 </header>
+                )}
 
                 {/* Users View */}
                 {activeView === 'users' && user?.email === 'admin@support.com' && (
-                    <UsersView users={users} setUsers={setUsers} usersLoading={usersLoading} showAddUser={showAddUser} setShowAddUser={setShowAddUser} />
+                    <UsersView
+                        users={users.filter(u =>
+                            (u.name || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                            (u.email || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                            (u.branch || '').toLowerCase().includes(userSearchQuery.toLowerCase())
+                        )}
+                        setUsers={setUsers}
+                        usersLoading={usersLoading}
+                        showAddUser={showAddUser}
+                        setShowAddUser={setShowAddUser}
+                        searchQuery={userSearchQuery}
+                        hasEditPermission={hasEditPermission}
+                    />
                 )}
 
                 {/* Settings View */}
@@ -4692,6 +5606,7 @@ const AdminDashboard = () => {
                             assigneesLoading={assigneesLoading}
                             isExpanded={expandedSettingsView === 'assignees'}
                             onToggle={() => setExpandedSettingsView(prev => prev === 'assignees' ? null : 'assignees')}
+                            hasEditPermission={hasEditPermission}
                         />
                         <CategoriesView
                             categories={categories}
@@ -4699,6 +5614,7 @@ const AdminDashboard = () => {
                             categoriesLoading={categoriesLoading}
                             isExpanded={expandedSettingsView === 'categories'}
                             onToggle={() => setExpandedSettingsView(prev => prev === 'categories' ? null : 'categories')}
+                            hasEditPermission={hasEditPermission}
                         />
                         <DepartmentsView
                             departments={departments}
@@ -4707,6 +5623,7 @@ const AdminDashboard = () => {
                             isExpanded={expandedSettingsView === 'departments'}
                             onToggle={() => setExpandedSettingsView(prev => prev === 'departments' ? null : 'departments')}
                             showToast={showToast}
+                            hasEditPermission={hasEditPermission}
                         />
                         <AssetTypesView
                             assetTypes={assetTypes}
@@ -4714,33 +5631,35 @@ const AdminDashboard = () => {
                             assetTypesLoading={assetTypesLoading}
                             isExpanded={expandedSettingsView === 'assetTypes'}
                             onToggle={() => setExpandedSettingsView(prev => prev === 'assetTypes' ? null : 'assetTypes')}
+                            hasEditPermission={hasEditPermission}
                         />
                     </div>
                 )}
 
                 {/* Assets View */}
-                {activeView === 'assets' && (
+                {(activeView === 'assets' || activeView === 'admin_assets') && (
                     <AssetsView
                         assets={assets}
                         setAssets={setAssets}
                         assetTypes={assetTypes}
+                        hasEditPermission={hasEditPermission}
                         searchQuery={assetSearchQuery}
                         setSearchQuery={setAssetSearchQuery}
                         categoryFilter={assetCategoryFilter}
                         branchFilter={assetBranchFilter}
                         departmentFilter={assetDepartmentFilter}
                         conditionFilter={assetConditionFilter}
-                        showAddModal={location.pathname === '/assets/add' || (showAddAssetModal && isEditingAsset)}
+                        showAddModal={location.pathname === '/assets/add' || location.pathname === '/admin-assets/add' || (showAddAssetModal && isEditingAsset)}
                         setShowAddModal={(val, isEdit = false) => {
                             if (val) {
                                 if (isEditingAsset || isEdit) {
                                     setShowAddAssetModal(true);
                                 } else {
-                                    navigate('/assets/add');
+                                    navigate(activeView === 'admin_assets' ? '/admin-assets/add' : '/assets/add');
                                 }
                             } else {
-                                if (location.pathname === '/assets/add') {
-                                    navigate('/assets');
+                                if (location.pathname === '/assets/add' || location.pathname === '/admin-assets/add') {
+                                    navigate(activeView === 'admin_assets' ? '/admin-assets' : '/assets');
                                 } else {
                                     setShowAddAssetModal(false);
                                 }
@@ -4757,87 +5676,19 @@ const AdminDashboard = () => {
                         selectedAssetIds={selectedAssetIds}
                         setSelectedAssetIds={setSelectedAssetIds}
                         departments={departments}
+                        activeView={activeView}
                     />
                 )}
 
                 {/* Tickets View */}
-                {activeView === 'tickets' && <div className="flex-1 flex flex-col overflow-hidden p-8 gap-8">
-                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 shrink-0">
-                        <div
-                            className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Tickets</p>
-                                <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : totalTickets}</h3>
-                            </div>
-                            <div
-                                className="h-8 w-8 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
-                                <span className="material-symbols-outlined text-base">analytics</span>
-                            </div>
-                        </div>
-                        <div
-                            className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Not Started</p>
-                                <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : notStartedTickets}</h3>
-                            </div>
-                            <div
-                                className="h-8 w-8 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg flex items-center justify-center shrink-0">
-                                <span className="material-symbols-outlined text-base">priority_high</span>
-                            </div>
-                        </div>
-                        <div
-                            className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Pending</p>
-                                <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : pendingTickets}</h3>
-                            </div>
-                            <div
-                                className="h-8 w-8 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-lg flex items-center justify-center shrink-0">
-                                <span className="material-symbols-outlined text-base">hourglass_empty</span>
-                            </div>
-                        </div>
-                        <div
-                            className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">In Progress</p>
-                                <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : inProgressTickets}</h3>
-                            </div>
-                            <div
-                                className="h-8 w-8 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
-                                <span className="material-symbols-outlined text-base">running_with_errors</span>
-                            </div>
-                        </div>
-                        <div
-                            className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Completed</p>
-                                <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : completedTickets}</h3>
-                            </div>
-                            <div
-                                className="h-8 w-8 bg-green-50 dark:bg-green-900/20 text-green-600 rounded-lg flex items-center justify-center shrink-0">
-                                <span className="material-symbols-outlined text-base">task_alt</span>
-                            </div>
-                        </div>
-                        <div
-                            className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Rejected</p>
-                                <h3 className="text-2xl font-bold mt-0.5">{loading ? '...' : rejectedTickets}</h3>
-                            </div>
-                            <div
-                                className="h-8 w-8 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-lg flex items-center justify-center shrink-0">
-                                <span className="material-symbols-outlined text-base">cancel</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div
-                        className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col min-h-0 flex-1 overflow-hidden">
+                {activeView === 'tickets' && <div className="flex-1 flex flex-col px-20 pb-10 gap-6 bg-[#F8FAFC] dark:bg-[#181D27]">
+                    <div className="ticket-table-card bg-white dark:bg-slate-900 rounded-2xl flex flex-col max-h-[600px] flex-1 overflow-hidden">
 
                         <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
                             <table className="w-full text-left border-collapse">
-                                <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800">
+                                <thead className="sticky top-0 z-10 bg-[#eceef0] dark:bg-[#333844]">
                                     <tr
-                                        className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                                        className="text-slate-600 dark:text-slate-300 text-xs font-semibold uppercase tracking-wider">
                                         {isSuperAdmin && (
                                             <th className="px-4 py-4 text-center">
                                                 <input
@@ -4848,7 +5699,7 @@ const AdminDashboard = () => {
                                                 />
                                             </th>
                                         )}
-                                        <th className="px-6 py-4 text-center">Ticket ID</th>
+                                        <th className="px-6 py-4 text-left">Ticket ID</th>
                                         <th className="px-6 py-4">Branch</th>
                                         <th className="px-6 py-4">Date</th>
                                         <th className="px-6 py-4">Name</th>
@@ -4856,18 +5707,19 @@ const AdminDashboard = () => {
                                         <th className="px-6 py-4">Category</th>
                                         <th className="px-6 py-4">Assignee</th>
                                         <th className="px-6 py-4">Status</th>
+                                        <th className="px-6 py-4">Mail Status</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan={isSuperAdmin ? "9" : "8"} className="px-6 py-8 text-center text-slate-500">
+                                            <td colSpan={isSuperAdmin ? "10" : "9"} className="px-6 py-8 text-center text-slate-500">
                                                 Loading tickets...
                                             </td>
                                         </tr>
                                     ) : filteredTickets.length === 0 ? (
                                         <tr>
-                                            <td colSpan={isSuperAdmin ? "9" : "8"} className="px-6 py-8 text-center text-slate-500">
+                                            <td colSpan={isSuperAdmin ? "10" : "9"} className="px-6 py-8 text-center text-slate-500">
                                                 {tickets.length === 0 ? "No tickets found." : "No tickets match your search."}
                                             </td>
                                         </tr>
@@ -4884,7 +5736,7 @@ const AdminDashboard = () => {
                                                         />
                                                     </td>
                                                 )}
-                                                <td className="px-6 py-2 text-sm font-medium text-primary text-center">#{ticket.ticket_id}</td>
+                                                <td className="px-6 py-2 text-sm font-medium text-primary text-left">#{ticket.ticket_id}</td>
                                                 <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300">{ticket.branch || '-'}</td>
                                                 <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap">{formatDate(ticket.timestamp)}</td>
                                                 <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300">{ticket.fullName}</td>
@@ -4893,6 +5745,9 @@ const AdminDashboard = () => {
                                                 <td className="px-6 py-2 text-sm text-slate-700 dark:text-slate-300">{ticket.assignee || '-'}</td>
                                                 <td className="px-6 py-2">
                                                     {getStatusBadge(ticket.status)}
+                                                </td>
+                                                <td className="px-6 py-2">
+                                                    {getMailStatusBadge(ticket)}
                                                 </td>
                                             </tr>
                                         ))
@@ -4904,12 +5759,15 @@ const AdminDashboard = () => {
                             <p className="text-sm text-slate-500 dark:text-slate-400">
                                 Showing <span className="font-medium">{filteredTickets.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}</span> to <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, filteredTickets.length)}</span> of <span className="font-medium">{filteredTickets.length}</span> tickets
                             </p>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                     disabled={currentPage === 1}
-                                    className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >Previous</button>
+                                    className="px-1 py-1 border border-1 border-solid border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center text-slate-600 dark:text-slate-400"
+                                    title="Previous Page"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+                                </button>
                                 {Array.from({ length: totalPages }, (_, i) => i + 1)
                                     .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
                                     .reduce((acc, p, idx, arr) => {
@@ -4935,8 +5793,11 @@ const AdminDashboard = () => {
                                 <button
                                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                     disabled={currentPage === totalPages}
-                                    className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >Next</button>
+                                    className="px-1 py-1 border border-1 border-solid border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center text-slate-600 dark:text-slate-400"
+                                    title="Next Page"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -5532,7 +6393,7 @@ const AdminDashboard = () => {
                                                         disabled={['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit'))}
                                                         className={`w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none transition-shadow ${['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit')) ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
                                                     >
-                                                         <option value="Not Started">Not Started</option>
+                                                        <option value="Not Started">Not Started</option>
                                                         <option value="In Progress">In Progress</option>
                                                         <option value="Pending">Pending</option>
                                                         <option value="Completed">Completed</option>

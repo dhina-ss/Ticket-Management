@@ -2,6 +2,10 @@ import React from 'react';
 import TicketForm from '../components/TicketForm';
 
 const Home = () => {
+    React.useEffect(() => {
+        document.documentElement.classList.remove('dark');
+    }, []);
+
     return (
         <main className="max-w-5xl mx-auto px-4 py-12">
             {/* Hero Title */}

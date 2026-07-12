@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, send_from_directory
+from flask import Flask, request, jsonify, send_file, send_from_directory, redirect
 from flask_cors import CORS
 import psycopg2
 
@@ -46,7 +46,7 @@ def limit_hosts():
     req_host = request.host
 
     if env == 'local':
-        allowed = {'localhost', 'localhost:443', '127.0.0.1', '127.0.0.1:443', '[::1]', '[::1]:443'}
+        allowed = {'localhost', 'localhost:443', 'localhost:5000', '127.0.0.1', '127.0.0.1:443', '127.0.0.1:5000', '[::1]', '[::1]:443', '[::1]:5000'}
     else:
         allowed = {'122.165.253.167', '122.165.253.167:443'}
 
@@ -595,12 +595,13 @@ def create_user():
         can_send_mail = data.get("can_send_mail", False)
         receiver_position = data.get("receiver_position", "").strip() or None
         branch = data.get("branch", "All").strip()
+        allowed_menus = data.get("allowed_menus", "").strip()
 
         if not name or not email or not password:
             return jsonify({"error": "Name, email and password are required."}), 400
         if len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
-        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch)
+        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus)
         logging.info(f"Admin Action: Created new user - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
         
         # Optionally add as assignee
@@ -631,13 +632,14 @@ def edit_user(user_id):
         can_send_mail = data.get("can_send_mail", False)
         receiver_position = data.get("receiver_position", "").strip() or None
         branch = data.get("branch", "All").strip()
+        allowed_menus = data.get("allowed_menus", "").strip()
 
         if not name or not email:
             return jsonify({"error": "Name and email are required."}), 400
         if password and len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
         
-        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch)
+        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus)
         if updated:
             logging.info(f"Admin Action: Edited user {user_id} - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
             
@@ -695,18 +697,32 @@ def assets_route():
                 
                 # 1. Get prefix code based on category
                 category = data.get("category", "")
-                category_mapping = {
-                    "cpu": "CPU",
-                    "laptop": "LAP",
-                    "mobile": "MOB",
-                    "monitor": "MON",
-                    "printer": "PRN",
-                    "server": "SRV",
-                }
-                category_lower = category.lower().strip()
-                prefix = category_mapping.get(category_lower)
+                prefix = None
+                try:
+                    from database import _get_conn
+                    conn = _get_conn()
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT prefix FROM asset_types WHERE LOWER(name) = %s AND is_delete = FALSE LIMIT 1;", (category.lower().strip(),))
+                        row = cur.fetchone()
+                        if row and row[0]:
+                            prefix = row[0].upper()
+                    conn.close()
+                except Exception:
+                    pass
+
                 if not prefix:
-                    prefix = (category.replace(" ", "")[:3].upper()) if len(category) >= 3 else "AST"
+                    category_mapping = {
+                        "cpu": "CPU",
+                        "laptop": "LAP",
+                        "mobile": "MOB",
+                        "monitor": "MON",
+                        "printer": "PRN",
+                        "server": "SRV",
+                    }
+                    category_lower = category.lower().strip()
+                    prefix = category_mapping.get(category_lower)
+                    if not prefix:
+                        prefix = (category.replace(" ", "")[:3].upper()) if len(category) >= 3 else "AST"
                 
                 # 2. Extract year_short from purchaseDate (format: "YYYY-MM-DD")
                 purchase_date_str = data.get("purchaseDate")
@@ -747,6 +763,141 @@ def assets_route():
             return jsonify({"error": str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# Admin Assets API Routes
+# ---------------------------------------------------------------------------
+
+@app.route('/api/admin-assets', methods=['GET', 'POST'])
+def admin_assets_route():
+    """GET/POST endpoint for admin assets."""
+    if request.method == 'POST':
+        try:
+            from database import create_admin_asset, get_all_admin_assets
+            data = request.json or {}
+            # Auto-generate assetId if not provided
+            if not data.get("assetId"):
+                import datetime
+                
+                # 1. Get prefix code based on category or default
+                category = data.get("category", "")
+                prefix = None
+                try:
+                    from database import _get_conn
+                    conn = _get_conn()
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT prefix FROM asset_types WHERE LOWER(name) = %s AND is_delete = FALSE LIMIT 1;", (category.lower().strip(),))
+                        row = cur.fetchone()
+                        if row and row[0]:
+                            prefix = row[0].upper()
+                    conn.close()
+                except Exception:
+                    pass
+
+                if not prefix:
+                    prefix = "ADM"
+                
+                # 2. Extract year_short
+                purchase_date_str = data.get("purchaseDate") or datetime.datetime.now().strftime("%Y-%m-%d")
+                if purchase_date_str and len(purchase_date_str) >= 4:
+                    try:
+                        purchase_year = int(purchase_date_str[:4])
+                    except ValueError:
+                        purchase_year = datetime.datetime.now().year
+                else:
+                    purchase_year = datetime.datetime.now().year
+                year_short = str(purchase_year)[-2:]
+                
+                # 3. Calculate increment
+                existing = get_all_admin_assets()
+                same_category_assets = [a for a in existing if a.get("category", "").lower().strip() == category.lower().strip()]
+                increment = len(same_category_assets) + 1
+                existing_tags = {a.get("assetId") for a in existing}
+                
+                while True:
+                    tag = f"{prefix}{year_short}{str(increment).zfill(4)}"
+                    if tag not in existing_tags:
+                        break
+                    increment += 1
+                
+                data["assetId"] = tag
+            
+            result = create_admin_asset(data)
+            if result.get("success"):
+                logging.info(f"Admin Action: Created admin asset - Asset ID: {result.get('assetId')}")
+                return jsonify(result), 201
+            return jsonify(result), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    else:
+        try:
+            from database import get_all_admin_assets
+            return jsonify(get_all_admin_assets()), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin-assets/<int:asset_id>', methods=['PUT'])
+def update_admin_asset_route(asset_id):
+    """Update an existing admin asset."""
+    try:
+        from database import update_admin_asset
+        data = request.json or {}
+        result = update_admin_asset(asset_id, data)
+        if result.get("success"):
+            logging.info(f"Admin Action: Updated admin asset {asset_id}")
+            return jsonify({"message": "Admin asset updated."}), 200
+        return jsonify({"error": "Admin asset not found."}), 404
+    except Exception as e:
+        logging.exception(f"Exception in update_admin_asset_route for asset_id {asset_id}:")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin-assets/<int:asset_id>', methods=['DELETE'])
+def delete_admin_asset_route(asset_id):
+    """Delete an admin asset by id."""
+    try:
+        from database import delete_admin_asset
+        result = delete_admin_asset(asset_id)
+        if result.get("success"):
+            logging.info(f"Admin Action: Deleted admin asset {asset_id}")
+            return jsonify({"message": "Admin asset deleted."}), 200
+        return jsonify({"error": "Admin asset not found."}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/bulk-delete-admin-assets', methods=['POST'])
+def bulk_delete_admin_assets_route():
+    """Bulk delete admin assets by a list of ids. Only accessible by super admin."""
+    try:
+        from database import delete_admin_asset
+        data = request.get_json() or {}
+        admin_email = data.get('admin_email', '')
+        if not admin_email or admin_email.strip().lower() != 'admin@support.com':
+            return jsonify({"error": "Unauthorized. Only super-admin can delete admin assets."}), 403
+            
+        asset_ids = data.get('asset_ids', [])
+        if not asset_ids:
+            return jsonify({"error": "No asset IDs provided"}), 400
+            
+        success_count = 0
+        errors = []
+        for aid in asset_ids:
+            res = delete_admin_asset(aid)
+            if res.get('success'):
+                success_count += 1
+            else:
+                errors.append({"asset_id": aid, "error": res.get('error')})
+                
+        return jsonify({
+            "message": f"Successfully deleted {success_count} admin assets",
+            "success_count": success_count,
+            "errors": errors
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/assets/<string:asset_id>', methods=['GET'])
 def get_single_asset_route(asset_id):
     """Retrieve details for a single asset by alphanumeric ID."""
@@ -754,6 +905,17 @@ def get_single_asset_route(asset_id):
         from database import get_all_assets
         all_ast = get_all_assets()
         asset = next((a for a in all_ast if a.get("assetId") == asset_id), None)
+        if not asset:
+            from database import get_all_admin_assets
+            all_admin_ast = get_all_admin_assets()
+            asset = next((a for a in all_admin_ast if a.get("assetId") == asset_id), None)
+        
+        # If not found directly, check if it's a suffixed admin asset (e.g., FUR260001-1)
+        if not asset and '-' in asset_id:
+            base_id = asset_id.rsplit('-', 1)[0]
+            asset = next((a for a in all_admin_ast if a.get("assetId") == base_id), None)
+            if not asset:
+                asset = next((a for a in all_ast if a.get("assetId") == base_id), None)
         if asset:
             return jsonify(asset), 200
         return jsonify({"error": "Asset not found"}), 404
@@ -831,11 +993,23 @@ def get_asset_qr_endpoint(asset_id):
     import qrcode
     from PIL import Image, ImageDraw, ImageFont
     from database import get_all_assets
+    from database import get_all_admin_assets
 
     try:
         # 1. Lookup asset by asset_id to find its branch
         assets_list = get_all_assets()
         asset = next((a for a in assets_list if a.get("assetId") == asset_id), None)
+        if not asset:
+            admin_assets_list = get_all_admin_assets()
+            asset = next((a for a in admin_assets_list if a.get("assetId") == asset_id), None)
+            
+        # If not found directly, check if it's a suffixed admin asset (e.g., FUR260001-1)
+        if not asset and '-' in asset_id:
+            base_id = asset_id.rsplit('-', 1)[0]
+            asset = next((a for a in admin_assets_list if a.get("assetId") == base_id), None)
+            if not asset:
+                asset = next((a for a in assets_list if a.get("assetId") == base_id), None)
+
         branch = asset.get("branch", "") if asset else ""
 
         # 2. Compile QR Code (standard high quality)
@@ -997,6 +1171,15 @@ def create_assignee_route():
         support_type = data.get("support_type", "").strip()
         if not name or not support_type:
             return jsonify({"error": "Name and support type are required."}), 400
+        # Check duplicate
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM assignees WHERE LOWER(name) = %s AND is_delete = FALSE;", (name.lower(),))
+            if cur.fetchone()[0] > 0:
+                conn.close()
+                return jsonify({"error": "Assignee name already exists"}), 400
+        conn.close()
         result = create_assignee(name, support_type)
         if result.get("success"):
             logging.info(f"Admin Action: Created assignee - Name: {name}, Support: {support_type}")
@@ -1030,6 +1213,15 @@ def edit_assignee_route(assignee_id):
         support_type = data.get("support_type", "").strip()
         if not name or not support_type:
             return jsonify({"error": "Name and support type are required."}), 400
+        # Check duplicate
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM assignees WHERE LOWER(name) = %s AND id != %s AND is_delete = FALSE;", (name.lower(), assignee_id))
+            if cur.fetchone()[0] > 0:
+                conn.close()
+                return jsonify({"error": "Assignee name already exists"}), 400
+        conn.close()
         
         updated = update_assignee(assignee_id, name, support_type)
         if updated:
@@ -1059,11 +1251,21 @@ def create_category_route():
         data = request.json or {}
         name = data.get("name", "").strip()
         support_type = data.get("support_type", "").strip()
+        subcategories = data.get("subcategories", "").strip()
         if not name or not support_type:
             return jsonify({"error": "Category name and support type are required."}), 400
-        result = create_category(name, support_type)
+        # Check duplicate
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM categories WHERE LOWER(name) = %s AND is_delete = FALSE;", (name.lower(),))
+            if cur.fetchone()[0] > 0:
+                conn.close()
+                return jsonify({"error": "Category name already exists"}), 400
+        conn.close()
+        result = create_category(name, support_type, subcategories)
         if result.get("success"):
-            logging.info(f"Admin Action: Created category - Name: {name}, Support: {support_type}")
+            logging.info(f"Admin Action: Created category - Name: {name}, Support: {support_type}, Subcategories: {subcategories}")
             return jsonify(result), 201
         return jsonify(result), 500
     except Exception as e:
@@ -1078,12 +1280,22 @@ def edit_category_route(category_id):
         data = request.json or {}
         name = data.get("name", "").strip()
         support_type = data.get("support_type", "").strip()
+        subcategories = data.get("subcategories", "").strip()
         if not name or not support_type:
             return jsonify({"error": "Category name and support type are required."}), 400
+        # Check duplicate
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM categories WHERE LOWER(name) = %s AND id != %s AND is_delete = FALSE;", (name.lower(), category_id))
+            if cur.fetchone()[0] > 0:
+                conn.close()
+                return jsonify({"error": "Category name already exists"}), 400
+        conn.close()
         
-        updated = update_category(category_id, name, support_type)
+        updated = update_category(category_id, name, support_type, subcategories)
         if updated:
-            logging.info(f"Admin Action: Edited category {category_id} - Name: {name}, Support: {support_type}")
+            logging.info(f"Admin Action: Edited category {category_id} - Name: {name}, Support: {support_type}, Subcategories: {subcategories}")
             return jsonify({"message": "Category updated successfully."}), 200
         return jsonify({"error": "Category not found."}), 404
     except Exception as e:
@@ -1125,6 +1337,15 @@ def create_department_route():
         support_type = data.get("support_type", "").strip()
         if not name or not support_type:
             return jsonify({"error": "Department name and support type are required."}), 400
+        # Check duplicate
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM departments WHERE LOWER(name) = %s AND is_delete = FALSE;", (name.lower(),))
+            if cur.fetchone()[0] > 0:
+                conn.close()
+                return jsonify({"error": "Department name already exists"}), 400
+        conn.close()
         result = create_department(name, support_type)
         if result.get("success"):
             logging.info(f"Admin Action: Created department - Name: {name}, Support: {support_type}")
@@ -1144,6 +1365,15 @@ def edit_department_route(department_id):
         support_type = data.get("support_type", "").strip()
         if not name or not support_type:
             return jsonify({"error": "Department name and support type are required."}), 400
+        # Check duplicate
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM departments WHERE LOWER(name) = %s AND id != %s AND is_delete = FALSE;", (name.lower(), department_id))
+            if cur.fetchone()[0] > 0:
+                conn.close()
+                return jsonify({"error": "Department name already exists"}), 400
+        conn.close()
         
         updated = update_department(department_id, name, support_type)
         if updated:
@@ -1964,6 +2194,14 @@ def download_attachment(ticket_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/assets/<path:filename>')
+def serve_logo_assets(filename):
+    prod_path = os.path.join(DIST_DIR, 'assets', filename)
+    if os.path.exists(prod_path):
+        return send_from_directory(os.path.join(DIST_DIR, 'assets'), filename)
+    assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'src', 'assets'))
+    return send_from_directory(assets_dir, filename)
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
@@ -1985,9 +2223,20 @@ def manage_asset_types():
     if request.method == 'POST':
         data = request.json
         name = data.get('name')
+        asset_group = data.get('asset_group', 'IT')
+        prefix = data.get('prefix')
         if not name:
             return jsonify({"error": "Name is required"}), 400
-        res = create_asset_type(name)
+        # Check duplicate
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM asset_types WHERE LOWER(name) = %s AND is_delete = FALSE;", (name.lower().strip(),))
+            if cur.fetchone()[0] > 0:
+                conn.close()
+                return jsonify({"error": "Asset type name already exists"}), 400
+        conn.close()
+        res = create_asset_type(name, asset_group, prefix)
         return jsonify(res)
 
 @app.route('/api/asset_types/<int:type_id>', methods=['PUT', 'DELETE'])
@@ -1995,9 +2244,20 @@ def manage_single_asset_type(type_id):
     if request.method == 'PUT':
         data = request.json
         name = data.get('name')
+        asset_group = data.get('asset_group', 'IT')
+        prefix = data.get('prefix')
         if not name:
             return jsonify({"error": "Name is required"}), 400
-        updated = update_asset_type(type_id, name)
+        # Check duplicate
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM asset_types WHERE LOWER(name) = %s AND id != %s AND is_delete = FALSE;", (name.lower().strip(), type_id))
+            if cur.fetchone()[0] > 0:
+                conn.close()
+                return jsonify({"error": "Asset type name already exists"}), 400
+        conn.close()
+        updated = update_asset_type(type_id, name, asset_group, prefix)
         if updated:
             return jsonify({"success": True})
         return jsonify({"error": "Failed to update asset type"}), 400
@@ -2022,6 +2282,665 @@ scheduler.start()
 
 # Shut down the scheduler when exiting the app
 atexit.register(lambda: scheduler.shutdown())
+
+# ---------------------------------------------------------------------------
+# Consolidation of Courier and Petty Cash Sub-applications
+# ---------------------------------------------------------------------------
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+import sys
+import importlib.util
+
+def load_module_from_path(module_name, file_path):
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+# ---------------------------------------------------------------------------
+# Consolidation of Courier and Petty Cash Sub-applications
+# ---------------------------------------------------------------------------
+import sys
+import importlib.util
+
+def load_module_from_path(module_name, file_path):
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+# 1. Load Courier app package under 'courier_app_pkg' namespace to avoid app.py collisions
+courier_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Courier'))
+init_path = os.path.join(courier_dir, 'app', '__init__.py')
+spec = importlib.util.spec_from_file_location('courier_app_pkg', init_path)
+courier_app_pkg = importlib.util.module_from_spec(spec)
+courier_app_pkg.__package__ = 'courier_app_pkg'
+sys.modules['courier_app_pkg'] = courier_app_pkg
+
+sys.path.insert(0, courier_dir)
+try:
+    spec.loader.exec_module(courier_app_pkg)
+    create_courier_app = courier_app_pkg.create_app
+    courier_app = create_courier_app('development')
+    # Initialize database tables
+    with courier_app.app_context():
+        courier_app_pkg.db.create_all()
+        
+        # Run user table column migrations (SQLite-safe)
+        try:
+            from sqlalchemy import text, inspect as sqla_inspect
+            db_obj = courier_app_pkg.db
+            inspector = sqla_inspect(db_obj.engine)
+            if 'users' in inspector.get_table_names():
+                existing = {c['name'] for c in inspector.get_columns('users')}
+                new_cols = [
+                    ("perm_view_cost",    "BOOLEAN DEFAULT 0"),
+                    ("perm_view_reports", "BOOLEAN DEFAULT 1"),
+                    ("perm_view_entries", "BOOLEAN DEFAULT 1"),
+                    ("perm_add",          "BOOLEAN DEFAULT 1"),
+                    ("perm_edit",         "BOOLEAN DEFAULT 0"),
+                    ("perm_delete",       "BOOLEAN DEFAULT 0"),
+                ]
+                with db_obj.engine.connect() as conn:
+                    for col, typedef in new_cols:
+                        if col not in existing:
+                            conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {typedef}"))
+                    conn.commit()
+        except Exception as ex_mig:
+            print(f"DEBUG: Courier schema migration error: {ex_mig}")
+            
+        # Seed lookups (skip if already exist)
+        try:
+            LookupItem = courier_app_pkg.models.LookupItem
+            DEPARTMENTS = ['Merch', 'Marketing', 'PD', 'Factory Merch', 'Docs',
+                           'Accounts', 'Admin', 'DST', 'IT', 'Design', 'BIU']
+            SUPPLIER_TYPES = ['Buyer', 'HO', 'Testing Lab', 'Vendor', 'Factory', 'Agent', 'Other']
+            PACKAGE_TYPES = ['Cover', 'Box', 'Carton', 'Samples', '1 Box', '2 Box', 'Other']
+            
+            seeds = (
+                [('department', v) for v in DEPARTMENTS] +
+                [('supplier_type', v) for v in SUPPLIER_TYPES] +
+                [('package_type', v) for v in PACKAGE_TYPES]
+            )
+            added = 0
+            for i, (cat, val) in enumerate(seeds):
+                if not LookupItem.query.filter_by(category=cat, value=val).first():
+                    db_obj.session.add(LookupItem(category=cat, value=val, sort_order=i))
+                    added += 1
+            if added > 0:
+                db_obj.session.commit()
+                print(f"DEBUG: Courier seeded {added} lookup items")
+        except Exception as ex_seed:
+            print(f"DEBUG: Courier seeding error: {ex_seed}")
+finally:
+    sys.path.pop(0)
+
+# 2. Load Petty Cash app
+petty_cash_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Petty Cash'))
+sys.path.insert(0, petty_cash_dir)
+try:
+    petty_cash_app_path = os.path.join(petty_cash_dir, 'app.py')
+    petty_cash_app_module = load_module_from_path('petty_cash_app_module', petty_cash_app_path)
+    petty_cash_app = petty_cash_app_module.app
+    # Initialize database and tables
+    if hasattr(petty_cash_app_module, 'init_db'):
+        petty_cash_app_module.init_db()
+finally:
+    sys.path.pop(0)
+
+# ---------------------------------------------------------------------------
+# Courier API Endpoints
+# ---------------------------------------------------------------------------
+@app.route('/api/courier/lookups', methods=['GET'])
+def api_courier_lookups():
+    try:
+        with courier_app.app_context():
+            def _lookup(cat):
+                return [i.value for i in courier_app_pkg.models.LookupItem.query.filter_by(
+                    category=cat, is_active=True
+                ).order_by(courier_app_pkg.models.LookupItem.sort_order, courier_app_pkg.models.LookupItem.value).all()]
+            
+            branches = [{"id": b.id, "name": b.name, "code": b.code} for b in courier_app_pkg.models.Branch.query.filter_by(is_active=True).all()]
+            
+            return jsonify({
+                "departments": _lookup('department'),
+                "supplier_types": _lookup('supplier_type'),
+                "package_types": _lookup('package_type'),
+                "courier_names": _lookup('courier_name'),
+                "budget_statuses": _lookup('budget_status') or ['Non Budgeted', 'Budgeted'],
+                "payment_modes": _lookup('payment_mode'),
+                "transaction_types": _lookup('transaction_type'),
+                "branches": branches
+            }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/courier/entries', methods=['GET'])
+def api_courier_entries():
+    try:
+        with courier_app.app_context():
+            q = courier_app_pkg.models.Courier.query
+            
+            # Filters
+            search = request.args.get('search', '').strip()
+            dept = request.args.get('dept', '')
+            courier_name = request.args.get('courier_name', '')
+            from_date = request.args.get('from_date', '')
+            to_date = request.args.get('to_date', '')
+            budgeted = request.args.get('budgeted', '')
+            branch_id = request.args.get('branch_id', '')
+            trans_type = request.args.get('trans_type', '')
+            
+            if search:
+                q = q.filter(
+                    courier_app_pkg.db.or_(
+                        courier_app_pkg.models.Courier.sender.ilike(f'%{search}%'),
+                        courier_app_pkg.models.Courier.receiver.ilike(f'%{search}%'),
+                        courier_app_pkg.models.Courier.awb_no.ilike(f'%{search}%'),
+                        courier_app_pkg.models.Courier.destination.ilike(f'%{search}%'),
+                        courier_app_pkg.models.Courier.supplier_buyer_name.ilike(f'%{search}%'),
+                        courier_app_pkg.models.Courier.order_reference.ilike(f'%{search}%'),
+                    )
+                )
+            if dept:
+                q = q.filter(courier_app_pkg.models.Courier.department == dept)
+            if courier_name:
+                q = q.filter(courier_app_pkg.models.Courier.courier_name.ilike(f'%{courier_name}%'))
+            if from_date:
+                q = q.filter(courier_app_pkg.models.Courier.date >= from_date)
+            if to_date:
+                q = q.filter(courier_app_pkg.models.Courier.date <= to_date)
+            if budgeted:
+                q = q.filter(courier_app_pkg.models.Courier.budgeted.ilike(f'%{budgeted}%'))
+            if branch_id:
+                q = q.filter(courier_app_pkg.models.Courier.branch_id == int(branch_id))
+            if trans_type:
+                q = q.filter(courier_app_pkg.models.Courier.transaction_type == trans_type)
+            
+            entries = q.order_by(courier_app_pkg.models.Courier.date.desc(), courier_app_pkg.models.Courier.id.desc()).all()
+            
+            # Format list
+            result = []
+            for c in entries:
+                result.append({
+                    "id": c.id,
+                    "branch_id": c.branch_id,
+                    "branch_name": c.branch.name if c.branch else "",
+                    "date": c.date.isoformat() if c.date else "",
+                    "transaction_type": c.transaction_type,
+                    "sender": c.sender,
+                    "department": c.department,
+                    "sending_from": c.sending_from,
+                    "receiver": c.receiver,
+                    "receiver_office": c.receiver_office,
+                    "supplier_buyer_type": c.supplier_buyer_type,
+                    "supplier_buyer_name": c.supplier_buyer_name,
+                    "destination": c.destination,
+                    "product_description": c.product_description,
+                    "package_type": c.package_type,
+                    "num_packages": c.num_packages,
+                    "order_related": c.order_related,
+                    "order_reference": c.order_reference,
+                    "budgeted": c.budgeted,
+                    "courier_name": c.courier_name,
+                    "awb_no": c.awb_no,
+                    "weight_kg": c.weight_kg,
+                    "box_measurement": c.box_measurement,
+                    "chargeable_weight": c.chargeable_weight,
+                    "courier_cost": c.courier_cost,
+                    "payment_mode": c.payment_mode,
+                    "remarks": c.remarks
+                })
+            return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/courier/entries', methods=['POST'])
+def api_courier_create():
+    try:
+        from datetime import date
+        data = request.json or {}
+        with courier_app.app_context():
+            c = courier_app_pkg.models.Courier(
+                branch_id=data.get('branch_id') or 1,
+                date=date.fromisoformat(data['date']) if data.get('date') else date.today(),
+                transaction_type=data.get('transaction_type', 'Dispatch'),
+                sender=data.get('sender', '').strip(),
+                department=data.get('department', '').strip(),
+                sending_from=data.get('sending_from', '').strip(),
+                receiver=data.get('receiver', '').strip(),
+                receiver_office=data.get('receiver_office', '').strip(),
+                supplier_buyer_type=data.get('supplier_buyer_type', '').strip(),
+                supplier_buyer_name=data.get('supplier_buyer_name', '').strip(),
+                destination=data.get('destination', '').strip(),
+                product_description=data.get('product_description', '').strip(),
+                package_type=data.get('package_type', '').strip(),
+                num_packages=int(data.get('num_packages', 1) or 1),
+                order_related=data.get('order_related', 'NO'),
+                order_reference=data.get('order_reference', '').strip(),
+                budgeted=data.get('budgeted', 'Non Budgeted'),
+                courier_name=data.get('courier_name', '').strip(),
+                awb_no=data.get('awb_no', '').strip(),
+                weight_kg=float(data['weight_kg']) if data.get('weight_kg') else None,
+                box_measurement=data.get('box_measurement', '').strip(),
+                chargeable_weight=float(data['chargeable_weight']) if data.get('chargeable_weight') else None,
+                courier_cost=float(data.get('courier_cost', 0) or 0),
+                payment_mode=data.get('payment_mode', '').strip(),
+                remarks=data.get('remarks', '').strip()
+            )
+            courier_app_pkg.db.session.add(c)
+            courier_app_pkg.db.session.commit()
+            return jsonify({"success": True, "id": c.id}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/courier/entries/<int:entry_id>', methods=['PUT'])
+def api_courier_update(entry_id):
+    try:
+        from datetime import date
+        data = request.json or {}
+        with courier_app.app_context():
+            c = courier_app_pkg.models.Courier.query.get_or_404(entry_id)
+            c.branch_id = data.get('branch_id', c.branch_id)
+            if data.get('date'):
+                c.date = date.fromisoformat(data['date'])
+            c.transaction_type = data.get('transaction_type', c.transaction_type)
+            c.sender = data.get('sender', c.sender).strip()
+            c.department = data.get('department', c.department).strip()
+            c.sending_from = data.get('sending_from', c.sending_from).strip()
+            c.receiver = data.get('receiver', c.receiver).strip()
+            c.receiver_office = data.get('receiver_office', c.receiver_office).strip()
+            c.supplier_buyer_type = data.get('supplier_buyer_type', c.supplier_buyer_type).strip()
+            c.supplier_buyer_name = data.get('supplier_buyer_name', c.supplier_buyer_name).strip()
+            c.destination = data.get('destination', c.destination).strip()
+            c.product_description = data.get('product_description', c.product_description).strip()
+            c.package_type = data.get('package_type', c.package_type).strip()
+            c.num_packages = int(data.get('num_packages', c.num_packages) or 1)
+            c.order_related = data.get('order_related', c.order_related)
+            c.order_reference = data.get('order_reference', c.order_reference).strip()
+            c.budgeted = data.get('budgeted', c.budgeted)
+            c.courier_name = data.get('courier_name', c.courier_name).strip()
+            c.awb_no = data.get('awb_no', c.awb_no).strip()
+            c.weight_kg = float(data['weight_kg']) if data.get('weight_kg') is not None else c.weight_kg
+            c.box_measurement = data.get('box_measurement', c.box_measurement).strip()
+            c.chargeable_weight = float(data['chargeable_weight']) if data.get('chargeable_weight') is not None else c.chargeable_weight
+            c.courier_cost = float(data.get('courier_cost', c.courier_cost) or 0)
+            c.payment_mode = data.get('payment_mode', c.payment_mode).strip()
+            c.remarks = data.get('remarks', c.remarks).strip()
+            courier_app_pkg.db.session.commit()
+            return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/courier/entries/<int:entry_id>', methods=['DELETE'])
+def api_courier_delete(entry_id):
+    try:
+        with courier_app.app_context():
+            c = courier_app_pkg.models.Courier.query.get_or_404(entry_id)
+            courier_app_pkg.db.session.delete(c)
+            courier_app_pkg.db.session.commit()
+            return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ---------------------------------------------------------------------------
+# Petty Cash API Endpoints
+# ---------------------------------------------------------------------------
+@app.route('/api/petty-cash/dashboard', methods=['GET'])
+def api_petty_cash_dashboard():
+    try:
+        from datetime import date, timedelta
+        from collections import defaultdict
+        with petty_cash_app.app_context():
+            today = date.today()
+            month_start = today.replace(day=1)
+            
+            today_expenses = petty_cash_app_module.Expense.query.filter(
+                petty_cash_app_module.Expense.date == today,
+                petty_cash_app_module.Expense.status != 'rejected'
+            ).all()
+            today_total = sum(e.amount for e in today_expenses)
+            today_count = len(today_expenses)
+            
+            month_exps = petty_cash_app_module.Expense.query.filter(
+                petty_cash_app_module.Expense.date >= month_start,
+                petty_cash_app_module.Expense.status == 'approved'
+            ).all()
+            month_total = sum(e.amount for e in month_exps)
+            
+            pending_count = petty_cash_app_module.Expense.query.filter_by(status='pending').count()
+            
+            last_ledger = petty_cash_app_module.DayLedger.query.filter(
+                petty_cash_app_module.DayLedger.date <= today,
+                petty_cash_app_module.DayLedger.is_closed == True
+            ).order_by(petty_cash_app_module.DayLedger.date.desc()).first()
+            opening = last_ledger.closing_balance if last_ledger else 0.0
+            current_balance = opening - today_total
+            
+            cat_totals = defaultdict(float)
+            for e in today_expenses:
+                cat_totals[e.category] += e.amount
+            
+            week_data = []
+            for i in range(6, -1, -1):
+                d = today - timedelta(days=i)
+                exps = petty_cash_app_module.Expense.query.filter(
+                    petty_cash_app_module.Expense.date == d,
+                    petty_cash_app_module.Expense.status != 'rejected'
+                ).all()
+                week_data.append({
+                    'label': d.strftime('%d %b'),
+                    'total': round(sum(e.amount for e in exps), 2)
+                })
+            
+            today_ledger = petty_cash_app_module.DayLedger.query.filter_by(date=today).first()
+            ledger_info = {
+                "opening_balance": opening,
+                "added_cash": today_ledger.added_cash if today_ledger else 0.0,
+                "closing_balance": today_ledger.closing_balance if today_ledger else current_balance,
+                "is_closed": today_ledger.is_closed if today_ledger else False,
+                "notes": today_ledger.notes if today_ledger else ""
+            }
+            
+            # Load categories and subcategories from DB
+            from database import get_categories
+            db_cats = get_categories('Petty Cash')
+            
+            categories_list = []
+            subcategories_map = {}
+            for cat in db_cats:
+                cat_name = cat['name']
+                categories_list.append(cat_name)
+                # Split subcategories comma-separated string into list
+                subs = [s.strip() for s in cat.get('subcategories', '').split(',') if s.strip()]
+                # If DB subcategories is empty, check default subcategories from the sub-application
+                if not subs:
+                    subs = list(petty_cash_app_module.SUBCATEGORIES.get(cat_name, []))
+                # Ensure "Other" is always added if not present (Petty Cash uses "Other" for remarks)
+                if 'Other' not in subs:
+                    subs.append('Other')
+                subcategories_map[cat_name] = subs
+                
+            if not categories_list:
+                categories_list = petty_cash_app_module.CATEGORIES
+                subcategories_map = petty_cash_app_module.SUBCATEGORIES
+
+            return jsonify({
+                "today_total": today_total,
+                "today_count": today_count,
+                "month_total": month_total,
+                "pending_count": pending_count,
+                "current_balance": current_balance,
+                "cat_totals": dict(cat_totals),
+                "week_data": week_data,
+                "ledger": ledger_info,
+                "categories": categories_list,
+                "subcategories": subcategories_map
+            }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/petty-cash/expenses', methods=['GET'])
+def api_petty_cash_expenses():
+    try:
+        from datetime import datetime
+        with petty_cash_app.app_context():
+            date_from = request.args.get('date_from', '')
+            date_to = request.args.get('date_to', '')
+            category = request.args.get('category', '')
+            status_f = request.args.get('status', '')
+            
+            q = petty_cash_app_module.Expense.query
+            if date_from:
+                try:
+                    q = q.filter(petty_cash_app_module.Expense.date >= datetime.strptime(date_from, '%Y-%m-%d').date())
+                except ValueError:
+                    pass
+            if date_to:
+                try:
+                    q = q.filter(petty_cash_app_module.Expense.date <= datetime.strptime(date_to, '%Y-%m-%d').date())
+                except ValueError:
+                    pass
+            if category:
+                q = q.filter_by(category=category)
+            if status_f:
+                q = q.filter_by(status=status_f)
+                
+            expenses = q.order_by(petty_cash_app_module.Expense.date.desc(), petty_cash_app_module.Expense.created_at.desc()).all()
+            
+            result = []
+            for e in expenses:
+                result.append({
+                    "id": e.id,
+                    "date": e.date.isoformat() if e.date else "",
+                    "category": e.category,
+                    "subcategory": e.subcategory,
+                    "sub_remarks": e.sub_remarks,
+                    "amount": e.amount,
+                    "description": e.description,
+                    "status": e.status,
+                    "submitted_by": e.submitter.full_name if e.submitter else "Unknown",
+                    "approved_by": e.approver.full_name if e.approver else "",
+                    "approved_at": e.approved_at.isoformat() if e.approved_at else "",
+                    "manager_notes": e.manager_notes
+                })
+            return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/petty-cash/expenses', methods=['POST'])
+def api_petty_cash_create_expense():
+    try:
+        from datetime import datetime
+        data = request.json or {}
+        with petty_cash_app.app_context():
+            exp_date = datetime.strptime(data['date'], '%Y-%m-%d').date() if data.get('date') else datetime.now().date()
+            category = data.get('category')
+            amount = float(data.get('amount') or 0)
+            description = data.get('description', '').strip()
+            subcategory = data.get('subcategory', '').strip()
+            sub_remarks = data.get('sub_remarks', '').strip()
+            
+            submitted_by_id = 1
+            submitter_name = data.get('submitted_by', '')
+            if submitter_name:
+                user = petty_cash_app_module.User.query.filter_by(username=submitter_name.lower()).first()
+                if user:
+                    submitted_by_id = user.id
+                    
+            is_mgr = data.get('is_manager', False)
+            
+            expense = petty_cash_app_module.Expense(
+                date=exp_date,
+                category=category,
+                amount=round(amount, 2),
+                description=description,
+                submitted_by_id=submitted_by_id,
+                subcategory=subcategory,
+                sub_remarks=sub_remarks if subcategory == 'Other' else '',
+                status='approved' if is_mgr else 'pending',
+                approved_by_id=submitted_by_id if is_mgr else None,
+                approved_at=datetime.utcnow() if is_mgr else None
+            )
+            petty_cash_app_module.db.session.add(expense)
+            petty_cash_app_module.db.session.commit()
+            return jsonify({"success": True, "id": expense.id}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/petty-cash/expenses/<int:eid>/approve', methods=['POST'])
+def api_petty_cash_approve(eid):
+    try:
+        from datetime import datetime
+        data = request.json or {}
+        notes = data.get('notes', '')
+        user_name = data.get('user_name', 'manager')
+        with petty_cash_app.app_context():
+            e = petty_cash_app_module.Expense.query.get_or_404(eid)
+            e.status = 'approved'
+            user = petty_cash_app_module.User.query.filter_by(username=user_name.lower()).first()
+            e.approved_by_id = user.id if user else 2
+            e.approved_at = datetime.utcnow()
+            e.manager_notes = notes
+            petty_cash_app_module.db.session.commit()
+            return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/petty-cash/expenses/<int:eid>/reject', methods=['POST'])
+def api_petty_cash_reject(eid):
+    try:
+        from datetime import datetime
+        data = request.json or {}
+        notes = data.get('notes', '')
+        user_name = data.get('user_name', 'manager')
+        with petty_cash_app.app_context():
+            e = petty_cash_app_module.Expense.query.get_or_404(eid)
+            e.status = 'rejected'
+            user = petty_cash_app_module.User.query.filter_by(username=user_name.lower()).first()
+            e.approved_by_id = user.id if user else 2
+            e.approved_at = datetime.utcnow()
+            e.manager_notes = notes
+            petty_cash_app_module.db.session.commit()
+            return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/petty-cash/expenses/<int:eid>', methods=['PUT'])
+def api_petty_cash_update_expense(eid):
+    try:
+        from datetime import datetime
+        data = request.json or {}
+        with petty_cash_app.app_context():
+            e = petty_cash_app_module.Expense.query.get_or_404(eid)
+            if 'date' in data:
+                e.date = datetime.strptime(data['date'], '%Y-%m-%d').date() if data.get('date') else e.date
+            if 'category' in data:
+                e.category = data.get('category')
+            if 'amount' in data:
+                e.amount = round(float(data.get('amount') or 0), 2)
+            if 'description' in data:
+                e.description = data.get('description', '').strip()
+            if 'subcategory' in data:
+                e.subcategory = data.get('subcategory', '').strip()
+            if 'sub_remarks' in data:
+                e.sub_remarks = data.get('sub_remarks', '').strip()
+            if 'submitted_by' in data:
+                submitter_name = data.get('submitted_by', '')
+                if submitter_name:
+                    user = petty_cash_app_module.User.query.filter_by(username=submitter_name.lower()).first()
+                    if user:
+                        e.submitted_by_id = user.id
+            petty_cash_app_module.db.session.commit()
+            return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/petty-cash/expenses/<int:eid>', methods=['DELETE'])
+def api_petty_cash_delete_expense(eid):
+    try:
+        with petty_cash_app.app_context():
+            e = petty_cash_app_module.Expense.query.get_or_404(eid)
+            petty_cash_app_module.db.session.delete(e)
+            petty_cash_app_module.db.session.commit()
+            return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/petty-cash/ledger/close', methods=['POST'])
+def api_petty_cash_close_ledger():
+    try:
+        from datetime import date, datetime
+        data = request.json or {}
+        added_cash = float(data.get('added_cash', 0) or 0)
+        notes = data.get('notes', '')
+        user_name = data.get('user_name', 'manager')
+        
+        with petty_cash_app.app_context():
+            today = date.today()
+            
+            last_ledger = petty_cash_app_module.DayLedger.query.filter(
+                petty_cash_app_module.DayLedger.date < today,
+                petty_cash_app_module.DayLedger.is_closed == True
+            ).order_by(petty_cash_app_module.DayLedger.date.desc()).first()
+            opening = last_ledger.closing_balance if last_ledger else 0.0
+            
+            approved_exps = petty_cash_app_module.Expense.query.filter(
+                petty_cash_app_module.Expense.date == today,
+                petty_cash_app_module.Expense.status == 'approved'
+            ).all()
+            total_expenses = sum(e.amount for e in approved_exps)
+            closing_balance = opening + added_cash - total_expenses
+            
+            ledger = petty_cash_app_module.DayLedger.query.filter_by(date=today).first()
+            if not ledger:
+                ledger = petty_cash_app_module.DayLedger(date=today)
+                petty_cash_app_module.db.session.add(ledger)
+                
+            ledger.opening_balance = opening
+            ledger.added_cash = added_cash
+            ledger.total_expenses = total_expenses
+            ledger.closing_balance = closing_balance
+            ledger.notes = notes
+            ledger.is_closed = True
+            
+            user = petty_cash_app_module.User.query.filter_by(username=user_name.lower()).first()
+            ledger.closed_by_id = user.id if user else 2
+            ledger.closed_at = datetime.utcnow()
+            
+            petty_cash_app_module.db.session.commit()
+            return jsonify({"success": True, "closing_balance": closing_balance}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/petty-cash/reports/export', methods=['GET'])
+def api_petty_cash_export_reports():
+    try:
+        from datetime import datetime
+        import csv
+        import io
+        from flask import make_response
+        
+        date_from = request.args.get('date_from', '')
+        date_to = request.args.get('date_to', '')
+        
+        with petty_cash_app.app_context():
+            q = petty_cash_app_module.Expense.query.filter(petty_cash_app_module.Expense.status == 'approved')
+            if date_from:
+                try:
+                    q = q.filter(petty_cash_app_module.Expense.date >= datetime.strptime(date_from, '%Y-%m-%d').date())
+                except ValueError:
+                    pass
+            if date_to:
+                try:
+                    q = q.filter(petty_cash_app_module.Expense.date <= datetime.strptime(date_to, '%Y-%m-%d').date())
+                except ValueError:
+                    pass
+            
+            exps = q.order_by(petty_cash_app_module.Expense.date.asc()).all()
+            out = io.StringIO()
+            w = csv.writer(out)
+            w.writerow(['#', 'Date', 'Category', 'Amount (INR)', 'Description', 'Submitted By', 'Approved By', 'Approved At'])
+            for i, e in enumerate(exps, 1):
+                w.writerow([
+                    i, e.date.strftime('%d-%m-%Y') if e.date else '', e.category,
+                    f'{e.amount:.2f}', e.description,
+                    e.submitter.full_name if e.submitter else '',
+                    e.approver.full_name if e.approver else '',
+                    e.approved_at.strftime('%d-%m-%Y %H:%M') if e.approved_at else ''
+                ])
+            w.writerow([])
+            w.writerow(['', '', 'TOTAL', f'{sum(e.amount for e in exps):.2f}', '', '', '', ''])
+            
+            out.seek(0)
+            resp = make_response(out.getvalue())
+            fname = f'petty_cash_{date_from or "all"}_{date_to or "all"}.csv'
+            resp.headers['Content-Type'] = 'text/csv'
+            resp.headers['Content-Disposition'] = f'attachment; filename={fname}'
+            return resp
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     import argparse

@@ -15,6 +15,15 @@ const Login = () => {
     const { login, logout, isAuthenticated } = useAuth();
     const [loading, setLoading] = useState(false);
 
+    // Password Visibility States
+    const [showPassword, setShowPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+    useEffect(() => {
+        document.documentElement.classList.remove('dark');
+    }, []);
+
     // Password Change State
     const [showPasswordChange, setShowPasswordChange] = useState(false);
     const [newPassword, setNewPassword] = useState('');
@@ -23,6 +32,8 @@ const Login = () => {
     const [securityAnswer, setSecurityAnswer] = useState('');
     const [tempUser, setTempUser] = useState(null);
     const [passwordError, setPasswordError] = useState('');
+    const [showQuestionDropdown, setShowQuestionDropdown] = useState(false);
+    const [showForgotQuestionDropdown, setShowForgotQuestionDropdown] = useState(false);
 
     // Forgot Password State
     const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -53,7 +64,7 @@ const Login = () => {
                     login(res.data.user);
                     const from = location.state?.from
                         ? location.state.from.pathname + (location.state.from.search || '')
-                        : '/admin';
+                        : '/';
                     navigate(from);
                 }
             } else {
@@ -92,7 +103,7 @@ const Login = () => {
                 login({ ...tempUser, is_first_login: false });
                 const from = location.state?.from
                     ? location.state.from.pathname + (location.state.from.search || '')
-                    : '/admin';
+                    : '/';
                 navigate(from);
             } else {
                 setPasswordError(res.data.error || 'Failed to update password');
@@ -175,9 +186,9 @@ const Login = () => {
         <div className="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center p-6">
             <div className="w-full max-w-md">
                 <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none p-8 md:p-10 border border-slate-100 dark:border-slate-800">
-                    <div className="flex flex-col items-center justify-center mb-8">
-                        <img src={logoImage} alt="Logo" className="h-20 object-contain dark:hidden" />
-                        <img src={logoDarkImage} alt="Logo" className="h-20 object-contain hidden dark:block" />
+                    <div className="flex flex-col items-center justify-center mb-5">
+                        <img src={logoImage} alt="Logo" className="h-25 object-contain dark:hidden" />
+                        <img src={logoDarkImage} alt="Logo" className="h-25 object-contain hidden dark:block" />
                     </div>
                     <div className="text-center mb-8">
                         <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Support Desk Admin</h2>
@@ -210,42 +221,51 @@ const Login = () => {
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="password">Password <span className="text-red-500">*</span></label>
                                 <a className="text-sm font-medium text-primary hover:text-primary/80 transition-colors" href="#" onClick={handleForgotPasswordClick}>Forgot password?</a>
                             </div>
-                            <div className="relative">
-                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg">lock</span>
-                                <input
-                                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
-                                    id="password"
-                                    name="password"
-                                    placeholder="••••••"
-                                    required
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                />
-                            </div>
+                             <div className="relative">
+                                 <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg">lock</span>
+                                 <input
+                                     className="w-full pl-12 pr-12 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
+                                     id="password"
+                                     name="password"
+                                     placeholder="••••••"
+                                     required
+                                     type={showPassword ? "text" : "password"}
+                                     value={password}
+                                     onChange={(e) => setPassword(e.target.value)}
+                                 />
+                                 <button
+                                     type="button"
+                                     onClick={() => setShowPassword(prev => !prev)}
+                                     className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650 dark:hover:text-slate-250 cursor-pointer flex items-center justify-center border-none bg-transparent"
+                                 >
+                                     <span className="material-symbols-outlined text-lg select-none">
+                                         {showPassword ? "visibility_off" : "visibility"}
+                                     </span>
+                                 </button>
+                             </div>
                         </div>
+                        <div className='flex gap-2 mt-4'>
                         <button
-                            className="w-full py-4 px-4 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/25 transition-all focus:ring-4 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+                            type="button"
+                            onClick={() => navigate('/raise-ticket')}
+                            className="w-full py-3.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                            <span className="material-symbols-outlined text-lg">add_circle</span>
+                            Raise Ticket
+                        </button>
+                        <button
+                            className="w-full py-3.5 px-4 bg-[#ec1d22] hover:bg-[#ec1d22]/90 text-white font-bold rounded-xl shadow-lg shadow-[#ec1d22]/25 transition-all focus:ring-4 focus:ring-[#ec1d22]/30 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                             type="submit"
                             disabled={loading}
                         >
                             {loading && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
-                            {loading ? 'Signing in…' : 'Sign In'}
+                            {loading ? 'Signing in' : 'Sign In'}
+                            <span className="material-symbols-outlined text-lg">login</span>
                         </button>
 
-                        <button
-                            type="button"
-                            onClick={() => navigate('/')}
-                            className="w-full py-3.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
-                        >
-                            <span className="material-symbols-outlined text-lg">home</span>
-                            Go to Home
-                        </button>
+                        </div>
                     </form>
                 </div>
-                <p className="mt-8 text-center text-slate-400 dark:text-slate-500 text-xs">
-                    © 2026 Support Desk Systems. All rights reserved.
-                </p>
             </div>
 
             {showPasswordChange && (
@@ -263,16 +283,38 @@ const Login = () => {
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Security Question <span className="text-red-500">*</span></label>
-                                <select
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer"
-                                    value={securityQuestion}
-                                    onChange={(e) => setSecurityQuestion(e.target.value)}
-                                >
-                                    <option value="" disabled>Select a question...</option>
-                                    {securityQuestions.map((q, idx) => (
-                                        <option key={idx} value={q}>{q}</option>
-                                    ))}
-                                </select>
+                                <div className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowQuestionDropdown(prev => !prev)}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary text-left text-sm flex items-center justify-between cursor-pointer"
+                                    >
+                                        <span className={securityQuestion ? "text-slate-800 dark:text-slate-200" : "text-slate-400"}>
+                                            {securityQuestion || "Select a question..."}
+                                        </span>
+                                        <span className="material-symbols-outlined text-slate-400 text-lg transition-transform duration-200" style={{ transform: showQuestionDropdown ? 'rotate(180deg)' : 'none' }}>
+                                            keyboard_arrow_down
+                                        </span>
+                                    </button>
+
+                                    {showQuestionDropdown && (
+                                        <div className="absolute left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-xl z-50 overflow-hidden py-1">
+                                            {securityQuestions.map((q, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSecurityQuestion(q);
+                                                        setShowQuestionDropdown(false);
+                                                    }}
+                                                    className="w-full px-4 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors font-medium cursor-pointer"
+                                                >
+                                                    {q}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div>
@@ -288,26 +330,48 @@ const Login = () => {
 
                             <hr className="border-slate-100 dark:border-slate-800 my-4" />
 
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">New Password <span className="text-red-500">*</span></label>
-                                <input
-                                    type="password"
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary"
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    placeholder="••••••"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Confirm Password <span className="text-red-500">*</span></label>
-                                <input
-                                    type="password"
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    placeholder="••••••"
-                                />
-                            </div>
+                             <div>
+                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">New Password <span className="text-red-500">*</span></label>
+                                 <div className="relative">
+                                     <input
+                                         type={showNewPassword ? "text" : "password"}
+                                         className="w-full pl-4 pr-12 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary"
+                                         value={newPassword}
+                                         onChange={(e) => setNewPassword(e.target.value)}
+                                         placeholder="••••••"
+                                     />
+                                     <button
+                                         type="button"
+                                         onClick={() => setShowNewPassword(prev => !prev)}
+                                         className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650 dark:hover:text-slate-250 cursor-pointer flex items-center justify-center border-none bg-transparent"
+                                     >
+                                         <span className="material-symbols-outlined text-lg select-none">
+                                             {showNewPassword ? "visibility_off" : "visibility"}
+                                         </span>
+                                     </button>
+                                 </div>
+                             </div>
+                             <div>
+                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Confirm Password <span className="text-red-500">*</span></label>
+                                 <div className="relative">
+                                     <input
+                                         type={showConfirmPassword ? "text" : "password"}
+                                         className="w-full pl-4 pr-12 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary"
+                                         value={confirmPassword}
+                                         onChange={(e) => setConfirmPassword(e.target.value)}
+                                         placeholder="••••••"
+                                     />
+                                     <button
+                                         type="button"
+                                         onClick={() => setShowConfirmPassword(prev => !prev)}
+                                         className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650 dark:hover:text-slate-250 cursor-pointer flex items-center justify-center border-none bg-transparent"
+                                     >
+                                         <span className="material-symbols-outlined text-lg select-none">
+                                             {showConfirmPassword ? "visibility_off" : "visibility"}
+                                         </span>
+                                     </button>
+                                 </div>
+                             </div>
                         </div>
                         <div className="mt-8 flex justify-between gap-3">
                             <button
@@ -365,16 +429,38 @@ const Login = () => {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Security Question <span className="text-red-500">*</span></label>
-                                    <select
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer"
-                                        value={forgotQuestion}
-                                        onChange={(e) => setForgotQuestion(e.target.value)}
-                                    >
-                                        <option value="" disabled>Select a question...</option>
-                                        {securityQuestions.map((q, idx) => (
-                                            <option key={idx} value={q}>{q}</option>
-                                        ))}
-                                    </select>
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowForgotQuestionDropdown(prev => !prev)}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary text-left text-sm flex items-center justify-between cursor-pointer"
+                                        >
+                                            <span className={forgotQuestion ? "text-slate-800 dark:text-slate-200" : "text-slate-400"}>
+                                                {forgotQuestion || "Select a question..."}
+                                            </span>
+                                            <span className="material-symbols-outlined text-slate-400 text-lg transition-transform duration-200" style={{ transform: showForgotQuestionDropdown ? 'rotate(180deg)' : 'none' }}>
+                                                keyboard_arrow_down
+                                            </span>
+                                        </button>
+
+                                        {showForgotQuestionDropdown && (
+                                            <div className="absolute left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-xl z-50 overflow-hidden py-1">
+                                                {securityQuestions.map((q, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setForgotQuestion(q);
+                                                            setShowForgotQuestionDropdown(false);
+                                                        }}
+                                                        className="w-full px-4 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors font-medium cursor-pointer"
+                                                    >
+                                                        {q}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Security Answer <span className="text-red-500">*</span></label>
@@ -391,26 +477,48 @@ const Login = () => {
 
                         {forgotStep === 2 && (
                             <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">New Password <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="password"
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary"
-                                        value={newPassword}
-                                        onChange={(e) => setNewPassword(e.target.value)}
-                                        placeholder="••••••"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Confirm Password <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="password"
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary"
-                                        value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                        placeholder="••••••"
-                                    />
-                                </div>
+                                 <div>
+                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">New Password <span className="text-red-500">*</span></label>
+                                     <div className="relative">
+                                         <input
+                                             type={showNewPassword ? "text" : "password"}
+                                             className="w-full pl-4 pr-12 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary"
+                                             value={newPassword}
+                                             onChange={(e) => setNewPassword(e.target.value)}
+                                             placeholder="••••••"
+                                         />
+                                         <button
+                                             type="button"
+                                             onClick={() => setShowNewPassword(prev => !prev)}
+                                             className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650 dark:hover:text-slate-250 cursor-pointer flex items-center justify-center border-none bg-transparent"
+                                         >
+                                             <span className="material-symbols-outlined text-lg select-none">
+                                                 {showNewPassword ? "visibility_off" : "visibility"}
+                                             </span>
+                                         </button>
+                                     </div>
+                                 </div>
+                                 <div>
+                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Confirm Password <span className="text-red-500">*</span></label>
+                                     <div className="relative">
+                                         <input
+                                             type={showConfirmPassword ? "text" : "password"}
+                                             className="w-full pl-4 pr-12 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary"
+                                             value={confirmPassword}
+                                             onChange={(e) => setConfirmPassword(e.target.value)}
+                                             placeholder="••••••"
+                                         />
+                                         <button
+                                             type="button"
+                                             onClick={() => setShowConfirmPassword(prev => !prev)}
+                                             className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650 dark:hover:text-slate-250 cursor-pointer flex items-center justify-center border-none bg-transparent"
+                                         >
+                                             <span className="material-symbols-outlined text-lg select-none">
+                                                 {showConfirmPassword ? "visibility_off" : "visibility"}
+                                             </span>
+                                         </button>
+                                     </div>
+                                 </div>
                             </div>
                         )}
 
