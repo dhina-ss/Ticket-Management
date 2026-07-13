@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Courier #{{ courier.id }}{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-3 mt-3">
+  <div class="col">
+    <h4 class="fw-bold mb-0"><i class="bi bi-box-seam me-2 text-primary"></i>Courier Entry #{{ courier.id }}</h4>
+  </div>
+  <div class="col-auto d-flex gap-2">
+    <a href="{{ url_for('couriers.edit_courier', courier_id=courier.id) }}" class="btn btn-sm btn-warning">
+      <i class="bi bi-pencil me-1"></i>Edit
+    </a>
+    <a href="{{ url_for('couriers.list_couriers') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-primary text-white py-2">
+        <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Basic Information</h6>
+      </div>
+      <div class="card-body">
+        <table class="table table-sm table-borderless mb-0">
+          <tr><th class="text-muted w-40">Date</th><td class="fw-semibold">{{ courier.date.strftime('%d %B %Y') }}</td></tr>
+          <tr><th class="text-muted">Type</th>
+            <td><span class="badge {% if courier.transaction_type == 'Dispatch' %}bg-primary{% else %}bg-success{% endif %}">{{ courier.transaction_type or 'Dispatch' }}</span></td>
+          </tr>
+          <tr><th class="text-muted">Branch</th><td>{{ courier.branch.name if courier.branch else '–' }}</td></tr>
+          <tr><th class="text-muted">Sender</th><td>{{ courier.sender or '–' }}</td></tr>
+          <tr><th class="text-muted">Department</th><td><span class="badge bg-secondary-subtle text-dark">{{ courier.department or '–' }}</span></td></tr>
+          <tr><th class="text-muted">Sending From</th><td>{{ courier.sending_from or '–' }}</td></tr>
+          <tr><th class="text-muted">Created By</th><td>{{ courier.created_by_user.name if courier.created_by_user else '–' }}</td></tr>
+          <tr><th class="text-muted">Created At</th><td>{{ courier.created_at.strftime('%d %b %Y %H:%M') if courier.created_at else '–' }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-success text-white py-2">
+        <h6 class="mb-0"><i class="bi bi-arrow-left-right me-2"></i>Recipient Details</h6>
+      </div>
+      <div class="card-body">
+        <table class="table table-sm table-borderless mb-0">
+          <tr><th class="text-muted w-40">Receiver</th><td class="fw-semibold">{{ courier.receiver or '–' }}</td></tr>
+          <tr><th class="text-muted">Receiver Office</th><td>{{ courier.receiver_office or '–' }}</td></tr>
+          <tr><th class="text-muted">Type</th><td>{{ courier.supplier_buyer_type or '–' }}</td></tr>
+          <tr><th class="text-muted">Company</th><td class="fw-semibold">{{ courier.supplier_buyer_name or '–' }}</td></tr>
+          <tr><th class="text-muted">Destination</th><td class="fw-bold text-primary">{{ courier.destination or '–' }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-warning text-dark py-2">
+        <h6 class="mb-0"><i class="bi bi-box2 me-2"></i>Package Details</h6>
+      </div>
+      <div class="card-body">
+        <table class="table table-sm table-borderless mb-0">
+          <tr><th class="text-muted w-40">Product</th><td class="fw-semibold">{{ courier.product_description or '–' }}</td></tr>
+          <tr><th class="text-muted">Package Type</th><td>{{ courier.package_type or '–' }}</td></tr>
+          <tr><th class="text-muted">No. of Packages</th><td>{{ courier.num_packages or '–' }}</td></tr>
+          <tr><th class="text-muted">Weight</th><td>{{ courier.weight_kg ~ ' Kg' if courier.weight_kg else '–' }}</td></tr>
+          <tr><th class="text-muted">Box Measurement</th><td>{{ courier.box_measurement or '–' }}</td></tr>
+          <tr><th class="text-muted">Chargeable Wt</th><td>{{ courier.chargeable_weight ~ ' Kg' if courier.chargeable_weight else '–' }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-info text-white py-2">
+        <h6 class="mb-0"><i class="bi bi-truck me-2"></i>Order &amp; Courier Details</h6>
+      </div>
+      <div class="card-body">
+        <table class="table table-sm table-borderless mb-0">
+          <tr><th class="text-muted w-40">Order Related</th>
+            <td><span class="badge {% if courier.order_related == 'YES' %}bg-success{% else %}bg-secondary{% endif %}">{{ courier.order_related or 'NO' }}</span></td>
+          </tr>
+          <tr><th class="text-muted">Order Reference</th><td class="text-break font-monospace small">{{ courier.order_reference or '–' }}</td></tr>
+          <tr><th class="text-muted">Budget</th>
+            <td><span class="badge {% if 'Non' in (courier.budgeted or '') %}bg-danger{% else %}bg-success{% endif %}">{{ courier.budgeted or '–' }}</span></td>
+          </tr>
+          <tr><th class="text-muted">Courier Name</th><td class="fw-semibold">{{ courier.courier_name or '–' }}</td></tr>
+          <tr><th class="text-muted">AWB No</th><td class="fw-bold font-monospace text-primary fs-6">{{ courier.awb_no or '–' }}</td></tr>
+          <tr><th class="text-muted">Courier Cost</th><td class="fw-bold text-success fs-6">{% if courier.courier_cost %}₹{{ '%.2f'|format(courier.courier_cost) }}{% else %}–{% endif %}</td></tr>
+          <tr><th class="text-muted">Payment Mode</th><td>{{ courier.payment_mode or '–' }}</td></tr>
+          <tr><th class="text-muted">Remarks</th><td class="text-muted fst-italic">{{ courier.remarks or '–' }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% block title %}Import Excel — Petty Cash Manager{% endblock %}
+{% block page_title %}Import from Excel{% endblock %}
+
+{% block content %}
+{% set now = today %}
+
+{% if not preview_rows %}
+<!-- ── Upload Form ─────────────────────────────────────────────────────────── -->
+<div style="max-width:680px;">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-file-import" style="color:var(--blue);margin-right:6px;"></i>Import Petty Cash from Excel</span>
+    </div>
+    <div class="card-body">
+      <form method="POST" enctype="multipart/form-data" id="uploadForm">
+        <!-- Drop Zone -->
+        <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+          <i class="fas fa-file-excel" style="color:#22c55e;opacity:.6;"></i>
+          <p><strong>Click to select</strong> or drag & drop your Excel file here</p>
+          <small>Supports .xlsx and .xls files up to 32 MB</small>
+          <div class="upload-file-name" id="fileNameDisplay">
+            <i class="fas fa-file-excel" style="color:#22c55e;"></i>
+            <span id="fileNameText"></span>
+          </div>
+        </div>
+        <input type="file" id="fileInput" name="file" accept=".xlsx,.xls"
+          style="display:none;" onchange="onFileSelected(this)">
+
+        <button type="submit" name="preview" value="1" class="btn btn-primary"
+          id="previewBtn" style="width:100%;justify-content:center;padding:11px;margin-top:16px;" disabled>
+          <i class="fas fa-eye"></i> Preview Import
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Format Guide -->
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-info-circle" style="color:var(--blue);margin-right:6px;"></i>Expected Excel Format</span>
+    </div>
+    <div class="card-body" style="padding-top:12px;">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+        The Excel file should have one sheet per month with these columns in order:
+      </p>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr><th>Column</th><th>Name</th><th>Example</th><th>Required</th></tr>
+          </thead>
+          <tbody>
+            <tr><td style="font-family:monospace;">A</td><td>S.NO</td><td>1, 2, 3…</td><td style="color:var(--text-muted);">Optional</td></tr>
+            <tr><td style="font-family:monospace;">B</td><td>DATE</td><td>01-04-2026</td><td><span style="color:var(--green);font-weight:700;">Required</span></td></tr>
+            <tr><td style="font-family:monospace;">C</td><td>Particular</td><td>Tea for guests</td><td><span style="color:var(--green);font-weight:700;">Required</span></td></tr>
+            <tr><td style="font-family:monospace;">D</td><td>Credit</td><td>5000</td><td style="color:var(--text-muted);">Optional</td></tr>
+            <tr><td style="font-family:monospace;">E</td><td>Debit</td><td>250</td><td><span style="color:var(--green);font-weight:700;">Required</span></td></tr>
+            <tr><td style="font-family:monospace;">F</td><td>Ledger</td><td>welfare, Bus parcel…</td><td style="color:var(--text-muted);">Optional (for auto-category)</td></tr>
+            <tr><td style="font-family:monospace;">G</td><td>Main</td><td>welfare expenses…</td><td style="color:var(--text-muted);">Optional</td></tr>
+            <tr><td style="font-family:monospace;">H</td><td>category</td><td>Admin, management</td><td style="color:var(--text-muted);">Optional</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;background:#fffbeb;border-radius:8px;padding:12px 14px;font-size:12px;color:#d97706;display:flex;gap:8px;">
+        <i class="fas fa-lightbulb" style="margin-top:1px;flex-shrink:0;"></i>
+        <span>
+          <strong>Tip:</strong> Opening Balance rows and "cash withdraw" rows are automatically skipped.
+          The system maps your Ledger column to the app's expense categories automatically.
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auto Category Mapping Reference -->
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-random" style="color:var(--blue);margin-right:6px;"></i>Auto Category Mapping</span>
+    </div>
+    <div class="card-body" style="padding-top:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        {% set mappings = [
+          ('Bus / Parcel Charges', 'Bus parcel, Courier charges, Transport charges, Unloading'),
+          ('Travel & Conveyance', 'Travel claim, Auto charges, Cab charges'),
+          ('Fuel / Vehicle', 'Fuel, Own vehicle, Office bike'),
+          ('Maintenance', 'Maintanance, Garden, Corporation cleaning, Creative room'),
+          ('Food & Meals', 'Welfare (food), Birthday cake, Buyer snacks, Pooja'),
+          ('Tea & Refreshments', 'Pantry, Tea, Coconut, Drinking water, Milk'),
+          ('Stationery & Printing', 'Stationery, Printout, Visiting card'),
+          ('Donations & Welfare', 'Welfare expenses (donation), Missionaries, Charity'),
+        ] %}
+        {% for cat, sources in mappings %}
+        <div style="background:#f8fafc;border-radius:8px;padding:10px 12px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <i class="fas {{ CATEGORY_ICONS.get(cat,'fa-tag') }}" style="color:var(--blue);width:14px;font-size:11px;"></i>
+            <span style="font-size:12px;font-weight:700;">{{ cat }}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);">{{ sources }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<!-- ── Preview & Confirm ───────────────────────────────────────────────────── -->
+
+{% if parse_errors %}
+<div class="alert alert-warning" style="margin-bottom:16px;">
+  <i class="fas fa-exclamation-triangle"></i>
+  <div>
+    <strong>{{ parse_errors|length }} row{{ 's' if parse_errors|length != 1 }} skipped</strong> during parsing:
+    <ul style="margin:6px 0 0 16px;font-size:12px;">
+      {% for err in parse_errors[:5] %}<li>{{ err }}</li>{% endfor %}
+      {% if parse_errors|length > 5 %}<li>…and {{ parse_errors|length - 5 }} more</li>{% endif %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+<!-- Sheet Summary Tabs -->
+<div style="margin-bottom:16px;">
+  {% for s in sheet_summaries %}
+  <div class="preview-sheet-tab">
+    <i class="fas fa-table" style="color:var(--blue);font-size:11px;"></i>
+    {{ s.name }}
+    <span class="cnt">{{ s.count }}</span>
+    <span style="font-size:11px;color:var(--text-muted);">₹{{ '{:,.0f}'.format(s.total) }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Summary Stats -->
+<div class="stats-grid" style="margin-bottom:16px;">
+  <div class="stat-card">
+    <div class="stat-icon blue"><i class="fas fa-list-ol"></i></div>
+    <div>
+      <div class="stat-label">Total Records</div>
+      <div class="stat-value">{{ all_rows_count }}</div>
+      <div class="stat-sub">ready to import</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon green"><i class="fas fa-rupee-sign"></i></div>
+    <div>
+      <div class="stat-label">Grand Total</div>
+      <div class="stat-value currency">{{ '{:,.2f}'.format(grand_total) }}</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon amber"><i class="fas fa-table"></i></div>
+    <div>
+      <div class="stat-label">Sheets Found</div>
+      <div class="stat-value">{{ sheet_summaries|length }}</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon purple"><i class="fas fa-tags"></i></div>
+    <div>
+      <div class="stat-label">Categories</div>
+      <div class="stat-value">{{ cat_preview|length }}</div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px;">
+
+  <!-- Preview Table -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-eye" style="color:var(--blue);margin-right:6px;"></i>
+        Preview <span style="font-weight:400;color:var(--text-muted);font-size:12px;">(first {{ preview_rows|length }} of {{ all_rows_count }} rows)</span>
+      </span>
+    </div>
+    <div class="table-wrapper" style="max-height:420px;overflow-y:auto;">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Date</th><th>Category</th><th>Description</th><th>Amount</th></tr>
+        </thead>
+        <tbody>
+          {% for r in preview_rows %}
+          <tr>
+            <td style="color:var(--text-muted);font-size:11px;">{{ loop.index }}</td>
+            <td style="white-space:nowrap;font-size:12px;">
+              {% set d = r.date %}{{ d[8:10] }}-{{ d[5:7] }}-{{ d[:4] }}
+            </td>
+            <td>
+              <span class="cat-pill" style="font-size:11px;">
+                <i class="fas {{ CATEGORY_ICONS.get(r.category,'fa-tag') }}" style="font-size:9px;"></i>
+                {{ r.category }}
+              </span>
+            </td>
+            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;" title="{{ r.description }}">
+              {{ r.description }}
+            </td>
+            <td class="amount-cell" style="font-size:13px;">₹{{ '{:,.2f}'.format(r.amount) }}</td>
+          </tr>
+          {% endfor %}
+          {% if all_rows_count > preview_rows|length %}
+          <tr>
+            <td colspan="5" style="text-align:center;padding:12px;color:var(--text-muted);font-size:12px;background:#f8fafc;">
+              <i class="fas fa-ellipsis-h"></i> and {{ all_rows_count - preview_rows|length }} more rows…
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Confirm Panel -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Category Breakdown -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-chart-pie" style="color:var(--blue);margin-right:6px;"></i>Category Split</span>
+      </div>
+      <div class="card-body" style="padding-top:12px;">
+        {% for cat, info in cat_preview.items()|sort(attribute='1.total', reverse=True) %}
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+            <span style="font-size:12px;display:flex;align-items:center;gap:4px;">
+              <i class="fas {{ CATEGORY_ICONS.get(cat,'fa-tag') }}" style="color:var(--blue);width:12px;font-size:10px;"></i>
+              {{ cat }}
+            </span>
+            <span style="font-size:12px;font-weight:700;">₹{{ '{:,.0f}'.format(info.total) }}</span>
+          </div>
+          <div style="background:var(--border);border-radius:3px;height:4px;overflow:hidden;">
+            <div style="height:100%;background:var(--blue);border-radius:3px;width:{{ [(info.total/grand_total*100)|round|int, 100]|min if grand_total > 0 else 0 }}%;"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:1px;">{{ info.count }} entries</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Import Confirm Form -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-file-import" style="color:var(--blue);margin-right:6px;"></i>Confirm Import</span>
+      </div>
+      <div class="card-body">
+        <form method="POST" id="confirmForm">
+          <input type="hidden" name="confirm_import" value="1">
+          <input type="hidden" name="tmp_name" value="{{ tmp_name }}">
+
+          <div style="margin-bottom:14px;">
+            <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Import Mode</div>
+            <label class="import-mode-option">
+              <input type="radio" name="import_mode" value="append" checked>
+              <div>
+                <div class="import-mode-title"><i class="fas fa-plus" style="color:var(--green);margin-right:4px;"></i>Append</div>
+                <div class="import-mode-desc">Add new records to existing expenses</div>
+              </div>
+            </label>
+            <label class="import-mode-option">
+              <input type="radio" name="import_mode" value="replace">
+              <div>
+                <div class="import-mode-title"><i class="fas fa-sync-alt" style="color:var(--amber);margin-right:4px;"></i>Replace All</div>
+                <div class="import-mode-desc">Delete all existing expenses, then import fresh</div>
+              </div>
+            </label>
+          </div>
+
+          <div style="background:#f0fdf4;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;">
+            <div style="font-weight:700;color:var(--green);margin-bottom:4px;"><i class="fas fa-check-circle"></i> Ready to import</div>
+            <div style="color:var(--text-muted);"><strong>{{ all_rows_count }}</strong> records · <strong>₹{{ '{:,.2f}'.format(grand_total) }}</strong> total · <strong>{{ sheet_summaries|length }}</strong> sheets</div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:10px;"
+            onclick="return confirmImport()">
+            <i class="fas fa-file-import"></i> Import Now
+          </button>
+          <a href="{{ url_for('import_excel_ui') }}" class="btn btn-outline" style="width:100%;justify-content:center;padding:9px;margin-top:8px;">
+            <i class="fas fa-arrow-left"></i> Upload Different File
+          </a>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function onFileSelected(input) {
+  const btn = document.getElementById('previewBtn');
+  const nameEl = document.getElementById('fileNameDisplay');
+  const nameText = document.getElementById('fileNameText');
+  const zone = document.getElementById('dropZone');
+  if (input.files.length > 0) {
+    const f = input.files[0];
+    nameText.textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB)';
+    nameEl.style.display = 'inline-flex';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-eye"></i> Preview "' + f.name + '"';
+    zone.style.borderColor = 'var(--blue)';
+    zone.style.background = 'rgba(59,130,246,.04)';
+  } else {
+    btn.disabled = true;
+    nameEl.style.display = 'none';
+  }
+}
+
+function confirmImport() {
+  const mode = document.querySelector('input[name="import_mode"]:checked').value;
+  if (mode === 'replace') {
+    return confirm('This will DELETE all existing expense records and replace with the imported data.\n\nAre you sure?');
+  }
+  return true;
+}
+
+// Drag and drop
+const zone = document.getElementById('dropZone');
+if (zone) {
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const input = document.getElementById('fileInput');
+      input.files = files;
+      onFileSelected(input);
+    }
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Admin/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/f92f91b1-4cf5-47ed-991c-f9d975c06ed9/df8728ba-a6c6-485d-8d58-0f055935d486/skills/xlsx/**)",
+      "Bash(python -c ' *)",
+      "PowerShell(python --version)",
+      "PowerShell(pip install pandas openpyxl --quiet)",
+      "PowerShell(python -m pip install pandas openpyxl --quiet 2>&1)",
+      "PowerShell(python -m pip install flask flask-login flask-sqlalchemy flask-wtf pymysql werkzeug wtforms 2>&1)",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"D:\\\\Courier\\\\app\\\\templates\\\\auth\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"D:\\\\Courier\\\\app\\\\templates\\\\couriers\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"D:\\\\Courier\\\\app\\\\templates\\\\admin\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"D:\\\\Courier\\\\app\\\\templates\\\\reports\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"D:\\\\Courier\\\\app\\\\static\\\\css\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"D:\\\\Courier\\\\app\\\\static\\\\js\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"D:\\\\Courier\\\\app\\\\static\\\\img\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"D:\\\\Courier\\\\app\\\\auth\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"D:\\\\Courier\\\\app\\\\couriers\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"D:\\\\Courier\\\\app\\\\admin\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"D:\\\\Courier\\\\app\\\\reports\")",
+      "PowerShell(cd D:\\\\Courier; \\(Get-Content seed.py\\) -replace '✓','[OK]' -replace '⚠','[WARN]' -replace '\\\\+','[+]' | Set-Content seed.py -Encoding utf8; python seed.py 2>&1)",
+      "PowerShell(cd D:\\\\Courier; Start-Process python -ArgumentList \"run.py\" -WindowStyle Hidden; Start-Sleep -Seconds 3; try { $r = Invoke-WebRequest http://localhost:5000 -UseBasicParsing -TimeoutSec 5; \"HTTP $\\($r.StatusCode\\) OK\" } catch { $_.Exception.Message })",
+      "Bash(mkdir -p \"D:/Courier/.claude\")",
+      "mcp__Claude_Preview__preview_start",
+      "PowerShell(Stop-Process -Name python -ErrorAction SilentlyContinue)",
+      "PowerShell(python \"C:\\\\Users\\\\Admin\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--Courier\\\\b1c26e57-10f3-40cb-aab8-3ec7a0b8c8e2\\\\scratchpad\\\\gen_logos.py\")"
+    ]
+  }
+}

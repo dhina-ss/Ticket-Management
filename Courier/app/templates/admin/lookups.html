@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}Manage {{ label }}{% endblock %}
+{% block content %}
+<div class="row align-items-center mb-3 mt-3">
+  <div class="col">
+    <h4 class="fw-bold mb-0"><i class="bi bi-list-check me-2 text-primary"></i>Manage: {{ label }}</h4>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Sidebar tabs -->
+  <div class="col-md-2">
+    <div class="list-group">
+      {% for cat, lbl in all_labels.items() %}
+      <a href="{{ url_for('admin.lookups', category=cat) }}"
+         class="list-group-item list-group-item-action {% if cat == category %}active{% endif %} py-2">
+        {{ lbl }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="col-md-10">
+    <!-- Add form -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body py-3">
+        <form method="POST" action="{{ url_for('admin.add_lookup', category=category) }}" class="d-flex gap-2">
+          <input type="text" name="value" class="form-control" placeholder="Add new {{ label[:-1] if label.endswith('s') else label }}…" required>
+          <button class="btn btn-dark px-4"><i class="bi bi-plus-lg me-1"></i>Add</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Items table -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        {% if items %}
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-dark">
+            <tr>
+              <th>#</th>
+              <th>Value</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in items %}
+            <tr class="{% if not item.is_active %}table-secondary text-muted{% endif %}">
+              <td class="text-muted small">{{ loop.index }}</td>
+              <td>
+                <!-- Inline edit -->
+                <form method="POST" action="{{ url_for('admin.edit_lookup', category=category, item_id=item.id) }}"
+                      class="d-flex gap-2 align-items-center" id="editForm{{ item.id }}">
+                  <input type="text" name="value" value="{{ item.value }}"
+                         class="form-control form-control-sm" style="max-width:220px;">
+                  <input type="hidden" name="action" value="save">
+                  <button class="btn btn-sm btn-outline-dark" title="Save">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
+                </form>
+              </td>
+              <td>
+                {% if item.is_active %}
+                <span class="badge bg-success">Active</span>
+                {% else %}
+                <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <!-- Toggle active -->
+                <form method="POST" action="{{ url_for('admin.edit_lookup', category=category, item_id=item.id) }}"
+                      class="d-inline">
+                  <input type="hidden" name="action" value="toggle">
+                  <button class="btn btn-sm btn-outline-secondary" title="{{ 'Disable' if item.is_active else 'Enable' }}">
+                    <i class="bi bi-{{ 'eye-slash' if item.is_active else 'eye' }}"></i>
+                  </button>
+                </form>
+                <!-- Delete -->
+                <form method="POST" action="{{ url_for('admin.delete_lookup', category=category, item_id=item.id) }}"
+                      class="d-inline"
+                      onsubmit="return confirm('Delete \'{{ item.value }}\'? This cannot be undone.')">
+                  <button class="btn btn-sm btn-outline-danger" title="Delete">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-inbox fs-2 d-block mb-2"></i>No items yet. Add one above.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

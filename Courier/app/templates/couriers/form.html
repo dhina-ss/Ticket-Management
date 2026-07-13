@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if courier else 'New' }} Courier Entry{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-3 mt-3">
+  <div class="col">
+    <h4 class="fw-bold mb-0">
+      <i class="bi bi-{{ 'pencil-square' if courier else 'plus-circle' }} me-2 text-primary"></i>
+      {{ 'Edit' if courier else 'New' }} Courier Entry
+    </h4>
+  </div>
+  <div class="col-auto">
+    <a href="{{ url_for('couriers.list_couriers') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+  </div>
+</div>
+
+<form method="POST" class="needs-validation" novalidate>
+  <div class="row g-3">
+
+    <!-- Section 1: Basic Info -->
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header py-2">
+          <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Basic Information</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Date <span class="text-danger">*</span></label>
+              <input type="date" name="date" class="form-control form-control-sm" required
+                     value="{{ courier.date.isoformat() if courier and courier.date else today }}">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Transaction Type</label>
+              <select name="transaction_type" class="form-select form-select-sm">
+                {% for tt in transaction_types %}
+                <option value="{{ tt }}" {% if courier and courier.transaction_type == tt %}selected{% elif not courier and tt == 'Dispatch' %}selected{% endif %}>{{ tt }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% if branch_list|length > 1 or current_user.is_superadmin() %}
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">Branch <span class="text-danger">*</span></label>
+              <select name="branch_id" class="form-select form-select-sm" required>
+                {% for b in branch_list %}
+                <option value="{{ b.id }}" {% if courier and courier.branch_id == b.id %}selected{% elif not courier and current_user.branch_id == b.id %}selected{% endif %}>
+                  {{ b.name }} ({{ b.code }})
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            {% else %}
+            <input type="hidden" name="branch_id" value="{{ branch_list[0].id if branch_list else '' }}">
+            {% endif %}
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Department</label>
+              <select name="department" class="form-select form-select-sm">
+                <option value="">-- Select --</option>
+                {% for d in departments %}
+                <option value="{{ d }}" {% if courier and courier.department == d %}selected{% endif %}>{{ d }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">Sender Name</label>
+              <input type="text" name="sender" class="form-control form-control-sm"
+                     value="{{ courier.sender or '' if courier else '' }}" placeholder="e.g. Vijayakumar">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: From / To -->
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header py-2">
+          <h6 class="mb-0"><i class="bi bi-arrow-left-right me-2"></i>From / To Details</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">Sending From (Branch/Location)</label>
+              <input type="text" name="sending_from" class="form-control form-control-sm"
+                     value="{{ courier.sending_from or '' if courier else '' }}" placeholder="e.g. CCCD HO / Vengamedu">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">Receiver (Attn)</label>
+              <input type="text" name="receiver" class="form-control form-control-sm"
+                     value="{{ courier.receiver or '' if courier else '' }}" placeholder="Receiver name">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">Receiver Office</label>
+              <input type="text" name="receiver_office" class="form-control form-control-sm"
+                     value="{{ courier.receiver_office or '' if courier else '' }}" placeholder="Office / Company name">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">Destination City</label>
+              <input type="text" name="destination" class="form-control form-control-sm"
+                     value="{{ courier.destination or '' if courier else '' }}" placeholder="e.g. New Delhi, Tirupur">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">Supplier / Buyer Type</label>
+              <select name="supplier_buyer_type" class="form-select form-select-sm">
+                <option value="">-- Select --</option>
+                {% for t in supplier_types %}
+                <option value="{{ t }}" {% if courier and courier.supplier_buyer_type == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">Supplier / Buyer Name</label>
+              <input type="text" name="supplier_buyer_name" class="form-control form-control-sm"
+                     value="{{ courier.supplier_buyer_name or '' if courier else '' }}" placeholder="e.g. TJX, SGS">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Package Info -->
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header py-2">
+          <h6 class="mb-0"><i class="bi bi-box2 me-2"></i>Package Details</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label fw-semibold small">Product Description</label>
+              <input type="text" name="product_description" class="form-control form-control-sm"
+                     value="{{ courier.product_description or '' if courier else '' }}" placeholder="Sample, Swatch, Bill…">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Package Type</label>
+              <select name="package_type" class="form-select form-select-sm">
+                <option value="">-- Select --</option>
+                {% for pt in package_types %}
+                <option value="{{ pt }}" {% if courier and courier.package_type == pt %}selected{% endif %}>{{ pt }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-1">
+              <label class="form-label fw-semibold small">No. of Pkgs</label>
+              <input type="number" name="num_packages" class="form-control form-control-sm" min="1"
+                     value="{{ courier.num_packages or 1 if courier else 1 }}">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Weight (Kg)</label>
+              <input type="number" step="0.01" name="weight_kg" class="form-control form-control-sm"
+                     value="{{ courier.weight_kg or '' if courier else '' }}" placeholder="0.00">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Box Measurement</label>
+              <input type="text" name="box_measurement" class="form-control form-control-sm"
+                     value="{{ courier.box_measurement or '' if courier else '' }}" placeholder="44x43x72 cms">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Chargeable Wt (Kg)</label>
+              <input type="number" step="0.01" name="chargeable_weight" class="form-control form-control-sm"
+                     value="{{ courier.chargeable_weight or '' if courier else '' }}" placeholder="0.00">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Order & Courier Details -->
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header py-2">
+          <h6 class="mb-0"><i class="bi bi-truck me-2"></i>Order &amp; Courier Details</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Order Related?</label>
+              <select name="order_related" class="form-select form-select-sm">
+                <option value="YES" {% if courier and courier.order_related == 'YES' %}selected{% endif %}>YES</option>
+                <option value="NO" {% if not courier or courier.order_related == 'NO' %}selected{% endif %}>NO</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold small">PI / SO / ENQ / Sample Order Ref</label>
+              <input type="text" name="order_reference" class="form-control form-control-sm"
+                     value="{{ courier.order_reference or '' if courier else '' }}" placeholder="e.g. M-ENQ-YV@197">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Budget Status</label>
+              <select name="budgeted" class="form-select form-select-sm">
+                {% for bs in budget_statuses %}
+                <option value="{{ bs }}" {% if courier and courier.budgeted == bs %}selected{% elif not courier and bs == 'Non Budgeted' %}selected{% endif %}>{{ bs }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Courier Name</label>
+              <select name="courier_name" class="form-select form-select-sm">
+                <option value="">-- Select --</option>
+                {% for cn in courier_names %}
+                <option value="{{ cn }}" {% if courier and (courier.courier_name or '').strip() == cn %}selected{% endif %}>{{ cn }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">AWB / Tracking No</label>
+              <input type="text" name="awb_no" class="form-control form-control-sm font-monospace"
+                     value="{{ courier.awb_no or '' if courier else '' }}" placeholder="Tracking number">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Courier Cost (₹)</label>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">₹</span>
+                <input type="number" step="0.01" name="courier_cost" class="form-control form-control-sm"
+                       value="{{ courier.courier_cost or '' if courier else '' }}" placeholder="0.00">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold small">Payment Mode</label>
+              <select name="payment_mode" class="form-select form-select-sm">
+                <option value="">-- Select --</option>
+                {% for pm in payment_modes %}
+                <option value="{{ pm }}" {% if courier and courier.payment_mode == pm %}selected{% endif %}>{{ pm }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold small">Remarks</label>
+              <input type="text" name="remarks" class="form-control form-control-sm"
+                     value="{{ courier.remarks or '' if courier else '' }}" placeholder="Additional notes…">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="col-12 d-flex gap-2 justify-content-end pb-3">
+      <a href="{{ url_for('couriers.list_couriers') }}" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary px-4">
+        <i class="bi bi-save me-1"></i>{{ 'Update Entry' if courier else 'Save Entry' }}
+      </button>
+    </div>
+
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Add Expense — Petty Cash Manager{% endblock %}
+{% block page_title %}Add Expense{% endblock %}
+
+{% block content %}
+<div style="max-width:680px;">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-plus-circle" style="color:var(--blue);margin-right:6px;"></i>New Expense Entry</span>
+      <a href="{{ url_for('expenses') }}" class="btn btn-outline btn-sm"><i class="fas fa-arrow-left"></i> Back</a>
+    </div>
+    <div class="card-body">
+      <form method="POST" id="expenseForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Date <span class="req">*</span></label>
+            <input type="date" name="date" class="form-control"
+              value="{{ form.get('date', today.strftime('%Y-%m-%d')) }}"
+              max="{{ today.strftime('%Y-%m-%d') }}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Category <span class="req">*</span></label>
+            <select name="category" id="categorySelect" class="form-control" required
+                    onchange="onCategoryChange(this.value)">
+              <option value="">— Select Category —</option>
+              {% for cat in CATEGORIES %}
+              <option value="{{ cat }}" {% if form.get('category') == cat %}selected{% endif %}>{{ cat }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Sub-category row — shown only for categories that have sub-types -->
+        <div class="form-row" id="subRow" style="display:none;">
+          <div class="form-group" id="subCatGroup">
+            <label class="form-label">Sub-Category <span class="req">*</span></label>
+            <select name="subcategory" id="subcategorySelect" class="form-control"
+                    onchange="onSubcategoryChange(this.value)">
+              <option value="">— Select Sub-Category —</option>
+            </select>
+          </div>
+          <!-- "Other" remarks — only for Office Maintenance → Other -->
+          <div class="form-group" id="otherRemarksGroup" style="display:none;">
+            <label class="form-label">Remarks <span class="req">*</span></label>
+            <input type="text" name="sub_remarks" id="subRemarksInput" class="form-control"
+              placeholder="Describe the maintenance work…"
+              value="{{ form.get('sub_remarks', '') }}">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Amount (₹) <span class="req">*</span></label>
+          <div style="position:relative;">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-weight:700;color:var(--text-muted);font-size:15px;">₹</span>
+            <input type="number" name="amount" class="form-control" style="padding-left:28px;"
+              placeholder="0.00" step="0.01" min="0.01" max="999999"
+              value="{{ form.get('amount', '') }}" required
+              oninput="updatePreview(this.value)">
+          </div>
+          <div class="form-hint">Enter the exact amount spent (no bills required)</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Description <span class="req">*</span></label>
+          <textarea name="description" class="form-control" rows="3"
+            placeholder="Briefly describe what the expense was for…" required>{{ form.get('description', '') }}</textarea>
+          <div class="form-hint">E.g. "Tea and snacks for 5 guests", "Auto fare for client pickup"</div>
+        </div>
+
+        <!-- Preview Card -->
+        <div id="previewCard" style="display:none;background:#f8fafc;border:1.5px dashed var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:20px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Entry Preview</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div id="prevCat" style="font-size:13px;font-weight:600;color:var(--text);"></div>
+              <div id="prevDate" style="font-size:11px;color:var(--text-muted);margin-top:2px;"></div>
+            </div>
+            <div id="prevAmount" style="font-size:22px;font-weight:800;color:var(--blue);"></div>
+          </div>
+          {% if not current_user.is_manager %}
+          <div style="margin-top:8px;font-size:11px;color:var(--amber);display:flex;align-items:center;gap:4px;">
+            <i class="fas fa-clock"></i> Will be submitted for manager approval
+          </div>
+          {% else %}
+          <div style="margin-top:8px;font-size:11px;color:var(--green);display:flex;align-items:center;gap:4px;">
+            <i class="fas fa-check-circle"></i> Will be auto-approved (Manager)
+          </div>
+          {% endif %}
+        </div>
+
+        <div style="display:flex;gap:10px;">
+          <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;padding:11px;">
+            <i class="fas fa-save"></i> Submit Expense
+          </button>
+          <a href="{{ url_for('expenses') }}" class="btn btn-outline" style="padding:11px 20px;">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Category Quick Reference -->
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-info-circle" style="color:var(--blue);margin-right:6px;"></i>Category Guide</span>
+    </div>
+    <div class="card-body" style="padding-top:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        {% set guide = [
+          ('Tea & Refreshments', 'fa-mug-hot', 'Tea, coffee, snacks for staff/guests'),
+          ('Food & Meals',       'fa-utensils', 'Lunch, dinner, food orders for team'),
+          ('Bus Parcel',         'fa-bus',      'Bus parcel — Pickup or Drop'),
+          ('Courier Charges',    'fa-box-open', 'Courier, postal, delivery charges'),
+          ('Transport Charges',  'fa-car',      '4-wheeler, Auto, 2-wheeler fares'),
+          ('Fuel / Vehicle',     'fa-gas-pump', 'Petrol, diesel, vehicle expenses'),
+          ('Office Maintenance', 'fa-tools',    'Corporation dues or other maintenance'),
+          ('Welfare Expenses',   'fa-hand-holding-heart', 'Management / Buyers / Staff welfare'),
+          ('Stationery & Printing','fa-print',  'Pens, paper, printing, office supplies'),
+          ('Miscellaneous',      'fa-box',      'Any other small expense'),
+        ] %}
+        {% for name, icon, desc in guide %}
+        <div style="background:#f8fafc;border-radius:8px;padding:10px 12px;cursor:pointer;"
+             onclick="selectCat('{{ name }}')">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+            <i class="fas {{ icon }}" style="color:var(--blue);width:14px;"></i>
+            <span style="font-size:12px;font-weight:600;">{{ name }}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);">{{ desc }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Sub-category map from server
+const SUBCATEGORIES = {{ SUBCATEGORIES | tojson }};
+
+function onCategoryChange(cat) {
+  const subRow   = document.getElementById('subRow');
+  const subSel   = document.getElementById('subcategorySelect');
+  const remarksG = document.getElementById('otherRemarksGroup');
+  const remarks  = document.getElementById('subRemarksInput');
+
+  if (SUBCATEGORIES[cat]) {
+    // Populate sub-category options
+    subSel.innerHTML = '<option value="">— Select Sub-Category —</option>';
+    SUBCATEGORIES[cat].forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      subSel.appendChild(opt);
+    });
+    subRow.style.display = 'flex';
+    subSel.required = true;
+    remarksG.style.display = 'none';
+    remarks.required = false;
+    remarks.value = '';
+  } else {
+    subRow.style.display = 'none';
+    subSel.required = false;
+    subSel.value = '';
+    remarksG.style.display = 'none';
+    remarks.required = false;
+  }
+  updatePreview(document.querySelector('input[name="amount"]').value);
+}
+
+function onSubcategoryChange(sub) {
+  const cat      = document.getElementById('categorySelect').value;
+  const remarksG = document.getElementById('otherRemarksGroup');
+  const remarks  = document.getElementById('subRemarksInput');
+  if (cat === 'Office Maintenance' && sub === 'Other') {
+    remarksG.style.display = 'block';
+    remarks.required = true;
+  } else {
+    remarksG.style.display = 'none';
+    remarks.required = false;
+    remarks.value = '';
+  }
+}
+
+function selectCat(name) {
+  const sel = document.getElementById('categorySelect');
+  sel.value = name;
+  onCategoryChange(name);
+  sel.scrollIntoView({behavior:'smooth', block:'center'});
+  sel.focus();
+}
+
+function updatePreview(val) {
+  const cat    = document.getElementById('categorySelect').value;
+  const sub    = document.getElementById('subcategorySelect').value;
+  const dateV  = document.querySelector('input[name="date"]').value;
+  if (val && parseFloat(val) > 0) {
+    document.getElementById('previewCard').style.display = 'block';
+    document.getElementById('prevAmount').textContent = '₹' + parseFloat(val).toFixed(2);
+    const label = cat + (sub ? ' / ' + sub : '');
+    document.getElementById('prevCat').textContent = label || 'Select a category';
+    if (dateV) {
+      const d = new Date(dateV + 'T00:00:00');
+      document.getElementById('prevDate').textContent =
+        d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+    }
+  } else {
+    document.getElementById('previewCard').style.display = 'none';
+  }
+}
+
+// Restore state if form was re-submitted with errors
+(function() {
+  const savedCat = document.getElementById('categorySelect').value;
+  const savedSub = "{{ form.get('subcategory', '') }}";
+  if (savedCat) {
+    onCategoryChange(savedCat);
+    if (savedSub) {
+      document.getElementById('subcategorySelect').value = savedSub;
+      onSubcategoryChange(savedSub);
+    }
+  }
+  const amt = document.querySelector('input[name="amount"]').value;
+  if (amt) updatePreview(amt);
+})();
+
+document.querySelector('input[name="date"]').addEventListener('change', () => {
+  updatePreview(document.querySelector('input[name="amount"]').value);
+});
+</script>
+{% endblock %}

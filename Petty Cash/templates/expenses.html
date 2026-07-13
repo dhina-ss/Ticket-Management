@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% block title %}Expenses — Petty Cash Manager{% endblock %}
+{% block page_title %}All Expenses{% endblock %}
+
+{% block content %}
+{% set now = today %}
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <form method="GET">
+    <div class="form-group">
+      <label>From Date</label>
+      <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
+    </div>
+    <div class="form-group">
+      <label>To Date</label>
+      <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <select name="category" class="form-control">
+        <option value="">All Categories</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select name="status" class="form-control">
+        <option value="">All Status</option>
+        <option value="pending"  {% if filters.status == 'pending'  %}selected{% endif %}>Pending</option>
+        <option value="approved" {% if filters.status == 'approved' %}selected{% endif %}>Approved</option>
+        <option value="rejected" {% if filters.status == 'rejected' %}selected{% endif %}>Rejected</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Filter</button>
+      <a href="{{ url_for('expenses') }}" class="btn btn-outline"><i class="fas fa-times"></i></a>
+    </div>
+  </form>
+</div>
+
+<!-- Table Card -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">
+      <i class="fas fa-receipt" style="color:var(--blue);margin-right:6px;"></i>
+      Expenses
+      <span style="font-size:12px;font-weight:500;color:var(--text-muted);margin-left:8px;">{{ expenses.total }} record{{ 's' if expenses.total != 1 }}</span>
+    </span>
+    <div style="display:flex;gap:8px;">
+      <a href="{{ url_for('add_expense') }}" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Add Expense</a>
+      {% if current_user.is_manager %}
+      <a href="{{ url_for('export_expenses', date_from=filters.date_from, date_to=filters.date_to) }}" class="btn btn-outline btn-sm">
+        <i class="fas fa-download"></i> Export CSV
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    {% if expenses.items %}
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Description</th>
+          {% if current_user.is_manager %}<th>Submitted By</th>{% endif %}
+          <th>Amount</th>
+          <th>Status</th>
+          <th style="text-align:center;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in expenses.items %}
+        <tr id="row-{{ e.id }}">
+          <td style="color:var(--text-muted);font-size:12px;">{{ e.id }}</td>
+          <td style="white-space:nowrap;">{{ e.date.strftime('%d %b %Y') }}</td>
+          <td>
+            <span class="cat-pill">
+              <i class="fas {{ CATEGORY_ICONS.get(e.category, 'fa-tag') }}" style="font-size:10px;"></i>
+              {{ e.category }}
+            </span>
+            {% if e.subcategory %}
+            <div style="font-size:11px;color:var(--text-muted);margin-top:3px;padding-left:2px;">
+              <i class="fas fa-angle-right"></i>
+              {{ e.subcategory }}{% if e.sub_remarks %}: {{ e.sub_remarks }}{% endif %}
+            </div>
+            {% endif %}
+          </td>
+          <td style="max-width:240px;">
+            <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ e.description }}">
+              {{ e.description }}
+            </div>
+            {% if e.manager_notes %}
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;"><i class="fas fa-comment-alt"></i> {{ e.manager_notes }}</div>
+            {% endif %}
+          </td>
+          {% if current_user.is_manager %}
+          <td>
+            <div style="font-size:13px;font-weight:500;">{{ e.submitter.full_name }}</div>
+            <div style="font-size:11px;color:var(--text-muted);">{{ e.submitter.department }}</div>
+          </td>
+          {% endif %}
+          <td class="amount-cell">₹{{ '%.2f'|format(e.amount) }}</td>
+          <td>
+            <span class="badge badge-{{ e.status }}">
+              {% if e.status == 'approved' %}<i class="fas fa-check"></i>
+              {% elif e.status == 'rejected' %}<i class="fas fa-times"></i>
+              {% else %}<i class="fas fa-clock"></i>{% endif %}
+              {{ e.status | title }}
+            </span>
+          </td>
+          <td style="text-align:center;white-space:nowrap;">
+            {% if current_user.is_manager and e.status == 'pending' %}
+            <button class="btn btn-success btn-xs" onclick="openAction('approve','{{ e.id }}','{{ e.description[:40] }}','{{ '%.2f'|format(e.amount) }}')">
+              <i class="fas fa-check"></i> Approve
+            </button>
+            <button class="btn btn-danger btn-xs" onclick="openAction('reject','{{ e.id }}','{{ e.description[:40] }}','{{ '%.2f'|format(e.amount) }}')" style="margin-left:4px;">
+              <i class="fas fa-times"></i> Reject
+            </button>
+            {% elif current_user.is_admin %}
+            <button class="btn btn-outline btn-xs" onclick="confirmDelete('{{ e.id }}')" title="Delete">
+              <i class="fas fa-trash" style="color:var(--red);"></i>
+            </button>
+            {% else %}
+            <span style="color:var(--text-muted);font-size:12px;">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state" style="padding:48px;">
+      <i class="fas fa-receipt"></i>
+      <p>No expenses found matching your filters.</p>
+      <a href="{{ url_for('add_expense') }}" class="btn btn-primary btn-sm" style="margin-top:12px;">
+        <i class="fas fa-plus"></i> Add First Expense
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Pagination -->
+  {% if expenses.pages > 1 %}
+  <div style="padding:16px 20px;border-top:1px solid var(--border);">
+    <div class="pagination">
+      <a href="{{ url_for('expenses', page=expenses.prev_num, **filters) }}"
+         class="page-link {% if not expenses.has_prev %}disabled{% endif %}">
+        <i class="fas fa-chevron-left"></i>
+      </a>
+      {% for p in expenses.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+          <a href="{{ url_for('expenses', page=p, **filters) }}"
+             class="page-link {% if p == expenses.page %}active{% endif %}">{{ p }}</a>
+        {% else %}
+          <span class="page-link" style="pointer-events:none;">…</span>
+        {% endif %}
+      {% endfor %}
+      <a href="{{ url_for('expenses', page=expenses.next_num, **filters) }}"
+         class="page-link {% if not expenses.has_next %}disabled{% endif %}">
+        <i class="fas fa-chevron-right"></i>
+      </a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Approve / Reject Modal -->
+<div class="modal-overlay" id="actionModal" onclick="closeModal(event)">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle"></div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;" id="modalDesc"></p>
+    <form id="actionForm" method="POST">
+      <div class="form-group">
+        <label class="form-label">Notes (optional)</label>
+        <textarea name="notes" class="form-control" rows="2" placeholder="Add a comment for the staff member…"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModalById()">Cancel</button>
+        <button type="submit" class="btn" id="modalSubmitBtn"></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="deleteModal" onclick="closeModal(event)">
+  <div class="modal-box">
+    <div class="modal-title" style="color:var(--red);"><i class="fas fa-exclamation-triangle"></i> Confirm Delete</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">This action cannot be undone. The expense record will be permanently deleted.</p>
+    <form id="deleteForm" method="POST">
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('deleteModal').classList.remove('show')">Cancel</button>
+        <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i> Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openAction(type, id, desc, amt) {
+  const modal = document.getElementById('actionModal');
+  const form  = document.getElementById('actionForm');
+  const title = document.getElementById('modalTitle');
+  const mdesc = document.getElementById('modalDesc');
+  const btn   = document.getElementById('modalSubmitBtn');
+  form.action = `/expenses/${id}/${type}`;
+  if (type === 'approve') {
+    title.innerHTML = '<i class="fas fa-check-circle" style="color:var(--green)"></i> Approve Expense';
+    btn.className = 'btn btn-success';
+    btn.innerHTML = '<i class="fas fa-check"></i> Approve';
+  } else {
+    title.innerHTML = '<i class="fas fa-times-circle" style="color:var(--red)"></i> Reject Expense';
+    btn.className = 'btn btn-danger';
+    btn.innerHTML = '<i class="fas fa-times"></i> Reject';
+  }
+  mdesc.textContent = `"${desc}" — ₹${amt}`;
+  modal.classList.add('show');
+}
+function confirmDelete(id) {
+  document.getElementById('deleteForm').action = `/expenses/${id}/delete`;
+  document.getElementById('deleteModal').classList.add('show');
+}
+function closeModal(e) {
+  if (e.target.classList.contains('modal-overlay')) {
+    document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show'));
+  }
+}
+function closeModalById() {
+  document.getElementById('actionModal').classList.remove('show');
+}
+</script>
+{% endblock %}

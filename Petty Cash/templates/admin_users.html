@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}User Management — Petty Cash Manager{% endblock %}
+{% block page_title %}User Management{% endblock %}
+
+{% block content %}
+{% set now = today %}
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start;">
+
+  <!-- Users Table -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">
+        <i class="fas fa-users" style="color:var(--blue);margin-right:6px;"></i>
+        System Users
+        <span style="font-size:12px;font-weight:400;color:var(--text-muted);margin-left:6px;">{{ users|length }} total</span>
+      </span>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Department</th>
+            <th>Last Login</th>
+            <th>Status</th>
+            <th style="text-align:center;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr style="{% if not u.is_active %}opacity:.55;{% endif %}">
+            <td>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div class="user-avatar" style="background:{% if u.role == 'admin' %}#8b5cf6{% elif u.role == 'manager' %}#3b82f6{% else %}#22c55e{% endif %};">
+                  {{ u.initials }}
+                </div>
+                <div>
+                  <div style="font-weight:600;font-size:13px;">{{ u.full_name }}</div>
+                  <div style="font-size:11px;color:var(--text-muted);">ID: {{ u.id }}</div>
+                </div>
+              </div>
+            </td>
+            <td style="font-family:monospace;font-size:13px;">{{ u.username }}</td>
+            <td><span class="badge badge-{{ u.role }}">{{ u.role | title }}</span></td>
+            <td style="font-size:13px;color:var(--text-muted);">{{ u.department or '—' }}</td>
+            <td style="font-size:12px;color:var(--text-muted);">
+              {% if u.last_login %}
+                {{ u.last_login.strftime('%d %b, %I:%M %p') }}
+              {% else %}
+                Never
+              {% endif %}
+            </td>
+            <td>
+              {% if u.is_active %}
+                <span class="badge badge-approved"><i class="fas fa-circle" style="font-size:7px;"></i> Active</span>
+              {% else %}
+                <span class="badge badge-rejected"><i class="fas fa-circle" style="font-size:7px;"></i> Inactive</span>
+              {% endif %}
+            </td>
+            <td style="text-align:center;white-space:nowrap;">
+              {% if u.id != current_user.id %}
+              <button class="btn btn-outline btn-xs"
+                onclick="openReset('{{ u.id }}','{{ u.full_name }}')"
+                title="Reset Password">
+                <i class="fas fa-key" style="color:var(--amber);"></i>
+              </button>
+              <form method="POST" action="{{ url_for('admin_toggle_user', uid=u.id) }}" style="display:inline;">
+                <button type="submit" class="btn btn-outline btn-xs"
+                  title="{% if u.is_active %}Deactivate{% else %}Activate{% endif %}"
+                  onclick="return confirm('{{ 'Deactivate' if u.is_active else 'Activate' }} {{ u.full_name }}?')">
+                  <i class="fas {% if u.is_active %}fa-user-slash{% else %}fa-user-check{% endif %}"
+                    style="color:{% if u.is_active %}var(--red){% else %}var(--green){% endif %};"></i>
+                </button>
+              </form>
+              {% else %}
+              <span style="font-size:11px;color:var(--text-muted);">(you)</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Add User Form -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-user-plus" style="color:var(--blue);margin-right:6px;"></i>Add New User</span>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('admin_add_user') }}">
+          <div class="form-group">
+            <label class="form-label">Full Name <span class="req">*</span></label>
+            <input type="text" name="full_name" class="form-control" placeholder="e.g. Ramesh Kumar" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Username <span class="req">*</span></label>
+            <input type="text" name="username" class="form-control" placeholder="e.g. ramesh.k" required
+              pattern="[a-zA-Z0-9._]+" title="Letters, numbers, dots and underscores only">
+            <div class="form-hint">Used for login. No spaces.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password <span class="req">*</span></label>
+            <input type="password" name="password" class="form-control" placeholder="Min. 4 characters" required minlength="4">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Role <span class="req">*</span></label>
+            <select name="role" class="form-control" required>
+              <option value="staff">Staff / Cashier</option>
+              <option value="manager">Manager</option>
+              <option value="admin">Administrator</option>
+            </select>
+            <div class="form-hint">
+              Staff: Add expenses only &nbsp;|&nbsp;
+              Manager: Approve + Reports &nbsp;|&nbsp;
+              Admin: Full access
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Department</label>
+            <input type="text" name="department" class="form-control" placeholder="e.g. Operations">
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:10px;">
+            <i class="fas fa-user-plus"></i> Create User
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Role Guide -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="fas fa-shield-alt" style="color:var(--blue);margin-right:6px;"></i>Role Permissions</span>
+      </div>
+      <div class="card-body" style="padding-top:12px;">
+        {% set roles = [
+          ('admin', 'Administrator', 'fa-user-shield', '#8b5cf6', [
+            'Full system access',
+            'Manage users & passwords',
+            'Delete any expense',
+            'View all reports',
+            'Approve / reject expenses',
+            'Close end-of-day',
+          ]),
+          ('manager', 'Manager', 'fa-user-tie', '#3b82f6', [
+            'Approve / reject expenses',
+            'View all staff expenses',
+            'Close end-of-day',
+            'Generate & export reports',
+            'Own expenses auto-approved',
+          ]),
+          ('staff', 'Staff / Cashier', 'fa-user', '#22c55e', [
+            'Add new expenses',
+            'View own expenses only',
+            'Expenses need manager approval',
+          ]),
+        ] %}
+        {% for role_id, role_name, icon, color, perms in roles %}
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <div style="width:28px;height:28px;border-radius:7px;background:{{ color }}20;display:flex;align-items:center;justify-content:center;">
+              <i class="fas {{ icon }}" style="color:{{ color }};font-size:12px;"></i>
+            </div>
+            <span style="font-weight:700;font-size:13px;">{{ role_name }}</span>
+          </div>
+          <ul style="list-style:none;padding:0;margin:0;">
+            {% for p in perms %}
+            <li style="font-size:12px;color:var(--text-muted);padding:2px 0 2px 18px;position:relative;">
+              <i class="fas fa-check" style="position:absolute;left:0;top:4px;color:{{ color }};font-size:10px;"></i>
+              {{ p }}
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% if not loop.last %}<div class="divider"></div>{% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div class="modal-overlay" id="resetModal" onclick="closeResetModal(event)">
+  <div class="modal-box">
+    <div class="modal-title"><i class="fas fa-key" style="color:var(--amber);"></i> Reset Password</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;" id="resetUserName"></p>
+    <form id="resetForm" method="POST">
+      <div class="form-group">
+        <label class="form-label">New Password <span class="req">*</span></label>
+        <input type="password" name="new_password" class="form-control" placeholder="Min. 4 characters" required minlength="4">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="document.getElementById('resetModal').classList.remove('show')">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Password</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openReset(uid, name) {
+  document.getElementById('resetForm').action = `/admin/users/${uid}/reset`;
+  document.getElementById('resetUserName').textContent = `Resetting password for: ${name}`;
+  document.getElementById('resetModal').classList.add('show');
+}
+function closeResetModal(e) {
+  if (e.target.classList.contains('modal-overlay'))
+    document.getElementById('resetModal').classList.remove('show');
+}
+</script>
+{% endblock %}

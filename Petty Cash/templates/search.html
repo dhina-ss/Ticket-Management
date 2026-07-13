@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Search — Petty Cash Manager{% endblock %}
+{% block page_title %}Search{% endblock %}
+
+{% block content %}
+<!-- Search Filters -->
+<div class="search-filters">
+  <form method="GET" action="{{ url_for('search') }}" id="searchForm">
+    <div class="form-group" style="flex:2;min-width:200px;">
+      <label>Keywords</label>
+      <div style="position:relative;">
+        <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;"></i>
+        <input type="text" name="q" class="form-control" style="padding-left:32px;"
+          placeholder="Description, category, amount…" value="{{ q }}" autofocus>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>From Date</label>
+      <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+    </div>
+    <div class="form-group">
+      <label>To Date</label>
+      <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <select name="category" id="srchCategory" class="form-control"
+              onchange="updateSearchSubcat(this.value)">
+        <option value="">All Categories</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}" {% if cat_filter == cat %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" id="srchSubcatGroup" style="display:none;">
+      <label>Sub-Category</label>
+      <select name="subcategory" id="srchSubcategory" class="form-control">
+        <option value="">All Sub-Categories</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Search</button>
+      {% if q or date_from or date_to or cat_filter or sub_filter %}
+      <a href="{{ url_for('search') }}" class="btn btn-outline"><i class="fas fa-times"></i></a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+{% if q or date_from or date_to or cat_filter or sub_filter %}
+
+<!-- Results Header -->
+<div class="search-header">
+  <div>
+    {% if q %}
+    <div class="search-query">
+      Results for <mark>"{{ q }}"</mark>
+    </div>
+    {% else %}
+    <div class="search-query">Filtered Results</div>
+    {% endif %}
+    <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+      {{ results|length }} record{{ 's' if results|length != 1 }}
+      {% if cat_filter %}&nbsp;·&nbsp; <span style="color:var(--blue);font-weight:600;">{{ cat_filter }}</span>{% endif %}
+      {% if sub_filter %}&nbsp;/ <span style="color:var(--blue);font-weight:600;">{{ sub_filter }}</span>{% endif %}
+      {% if results %}
+        &nbsp;·&nbsp; Total: <strong>₹{{ '%.2f'|format(total_amount) }}</strong>
+      {% endif %}
+    </div>
+  </div>
+  {% if results and current_user.is_manager %}
+  <a href="{{ url_for('export_expenses') }}?{{ 'date_from=' + date_from + '&date_to=' + date_to if date_from or date_to else '' }}" class="btn btn-outline btn-sm">
+    <i class="fas fa-download"></i> Export CSV
+  </a>
+  {% endif %}
+</div>
+
+{% if results %}
+
+<!-- Category summary chips -->
+{% set cat_totals = {} %}
+{% for e in results %}
+  {% if e.status != 'rejected' %}
+    {% set _ = cat_totals.update({e.category: cat_totals.get(e.category, 0) + e.amount}) %}
+  {% endif %}
+{% endfor %}
+<div style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:8px;">
+  {% for cat, amt in cat_totals.items()|sort(attribute='1', reverse=True) %}
+  <div style="display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;box-shadow:var(--shadow);">
+    <i class="fas {{ CATEGORY_ICONS.get(cat,'fa-tag') }}" style="color:var(--blue);font-size:11px;"></i>
+    <span style="font-weight:600;">{{ cat }}</span>
+    <span style="color:var(--text-muted);">₹{{ '%.0f'|format(amt) }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Results Table -->
+<div class="card">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Description</th>
+          {% if current_user.is_manager %}<th>Submitted By</th>{% endif %}
+          <th>Amount</th>
+          <th>Status</th>
+          {% if current_user.is_manager %}<th style="text-align:center;">Action</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in results %}
+        <tr>
+          <td style="white-space:nowrap;font-size:13px;">{{ e.date.strftime('%d %b %Y') }}</td>
+          <td>
+            <span class="cat-pill">
+              <i class="fas {{ CATEGORY_ICONS.get(e.category,'fa-tag') }}" style="font-size:10px;"></i>
+              {{ e.category }}
+            </span>
+            {% if e.subcategory %}
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+              <i class="fas fa-angle-right"></i> {{ e.subcategory }}{% if e.sub_remarks %}: {{ e.sub_remarks }}{% endif %}
+            </div>
+            {% endif %}
+          </td>
+          <td style="max-width:300px;">
+            {% if q %}
+              {% set desc = e.description %}
+              {% set ql = q.lower() %}
+              {% set dl = desc.lower() %}
+              {% if ql in dl %}
+                {% set idx = dl.find(ql) %}
+                {{ desc[:idx]|e }}<span class="highlight">{{ desc[idx:idx+q|length]|e }}</span>{{ desc[idx+q|length:]|e }}
+              {% else %}
+                <span title="{{ e.description }}">{{ e.description[:80] }}{% if e.description|length > 80 %}…{% endif %}</span>
+              {% endif %}
+            {% else %}
+              <span title="{{ e.description }}">{{ e.description[:80] }}{% if e.description|length > 80 %}…{% endif %}</span>
+            {% endif %}
+          </td>
+          {% if current_user.is_manager %}
+          <td style="font-size:12px;">{{ e.submitter.full_name }}</td>
+          {% endif %}
+          <td class="amount-cell">₹{{ '%.2f'|format(e.amount) }}</td>
+          <td>
+            <span class="badge badge-{{ e.status }}">
+              {% if e.status == 'approved' %}<i class="fas fa-check"></i>
+              {% elif e.status == 'rejected' %}<i class="fas fa-times"></i>
+              {% else %}<i class="fas fa-clock"></i>{% endif %}
+              {{ e.status|title }}
+            </span>
+          </td>
+          {% if current_user.is_manager %}
+          <td style="text-align:center;">
+            {% if e.status == 'pending' %}
+            <form method="POST" action="{{ url_for('approve_expense', eid=e.id) }}" style="display:inline;">
+              <button class="btn btn-success btn-xs"><i class="fas fa-check"></i></button>
+            </form>
+            <form method="POST" action="{{ url_for('reject_expense', eid=e.id) }}" style="display:inline;">
+              <button class="btn btn-danger btn-xs"><i class="fas fa-times"></i></button>
+            </form>
+            {% else %}
+            <span style="color:var(--text-muted);font-size:11px;">—</span>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="background:#f8fafc;">
+          <td colspan="{% if current_user.is_manager %}5{% else %}3{% endif %}" style="text-align:right;font-weight:700;padding-right:14px;font-size:13px;">
+            Total ({{ results|length }} entries)
+          </td>
+          <td class="amount-cell" style="font-weight:800;color:var(--blue);">₹{{ '%.2f'|format(total_amount) }}</td>
+          <td colspan="{% if current_user.is_manager %}2{% else %}1{% endif %}"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<div class="search-empty">
+  <i class="fas fa-search-minus"></i>
+  <div style="font-size:16px;font-weight:700;margin-bottom:8px;">No results found</div>
+  <p>Try different keywords, or broaden your date range and category filter.</p>
+  {% if q or cat_filter or sub_filter %}
+  <div style="margin-top:20px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+    <a href="{{ url_for('search', q=q, date_from='', date_to='') }}" class="btn btn-outline btn-sm">Clear date filters</a>
+    {% if q %}<a href="{{ url_for('search', q='', category=cat_filter, subcategory=sub_filter) }}" class="btn btn-outline btn-sm">Clear keyword</a>{% endif %}
+    {% if sub_filter %}<a href="{{ url_for('search', q=q, date_from=date_from, date_to=date_to, category=cat_filter) }}" class="btn btn-outline btn-sm">Clear sub-category</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<!-- Initial state — no search yet -->
+<div style="max-width:560px;margin:0 auto;text-align:center;padding:48px 24px;">
+  <div style="width:80px;height:80px;border-radius:20px;background:#eff6ff;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:32px;color:var(--blue);">
+    <i class="fas fa-search"></i>
+  </div>
+  <h2 style="font-size:20px;font-weight:800;margin-bottom:8px;">Search Expenses</h2>
+  <p style="color:var(--text-muted);font-size:14px;margin-bottom:28px;">
+    Search across all {{ total_exp_count }} expense records by description, category, amount, or date range.
+  </p>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+    {% for cat in categories %}
+    <a href="{{ url_for('search', category=cat) }}" class="btn btn-outline btn-sm">
+      <i class="fas {{ CATEGORY_ICONS.get(cat,'fa-tag') }}"></i> {{ cat }}
+    </a>
+    {% endfor %}
+  </div>
+  <div style="margin-top:24px;display:flex;gap:8px;justify-content:center;">
+    <a href="{{ url_for('search', date_from=today.replace(day=1).strftime('%Y-%m-%d'), date_to=today.strftime('%Y-%m-%d')) }}" class="btn btn-primary btn-sm">
+      <i class="fas fa-calendar-alt"></i> This Month
+    </a>
+    <a href="{{ url_for('search', q='travel') }}" class="btn btn-outline btn-sm">
+      <i class="fas fa-car"></i> Travel
+    </a>
+    <a href="{{ url_for('search', q='bus parcel') }}" class="btn btn-outline btn-sm">
+      <i class="fas fa-bus"></i> Bus Parcel
+    </a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SUBCATEGORIES = {{ SUBCATEGORIES | tojson }};
+const savedCat = "{{ cat_filter }}";
+const savedSub = "{{ sub_filter }}";
+
+function updateSearchSubcat(cat) {
+  const grp  = document.getElementById('srchSubcatGroup');
+  const sel  = document.getElementById('srchSubcategory');
+  if (SUBCATEGORIES[cat]) {
+    sel.innerHTML = '<option value="">All Sub-Categories</option>';
+    SUBCATEGORIES[cat].forEach(s => {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = s;
+      if (s === savedSub) o.selected = true;
+      sel.appendChild(o);
+    });
+    grp.style.display = 'block';
+  } else {
+    grp.style.display = 'none';
+    sel.innerHTML = '<option value="">All Sub-Categories</option>';
+  }
+}
+
+// Restore sub-category dropdown on page load (after search with both filters)
+if (savedCat) updateSearchSubcat(savedCat);
+</script>
+{% endblock %}

@@ -1,0 +1,412 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-3 mt-3">
+  <div class="col">
+    <h4 class="fw-bold mb-0 dash-heading"><i class="bi bi-speedometer2 me-2" style="color:var(--cm-kpi-primary)"></i>Dashboard</h4>
+    <small class="text-muted">{{ today.strftime('%A, %d %B %Y') }}</small>
+  </div>
+  <div class="col-auto">
+    <a href="{{ url_for('couriers.add_courier') }}" class="btn btn-dark btn-sm">
+      <i class="bi bi-plus-circle me-1"></i>New Entry
+    </a>
+  </div>
+</div>
+
+<!-- Row 1: Today / Week / Month / Year -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3">
+          <div class="kpi-icon bg-primary-subtle" style="color:var(--cm-kpi-primary)"><i class="bi bi-calendar-check-fill"></i></div>
+          <div>
+            <div class="kpi-value" style="color:var(--cm-kpi-primary)">{{ today_count }}</div>
+            <div class="kpi-label">Today</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3">
+          <div class="kpi-icon bg-warning-subtle" style="color:var(--cm-kpi-warning)"><i class="bi bi-calendar-week-fill"></i></div>
+          <div>
+            <div class="kpi-value" style="color:var(--cm-kpi-warning)">{{ week_count }}</div>
+            <div class="kpi-label">This Week</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3">
+          <div class="kpi-icon bg-info-subtle" style="color:var(--cm-kpi-info)"><i class="bi bi-calendar-month-fill"></i></div>
+          <div>
+            <div class="kpi-value" style="color:var(--cm-kpi-info)">{{ month_count }}</div>
+            <div class="kpi-label">This Month</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3">
+          <div class="kpi-icon bg-success-subtle" style="color:var(--cm-kpi-success)"><i class="bi bi-calendar-range-fill"></i></div>
+          <div>
+            <div class="kpi-value" style="color:var(--cm-kpi-success)">{{ year_count }}</div>
+            <div class="kpi-label">This Year ({{ today.year }})</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 2: Total + Cost / Expense -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3">
+          <div class="kpi-icon bg-secondary-subtle" style="color:var(--cm-kpi-gray)"><i class="bi bi-box-seam-fill"></i></div>
+          <div>
+            <div class="kpi-value" style="color:var(--cm-kpi-gray)">{{ total }}</div>
+            <div class="kpi-label">Total (All Time)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% if current_user.can_access_expenses() %}
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm h-100" style="border-left: 3px solid var(--cm-kpi-primary) !important">
+      <div class="card-body">
+        <div class="kpi-label text-muted">Month Courier Cost</div>
+        <div class="kpi-value" style="color:var(--cm-kpi-primary)">₹{{ '%.0f'|format(month_cost) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm h-100" style="border-left: 3px solid var(--cm-kpi-danger) !important">
+      <div class="card-body">
+        <div class="kpi-label text-muted">Month Expenses</div>
+        <div class="kpi-value" style="color:var(--cm-kpi-danger)">₹{{ '%.0f'|format(month_expense) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm h-100" style="border-left: 3px solid var(--cm-kpi-success) !important">
+      <div class="card-body">
+        <div class="kpi-label text-muted">Year Courier Cost ({{ today.year }})</div>
+        <div class="kpi-value" style="color:var(--cm-kpi-success)">₹{{ '%.0f'|format(year_cost) }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Quarterly breakdown for this year -->
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-pie-chart me-2" style="color:var(--cm-kpi-primary)"></i>{{ today.year }} — Quarterly Breakdown</span>
+    <a href="{{ url_for('reports.period', mode='yearly', year=today.year) }}" class="btn btn-sm btn-outline-secondary">Full Year Report</a>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      {% set q_colors = ['primary','success','warning','danger'] %}
+      {% set q_labels = ['Q1 Jan–Mar','Q2 Apr–Jun','Q3 Jul–Sep','Q4 Oct–Dec'] %}
+      {% set q_links  = [
+        url_for('reports.period', mode='quarterly', year=today.year, q=1),
+        url_for('reports.period', mode='quarterly', year=today.year, q=2),
+        url_for('reports.period', mode='quarterly', year=today.year, q=3),
+        url_for('reports.period', mode='quarterly', year=today.year, q=4),
+      ] %}
+      {% for i in range(4) %}
+      <div class="col-6 col-md-3">
+        <a href="{{ q_links[i] }}" class="text-decoration-none">
+          <div class="q-summary-card h-100 p-3" style="border-left: 3px solid var(--cm-kpi-{{ q_colors[i] }}) !important">
+            <div class="small text-muted mb-1">{{ q_labels[i] }}</div>
+            <div class="fs-3 fw-bold" style="color:var(--cm-kpi-{{ q_colors[i] }})">{{ q_counts[i] }}</div>
+            <div class="small text-muted">couriers</div>
+          </div>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-bar-chart me-2" style="color:var(--cm-kpi-primary)"></i>Courier Trend</span>
+        <div class="btn-group btn-group-sm" id="trendToggle">
+          <button class="btn btn-outline-secondary active" onclick="loadTrend('daily',event)">14 Days</button>
+          <button class="btn btn-outline-secondary" onclick="loadTrend('monthly',event)">12 Months</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <canvas id="trendChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header">
+        <span class="fw-semibold"><i class="bi bi-pie-chart me-2" style="color:var(--cm-kpi-primary)"></i>By Courier (Month)</span>
+      </div>
+      <div class="card-body d-flex align-items-center justify-content-center">
+        {% if courier_breakdown %}
+        <canvas id="courierPieChart" height="220"></canvas>
+        {% else %}
+        <div class="text-muted text-center"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No data this month</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header">
+        <span class="fw-semibold"><i class="bi bi-diagram-3 me-2" style="color:var(--cm-kpi-primary)"></i>Department Breakdown (Month)</span>
+      </div>
+      <div class="card-body">
+        <canvas id="deptChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+  {% if current_user.is_superadmin() %}
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header">
+        <span class="fw-semibold"><i class="bi bi-building me-2" style="color:var(--cm-kpi-primary)"></i>Branch Comparison (Month)</span>
+      </div>
+      <div class="card-body">
+        <canvas id="branchChart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Recent Couriers -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-clock-history me-2" style="color:var(--cm-kpi-primary)"></i>Recent Entries</span>
+    <a href="{{ url_for('couriers.list_couriers') }}" class="btn btn-sm btn-outline-secondary">View All</a>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-sm mb-0 align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>Date</th><th>Type</th><th>Sender</th><th>Dept</th>
+            <th>Receiver</th><th>Destination</th><th>Courier</th><th>AWB</th>
+            {% if current_user.has_perm_view_cost() %}<th>Cost</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in recent %}
+          <tr onclick="location.href='{{ url_for('couriers.view_courier', courier_id=c.id) }}'">
+            <td><small>{{ c.date.strftime('%d %b') }}</small></td>
+            <td>
+              <span class="badge rounded-pill {% if c.transaction_type == 'Dispatch' %}badge-dispatch{% else %}badge-pickup{% endif %}">
+                {{ c.transaction_type or 'Dispatch' }}
+              </span>
+            </td>
+            <td><small>{{ c.sender or '–' }}</small></td>
+            <td><small><span class="badge badge-dept">{{ c.department or '–' }}</span></small></td>
+            <td><small>{{ c.receiver or '–' }}</small></td>
+            <td><small class="fw-semibold">{{ c.destination or '–' }}</small></td>
+            <td><small>{{ c.courier_name or '–' }}</small></td>
+            <td><small class="font-monospace text-muted">{{ c.awb_no or '–' }}</small></td>
+            {% if current_user.has_perm_view_cost() %}
+            <td><small style="color:var(--cm-kpi-success)">{% if c.courier_cost %}₹{{ '%.0f'|format(c.courier_cost) }}{% else %}–{% endif %}</small></td>
+            {% endif %}
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="text-center text-muted py-4">No entries yet</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PIE_LABELS = {{ courier_breakdown | map(attribute=0) | list | tojson }};
+const PIE_VALS   = {{ courier_breakdown | map(attribute=1) | list | tojson }};
+
+/* Vibrant palette — works on both dark and light backgrounds */
+const PALETTE = ['#4e8ef7','#2db87a','#f5a623','#e05c5c','#38bdf8','#a78bfa','#fb923c','#2dd4bf'];
+
+/* Read chart colours from CSS variables (theme-aware) */
+function chColors() {
+  const s = getComputedStyle(document.documentElement);
+  return {
+    grid:   s.getPropertyValue('--ch-grid').trim(),
+    tick:   s.getPropertyValue('--ch-tick').trim(),
+    label:  s.getPropertyValue('--ch-label').trim(),
+    border: s.getPropertyValue('--ch-border').trim(),
+    legend: s.getPropertyValue('--ch-legend').trim(),
+  };
+}
+
+function applyChartDefaults() {
+  const c = chColors();
+  Chart.defaults.color = c.legend;
+  Chart.defaults.borderColor = c.border;
+}
+
+applyChartDefaults();
+
+/* ── Trend chart ─────────────────────────────────────────── */
+let trendChart = null;
+let lastTrendType = 'daily';
+
+function loadTrend(type, evt) {
+  lastTrendType = type;
+  const url = type === 'daily' ? '/api/chart/daily' : '/api/chart/monthly';
+  fetch(url).then(r => r.json()).then(data => {
+    const c   = chColors();
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    if (trendChart) trendChart.destroy();
+    trendChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: data.labels,
+        datasets: [
+          {
+            label: 'Couriers', data: data.counts,
+            backgroundColor: 'rgba(78,142,247,0.55)', borderColor: '#4e8ef7',
+            borderRadius: 5, yAxisID: 'y'
+          },
+          {
+            label: 'Cost (₹)', data: data.costs,
+            type: 'line', borderColor: '#e05c5c', backgroundColor: 'rgba(224,92,92,0.08)',
+            tension: 0.4, fill: true, yAxisID: 'y1', pointRadius: 3, pointBackgroundColor: '#e05c5c'
+          }
+        ]
+      },
+      options: {
+        responsive: true, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'top', labels: { color: c.legend, boxWidth: 14 } } },
+        scales: {
+          y:  { beginAtZero: true, grid: { color: c.grid }, ticks: { color: c.tick },
+                title: { display: true, text: 'Count', color: c.label } },
+          y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false },
+                ticks: { color: c.tick }, title: { display: true, text: 'Cost ₹', color: c.label } }
+        }
+      }
+    });
+  });
+  document.querySelectorAll('#trendToggle .btn').forEach(b => b.classList.remove('active'));
+  if (evt) evt.target.classList.add('active');
+}
+
+/* ── Courier pie chart ───────────────────────────────────── */
+let courierPie = null;
+function buildCourierPie() {
+  const el = document.getElementById('courierPieChart');
+  if (!el || !PIE_LABELS.length) return;
+  const c = chColors();
+  if (courierPie) courierPie.destroy();
+  courierPie = new Chart(el.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: PIE_LABELS,
+      datasets: [{ data: PIE_VALS, backgroundColor: PALETTE, borderWidth: 2, borderColor: 'transparent' }]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom', labels: { color: c.legend, boxWidth: 12, padding: 8 } } },
+      cutout: '62%'
+    }
+  });
+}
+
+/* ── Dept bar chart ──────────────────────────────────────── */
+let deptChart = null;
+function buildDeptChart(data) {
+  const c = chColors();
+  if (deptChart) deptChart.destroy();
+  deptChart = new Chart(document.getElementById('deptChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: data.labels,
+      datasets: [{ label: 'Couriers', data: data.values, backgroundColor: PALETTE, borderRadius: 5, borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: c.grid }, ticks: { color: c.tick } },
+        y: { beginAtZero: true, grid: { color: c.grid }, ticks: { color: c.tick } }
+      }
+    }
+  });
+}
+
+/* ── Branch comparison chart ─────────────────────────────── */
+let branchChart = null;
+function buildBranchChart(data) {
+  const el = document.getElementById('branchChart');
+  if (!el) return;
+  const c = chColors();
+  if (branchChart) branchChart.destroy();
+  branchChart = new Chart(el.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: data.labels,
+      datasets: [{ label: 'Couriers', data: data.counts, backgroundColor: PALETTE, borderRadius: 5, borderWidth: 0 }]
+    },
+    options: {
+      responsive: true, indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, grid: { color: c.grid }, ticks: { color: c.tick } },
+        y: { grid: { color: c.grid }, ticks: { color: c.tick } }
+      }
+    }
+  });
+}
+
+/* Cached API data for re-draw on theme switch */
+let deptData = null, branchData = null;
+
+fetch('/api/chart/department').then(r => r.json()).then(data => {
+  deptData = data; buildDeptChart(data);
+});
+
+{% if current_user.is_superadmin() %}
+fetch('/api/chart/branch-comparison').then(r => r.json()).then(data => {
+  branchData = data; buildBranchChart(data);
+});
+{% endif %}
+
+buildCourierPie();
+loadTrend('daily', null);
+
+/* Re-draw all charts when theme changes */
+document.addEventListener('themechange', function() {
+  applyChartDefaults();
+  loadTrend(lastTrendType, null);
+  buildCourierPie();
+  if (deptData)   buildDeptChart(deptData);
+  if (branchData) buildBranchChart(branchData);
+});
+</script>
+{% endblock %}

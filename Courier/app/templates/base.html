@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Courier Management{% endblock %} – CCCD &amp; DST</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<!-- Prevent flash of wrong theme — runs before CSS paints -->
+<script>(function(){var t=localStorage.getItem('cm-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+</head>
+<body>
+
+<!-- Top Navbar — BLACK -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm sticky-top">
+  <div class="container-fluid px-3">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('main.dashboard') }}">
+      <img src="{{ url_for('static', filename='img/logo_cccd.svg') }}" height="36" alt="CCCD" class="rounded">
+      <img src="{{ url_for('static', filename='img/logo_dst.svg') }}" height="36" alt="DST" class="rounded">
+      <span class="fw-bold fs-6 text-white d-none d-md-inline">Courier Register</span>
+    </a>
+    <div class="d-flex align-items-center gap-2 ms-auto ms-lg-0 order-lg-last">
+      <button id="themeToggle" onclick="toggleTheme()" title="Switch to Light mode">
+        <i class="bi bi-sun-fill" id="themeIcon"></i>
+      </button>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+    </div>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint and 'dashboard' in request.endpoint %}active{% endif %}"
+             href="{{ url_for('main.dashboard') }}">
+            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.blueprint == 'couriers' %}active{% endif %}"
+             href="{{ url_for('couriers.list_couriers') }}">
+            <i class="bi bi-box-seam me-1"></i>Couriers
+          </a>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle {% if request.blueprint == 'reports' %}active{% endif %}"
+             href="#" data-bs-toggle="dropdown">
+            <i class="bi bi-bar-chart-line me-1"></i>Reports
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{{ url_for('reports.daily') }}"><i class="bi bi-calendar-day me-2"></i>Daily</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('reports.weekly') }}"><i class="bi bi-calendar-week me-2"></i>Weekly</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('reports.monthly') }}"><i class="bi bi-calendar-month me-2"></i>Monthly</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item fw-semibold" href="{{ url_for('reports.period', mode='yearly') }}"><i class="bi bi-calendar-range me-2"></i>Yearly</a></li>
+            <li><a class="dropdown-item fw-semibold" href="{{ url_for('reports.period', mode='quarterly') }}"><i class="bi bi-pie-chart me-2"></i>Quarterly</a></li>
+            <li><a class="dropdown-item fw-semibold" href="{{ url_for('reports.period', mode='halfyearly') }}"><i class="bi bi-calendar2-half me-2"></i>Half-Yearly</a></li>
+            <li><a class="dropdown-item fw-semibold" href="{{ url_for('reports.period', mode='range') }}"><i class="bi bi-calendar3 me-2"></i>Date Range</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('reports.export_csv') }}"><i class="bi bi-download me-2"></i>Export CSV</a></li>
+          </ul>
+        </li>
+        {% if current_user.can_access_expenses() %}
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'admin.expenses' %}active{% endif %}"
+             href="{{ url_for('admin.expenses') }}">
+            <i class="bi bi-cash-stack me-1"></i>Expenses
+          </a>
+        </li>
+        {% endif %}
+        {% if current_user.can_manage_users() %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle {% if request.blueprint == 'admin' %}active{% endif %}"
+             href="#" data-bs-toggle="dropdown">
+            <i class="bi bi-gear me-1"></i>Admin
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{{ url_for('admin.users') }}"><i class="bi bi-people me-2"></i>Users</a></li>
+            {% if current_user.is_superadmin() %}
+            <li><a class="dropdown-item" href="{{ url_for('admin.branches') }}"><i class="bi bi-building me-2"></i>Branches</a></li>
+            {% endif %}
+            <li><hr class="dropdown-divider"></li>
+            <li class="dropdown-header small text-uppercase text-muted">Lookup Lists</li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.lookups', category='department') }}"><i class="bi bi-tags me-2"></i>Departments</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.lookups', category='supplier_type') }}"><i class="bi bi-building-check me-2"></i>Supplier / Buyer Types</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.lookups', category='package_type') }}"><i class="bi bi-box me-2"></i>Package Types</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.lookups', category='courier_name') }}"><i class="bi bi-truck me-2"></i>Courier Names</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.lookups', category='budget_status') }}"><i class="bi bi-currency-rupee me-2"></i>Budget Status</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.lookups', category='payment_mode') }}"><i class="bi bi-credit-card me-2"></i>Payment Modes</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.lookups', category='transaction_type') }}"><i class="bi bi-arrow-left-right me-2"></i>Transaction Types</a></li>
+          </ul>
+        </li>
+        {% endif %}
+      </ul>
+      <ul class="navbar-nav ms-auto align-items-center gap-1">
+        <li class="nav-item">
+          <span class="badge bg-white text-dark rounded-pill px-3 py-2">
+            <i class="bi bi-person-circle me-1"></i>{{ current_user.name }}
+            <span class="ms-1 text-muted">[{{ current_user.role }}]</span>
+          </span>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link text-white" href="#" data-bs-toggle="dropdown">
+            <i class="bi bi-three-dots-vertical"></i>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{{ url_for('auth.change_password') }}"><i class="bi bi-key me-2"></i>Change Password</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Flash messages -->
+<div class="container-fluid px-4 pt-3">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+      <i class="bi bi-{% if category == 'success' %}check-circle{% elif category == 'danger' %}x-circle{% elif category == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %} me-2"></i>
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  {% endif %}
+  {% endwith %}
+</div>
+
+<!-- Page content -->
+<div class="container-fluid px-4 pb-5">
+  {% block content %}{% endblock %}
+</div>
+
+<!-- Footer -->
+<footer class="footer-bar text-center text-muted small py-2 border-top bg-white">
+  &copy; 2026 CCCD &amp; DST – Courier Management System
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+
+{% if current_user.is_authenticated %}
+<!-- Session timeout modal -->
+<div class="modal fade" id="timeoutModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold">
+          <i class="bi bi-clock-history text-warning me-2"></i>Session Expiring
+        </h6>
+      </div>
+      <div class="modal-body text-center py-3">
+        <div class="fs-1 fw-bold text-warning mb-1" id="timeoutCountdown">60</div>
+        <p class="text-muted small mb-0">You'll be logged out in <strong id="timeoutSecs">60</strong> seconds due to inactivity.</p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button class="btn btn-dark btn-sm px-4" onclick="stayLoggedIn()">
+          <i class="bi bi-check-circle me-1"></i>Stay Logged In
+        </button>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger btn-sm px-3">
+          <i class="bi bi-box-arrow-right me-1"></i>Logout Now
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const IDLE_MS     = 5 * 60 * 1000;   // 5 minutes total
+  const WARN_MS     = 60 * 1000;        // show warning with 60 s remaining
+  const LOGOUT_URL  = "{{ url_for('auth.logout') }}";
+  const PING_URL    = "/api/ping";
+
+  let lastActive  = Date.now();
+  let warnShown   = false;
+  let countdownId = null;
+  let modal       = null;
+
+  // Reset on any user activity
+  const resetTimer = () => { lastActive = Date.now(); };
+  ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(ev =>
+    document.addEventListener(ev, resetTimer, { passive: true })
+  );
+
+  // Main tick — runs every second
+  setInterval(() => {
+    const idle = Date.now() - lastActive;
+
+    if (idle >= IDLE_MS) {
+      // Time's up — redirect to logout
+      window.location.href = LOGOUT_URL;
+      return;
+    }
+
+    if (idle >= IDLE_MS - WARN_MS) {
+      // Inside warning window
+      if (!warnShown) {
+        warnShown = true;
+        modal = modal || new bootstrap.Modal(document.getElementById('timeoutModal'));
+        modal.show();
+        startCountdown();
+      }
+    } else {
+      // Still active — hide modal if it was showing
+      if (warnShown) {
+        warnShown = false;
+        if (modal) modal.hide();
+        clearInterval(countdownId);
+      }
+    }
+  }, 1000);
+
+  function startCountdown() {
+    clearInterval(countdownId);
+    countdownId = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((IDLE_MS - (Date.now() - lastActive)) / 1000));
+      document.getElementById('timeoutCountdown').textContent = remaining;
+      document.getElementById('timeoutSecs').textContent = remaining;
+      if (remaining <= 0) {
+        clearInterval(countdownId);
+        window.location.href = LOGOUT_URL;
+      }
+    }, 500);
+  }
+
+  window.stayLoggedIn = function () {
+    resetTimer();
+    warnShown = false;
+    clearInterval(countdownId);
+    if (modal) modal.hide();
+    // Also tell the server to refresh the session
+    fetch(PING_URL).catch(() => {});
+  };
+})();
+</script>
+{% endif %}
+</body>
+</html>

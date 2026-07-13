@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if branch else 'Add' }} Branch{% endblock %}
+{% block content %}
+<div class="row align-items-center mb-3 mt-3">
+  <div class="col">
+    <h4 class="fw-bold mb-0"><i class="bi bi-building me-2 text-primary"></i>{{ 'Edit' if branch else 'Add' }} Branch</h4>
+  </div>
+  <div class="col-auto">
+    <a href="{{ url_for('admin.branches') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back</a>
+  </div>
+</div>
+<div class="card border-0 shadow-sm" style="max-width:500px;">
+  <div class="card-body p-4">
+    <form method="POST">
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Branch Name <span class="text-danger">*</span></label>
+        <input type="text" name="name" class="form-control" required
+               value="{{ branch.name if branch else '' }}" placeholder="e.g. CCCD Head Office">
+      </div>
+      {% if not branch %}
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Branch Code <span class="text-danger">*</span></label>
+        <input type="text" name="code" class="form-control text-uppercase" required
+               placeholder="e.g. CCCD-HO" maxlength="20">
+        <div class="form-text">Unique short code, uppercase. Cannot be changed later.</div>
+      </div>
+      {% endif %}
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Location / City</label>
+        <input type="text" name="location" class="form-control"
+               value="{{ branch.location if branch else '' }}" placeholder="e.g. Coimbatore">
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Company</label>
+        <select name="company" class="form-select">
+          <option value="CCCD" {% if not branch or branch.company == 'CCCD' %}selected{% endif %}>CCCD (Doctor Towels)</option>
+          <option value="DST" {% if branch and branch.company == 'DST' %}selected{% endif %}>DST (Cotton Concepts)</option>
+          <option value="Both" {% if branch and branch.company == 'Both' %}selected{% endif %}>Both</option>
+        </select>
+      </div>
+      {% if branch %}
+      <div class="mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="is_active" id="isActive"
+                 {% if branch.is_active %}checked{% endif %}>
+          <label class="form-check-label" for="isActive">Active</label>
+        </div>
+      </div>
+      {% endif %}
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>{{ 'Update' if branch else 'Create' }} Branch</button>
+        <a href="{{ url_for('admin.branches') }}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

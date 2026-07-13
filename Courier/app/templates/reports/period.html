@@ -1,0 +1,246 @@
+{% extends 'base.html' %}
+{% block title %}{{ period_label }} Report{% endblock %}
+{% block content %}
+<div class="row align-items-center mb-3 mt-3">
+  <div class="col">
+    <h4 class="fw-bold mb-0"><i class="bi bi-calendar-range me-2 text-primary"></i>Period Report</h4>
+    <div class="text-muted small">{{ period_label }}</div>
+  </div>
+  <div class="col-auto d-flex gap-2">
+    {% if nav_prev %}
+    <a href="{{ nav_prev }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i> Prev</a>
+    {% endif %}
+    {% if nav_next %}
+    <a href="{{ nav_next }}" class="btn btn-sm btn-outline-secondary">Next <i class="bi bi-chevron-right"></i></a>
+    {% endif %}
+    <a href="{{ url_for('reports.export_csv', from_date=start.isoformat(), to_date=end.isoformat()) }}"
+       class="btn btn-sm btn-outline-dark"><i class="bi bi-download me-1"></i>CSV</a>
+  </div>
+</div>
+
+<!-- Period selector tabs -->
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <!-- Mode pills -->
+      <div class="btn-group btn-group-sm me-3">
+        {% for m, lbl in [('yearly','Yearly'),('quarterly','Quarterly'),('halfyearly','Half-Yearly'),('range','Date Range')] %}
+        <a href="{{ url_for('reports.period', mode=m) }}"
+           class="btn btn-{{ 'dark' if mode == m else 'outline-secondary' }}">{{ lbl }}</a>
+        {% endfor %}
+      </div>
+
+      <form method="GET" action="{{ url_for('reports.period') }}" class="d-flex gap-2 align-items-center flex-wrap">
+        <input type="hidden" name="mode" value="{{ mode }}">
+
+        {% if mode == 'yearly' %}
+          <select name="year" class="form-select form-select-sm" style="width:auto;">
+            {% for y in range(today.year, today.year - 5, -1) %}
+            <option value="{{ y }}" {% if y == sel_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+
+        {% elif mode == 'quarterly' %}
+          <select name="year" class="form-select form-select-sm" style="width:auto;">
+            {% for y in range(today.year, today.year - 5, -1) %}
+            <option value="{{ y }}" {% if y == sel_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+          <select name="q" class="form-select form-select-sm" style="width:auto;">
+            {% for qi in [1,2,3,4] %}
+            <option value="{{ qi }}" {% if qi == sel_q %}selected{% endif %}>Q{{ qi }}</option>
+            {% endfor %}
+          </select>
+
+        {% elif mode == 'halfyearly' %}
+          <select name="year" class="form-select form-select-sm" style="width:auto;">
+            {% for y in range(today.year, today.year - 5, -1) %}
+            <option value="{{ y }}" {% if y == sel_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+          <select name="h" class="form-select form-select-sm" style="width:auto;">
+            <option value="1" {% if sel_h == 1 %}selected{% endif %}>H1 (Jan–Jun)</option>
+            <option value="2" {% if sel_h == 2 %}selected{% endif %}>H2 (Jul–Dec)</option>
+          </select>
+
+        {% else %}
+          <input type="date" name="from_date" class="form-control form-control-sm" value="{{ sel_from }}" style="width:auto;">
+          <span class="text-muted">to</span>
+          <input type="date" name="to_date"   class="form-control form-control-sm" value="{{ sel_to }}"   style="width:auto;">
+        {% endif %}
+
+        <button class="btn btn-dark btn-sm"><i class="bi bi-search me-1"></i>Go</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Total Couriers</div>
+        <div class="fs-2 fw-bold text-primary">{{ total_count }}</div>
+        <div class="small text-muted">{{ start.strftime('%d %b') }} – {{ end.strftime('%d %b %Y') }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Courier Cost</div>
+        <div class="fs-2 fw-bold text-success">₹{{ '%.0f'|format(total_cost) }}</div>
+      </div>
+    </div>
+  </div>
+  {% if current_user.can_access_expenses() %}
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Expenses</div>
+        <div class="fs-2 fw-bold text-danger">₹{{ '%.0f'|format(expense_total) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Net (Cost + Exp)</div>
+        <div class="fs-2 fw-bold text-dark">₹{{ '%.0f'|format(total_cost + expense_total) }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Monthly trend chart -->
+{% if month_labels|length > 1 %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h6 class="fw-semibold mb-3"><i class="bi bi-bar-chart me-2"></i>Monthly Trend</h6>
+    <canvas id="periodChart" height="90"></canvas>
+  </div>
+</div>
+{% endif %}
+
+<!-- Breakdown charts -->
+<div class="row g-3 mb-3">
+  {% if by_courier %}
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="fw-semibold mb-3">By Courier Company</h6>
+        <canvas id="courierPie" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if by_dept %}
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h6 class="fw-semibold mb-3">By Department</h6>
+        <canvas id="deptPie" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Detailed table (collapsed by default for large datasets) -->
+{% if couriers %}
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Courier Entries ({{ couriers|length }})</span>
+    <button class="btn btn-sm btn-outline-secondary" type="button"
+            data-bs-toggle="collapse" data-bs-target="#entryTable">
+      <i class="bi bi-chevron-down"></i> Toggle
+    </button>
+  </div>
+  <div class="collapse {% if couriers|length <= 50 %}show{% endif %}" id="entryTable">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>Date</th><th>Type</th><th>Sender</th><th>Dept</th>
+            <th>Receiver</th><th>Destination</th>
+            {% if current_user.has_perm_view_cost() %}<th>Cost</th>{% endif %}
+            <th>Courier</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in couriers %}
+          <tr>
+            <td class="text-nowrap">{{ c.date.strftime('%d %b %y') }}</td>
+            <td><span class="badge bg-{{ 'primary' if c.transaction_type == 'Dispatch' else 'warning text-dark' }} bg-opacity-75">
+              {{ c.transaction_type[:4] }}</span></td>
+            <td>{{ c.sender or '—' }}</td>
+            <td><span class="badge bg-light text-dark border">{{ c.department or '—' }}</span></td>
+            <td>{{ c.receiver or '—' }}</td>
+            <td class="fw-semibold">{{ c.destination or '—' }}</td>
+            {% if current_user.has_perm_view_cost() %}
+            <td>₹{{ '%.0f'|format(c.courier_cost or 0) }}</td>
+            {% endif %}
+            <td>{{ c.courier_name or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>No courier entries for this period.</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const PALETTE = ['#0d6efd','#198754','#dc3545','#ffc107','#0dcaf0','#6f42c1','#fd7e14','#20c997'];
+
+{% if month_labels|length > 1 %}
+new Chart(document.getElementById('periodChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ month_labels | tojson }},
+    datasets: [
+      { label: 'Couriers', data: {{ month_counts | tojson }}, backgroundColor: '#0d6efd88', yAxisID: 'y' },
+      { label: 'Cost (₹)', data: {{ month_costs | tojson }}, type: 'line',
+        borderColor: '#dc3545', backgroundColor: 'transparent', tension: 0.3, yAxisID: 'y2' }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: {
+      y:  { beginAtZero: true, title: { display: true, text: 'Count' } },
+      y2: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false },
+            title: { display: true, text: 'Cost ₹' } }
+    },
+    plugins: { legend: { position: 'top' } }
+  }
+});
+{% endif %}
+
+{% if by_courier %}
+new Chart(document.getElementById('courierPie'), {
+  type: 'doughnut',
+  data: {
+    labels: {{ by_courier.keys() | list | tojson }},
+    datasets: [{ data: {{ by_courier.values() | list | tojson }}, backgroundColor: PALETTE }]
+  },
+  options: { plugins: { legend: { position: 'right' } } }
+});
+{% endif %}
+
+{% if by_dept %}
+new Chart(document.getElementById('deptPie'), {
+  type: 'doughnut',
+  data: {
+    labels: {{ by_dept.keys() | list | tojson }},
+    datasets: [{ data: {{ by_dept.values() | list | tojson }}, backgroundColor: PALETTE }]
+  },
+  options: { plugins: { legend: { position: 'right' } } }
+});
+{% endif %}
+</script>
+{% endblock %}

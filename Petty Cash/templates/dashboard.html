@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Petty Cash Manager{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+{% set now = today %}
+
+<!-- Stat Cards -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon blue"><i class="fas fa-rupee-sign"></i></div>
+    <div>
+      <div class="stat-label">Today's Expenses</div>
+      <div class="stat-value currency">{{ '%.2f'|format(today_total) }}</div>
+      <div class="stat-sub">{{ today_count }} transaction{{ 's' if today_count != 1 }}</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon green"><i class="fas fa-calendar-alt"></i></div>
+    <div>
+      <div class="stat-label">This Month</div>
+      <div class="stat-value currency">{{ '%.2f'|format(month_total) }}</div>
+      <div class="stat-sub">{{ today.strftime('%B %Y') }}</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon {% if current_balance >= 0 %}teal{% else %}red{% endif %}">
+      <i class="fas fa-wallet"></i>
+    </div>
+    <div>
+      <div class="stat-label">Current Balance</div>
+      <div class="stat-value currency {% if current_balance < 0 %}text-red{% endif %}">{{ '%.2f'|format(current_balance|abs) }}</div>
+      <div class="stat-sub">{% if current_balance < 0 %}Deficit{% else %}Available{% endif %}</div>
+    </div>
+  </div>
+  {% if current_user.is_manager %}
+  <div class="stat-card">
+    <div class="stat-icon {% if pending_count > 0 %}amber{% else %}purple{% endif %}"><i class="fas fa-clock"></i></div>
+    <div>
+      <div class="stat-label">Pending Approval</div>
+      <div class="stat-value">{{ pending_count }}</div>
+      <div class="stat-sub">{% if pending_count > 0 %}<a href="{{ url_for('expenses') }}?status=pending" style="color:var(--amber);">Review now →</a>{% else %}All cleared{% endif %}</div>
+    </div>
+  </div>
+  {% else %}
+  <div class="stat-card">
+    <div class="stat-icon purple"><i class="fas fa-plus-circle"></i></div>
+    <div>
+      <div class="stat-label">Quick Add</div>
+      <div class="stat-value" style="font-size:14px;margin-top:4px;">
+        <a href="{{ url_for('add_expense') }}" class="btn btn-primary btn-sm">
+          <i class="fas fa-plus"></i> Add Expense
+        </a>
+      </div>
+      <div class="stat-sub">Log a new expense</div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Charts Row -->
+<div class="charts-grid">
+  <!-- Pie Chart -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-chart-pie" style="color:var(--blue);margin-right:6px;"></i>Today by Category</span>
+      <span class="text-muted" style="font-size:12px;">{{ today.strftime('%d %b') }}</span>
+    </div>
+    <div class="card-body" style="display:flex;align-items:center;justify-content:center;min-height:220px;">
+      {% if cat_totals %}
+        <canvas id="pieChart" style="max-height:220px;"></canvas>
+      {% else %}
+        <div class="empty-state">
+          <i class="fas fa-chart-pie"></i>
+          <p>No expenses today</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Bar Chart -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-chart-bar" style="color:var(--blue);margin-right:6px;"></i>Last 7 Days Trend</span>
+      <a href="{{ url_for('reports') }}" class="btn btn-outline btn-sm">View Reports</a>
+    </div>
+    <div class="card-body" style="min-height:220px;display:flex;align-items:center;">
+      <canvas id="barChart" style="width:100%;max-height:220px;"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Expenses + Category Summary -->
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+
+  <!-- Recent Expenses Table -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-receipt" style="color:var(--blue);margin-right:6px;"></i>Recent Expenses</span>
+      <a href="{{ url_for('expenses') }}" class="btn btn-outline btn-sm">View All</a>
+    </div>
+    <div class="table-wrapper">
+      {% if recent %}
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Category</th>
+            <th>Description</th>
+            <th>Amount</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in recent %}
+          <tr>
+            <td style="color:var(--text-muted);white-space:nowrap;">{{ e.date.strftime('%d %b') }}</td>
+            <td>
+              <span class="cat-pill">
+                <i class="fas {{ CATEGORY_ICONS.get(e.category, 'fa-tag') }}" style="font-size:11px;"></i>
+                {{ e.category.split('/')[0].strip() }}
+              </span>
+            </td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ e.description }}</td>
+            <td class="amount-cell">₹{{ '%.2f'|format(e.amount) }}</td>
+            <td>
+              <span class="badge badge-{{ e.status }}">
+                {% if e.status == 'approved' %}<i class="fas fa-check"></i>{% elif e.status == 'rejected' %}<i class="fas fa-times"></i>{% else %}<i class="fas fa-clock"></i>{% endif %}
+                {{ e.status | title }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">
+        <i class="fas fa-receipt"></i>
+        <p>No expenses yet. <a href="{{ url_for('add_expense') }}">Add one →</a></p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Category Summary -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-tags" style="color:var(--blue);margin-right:6px;"></i>Today's Breakdown</span>
+    </div>
+    <div class="card-body" style="padding-top:12px;">
+      {% if cat_totals %}
+        {% set cat_colors = ['blue','green','amber','purple','teal','red','text-muted'] %}
+        {% for cat, amt in cat_totals.items() %}
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:500;">
+              <i class="fas {{ CATEGORY_ICONS.get(cat, 'fa-tag') }}" style="width:16px;color:var(--text-muted);"></i>
+              {{ cat }}
+            </span>
+            <span style="font-size:13px;font-weight:700;">₹{{ '%.2f'|format(amt) }}</span>
+          </div>
+          <div style="background:var(--border);border-radius:4px;height:5px;overflow:hidden;">
+            <div style="height:100%;border-radius:4px;background:var(--blue);width:{{ [(amt / today_total * 100)|round|int, 100]|min if today_total > 0 else 0 }}%;"></div>
+          </div>
+        </div>
+        {% endfor %}
+        <div class="divider"></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;">
+          <span>Total</span><span>₹{{ '%.2f'|format(today_total) }}</span>
+        </div>
+      {% else %}
+        <div class="empty-state" style="padding:24px 12px;">
+          <i class="fas fa-chart-pie"></i>
+          <p style="font-size:13px;">No expenses today</p>
+          <a href="{{ url_for('add_expense') }}" class="btn btn-primary btn-sm" style="margin-top:10px;">
+            <i class="fas fa-plus"></i> Add First Expense
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- EOD Status Banner (manager only) -->
+{% if current_user.is_manager %}
+<div class="card" style="margin-top:16px;border-left:4px solid {% if today_ledger and today_ledger.is_closed %}var(--green){% else %}var(--amber){% endif %};">
+  <div class="card-body" style="padding:14px 20px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <i class="fas {% if today_ledger and today_ledger.is_closed %}fa-check-circle text-green{% else %}fa-clock text-amber{% endif %}" style="font-size:20px;"></i>
+      <div>
+        <div style="font-weight:700;font-size:14px;">End of Day — {{ today.strftime('%d %B %Y') }}</div>
+        <div style="font-size:12px;color:var(--text-muted);">
+          {% if today_ledger and today_ledger.is_closed %}
+            Closed at {{ today_ledger.closed_at.strftime('%I:%M %p') }} by {{ today_ledger.closed_by.full_name }}
+          {% else %}
+            Day is still open — pending closure
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <a href="{{ url_for('eod') }}" class="btn {% if today_ledger and today_ledger.is_closed %}btn-outline{% else %}btn-primary{% endif %} btn-sm">
+      <i class="fas fa-calendar-check"></i>
+      {% if today_ledger and today_ledger.is_closed %}View EOD{% else %}Close Day{% endif %}
+    </a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const COLORS = ['#3b82f6','#22c55e','#f59e0b','#8b5cf6','#14b8a6','#ef4444','#64748b'];
+
+{% if cat_totals %}
+new Chart(document.getElementById('pieChart'), {
+  type: 'doughnut',
+  data: {
+    labels: {{ cat_totals.keys()|list|tojson }},
+    datasets: [{
+      data: {{ cat_totals.values()|list|tojson }},
+      backgroundColor: COLORS,
+      borderWidth: 0,
+      hoverOffset: 6
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, padding: 12, boxWidth: 12 } },
+      tooltip: {
+        callbacks: {
+          label: ctx => ' ₹' + ctx.parsed.toFixed(2)
+        }
+      }
+    },
+    cutout: '60%'
+  }
+});
+{% endif %}
+
+const weekData = {{ week_data|tojson }};
+new Chart(document.getElementById('barChart'), {
+  type: 'bar',
+  data: {
+    labels: weekData.map(d => d.label),
+    datasets: [{
+      label: 'Expenses (₹)',
+      data: weekData.map(d => d.total),
+      backgroundColor: weekData.map((d, i) => i === weekData.length - 1 ? '#3b82f6' : 'rgba(59,130,246,0.25)'),
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ' ₹' + ctx.parsed.y.toFixed(2) } }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 } } },
+      y: {
+        beginAtZero: true,
+        grid: { color: '#f1f5f9' },
+        ticks: { font: { family: 'Inter', size: 11 }, callback: v => '₹' + v }
+      }
+    }
+  }
+});
+</script>
+{% endblock %}

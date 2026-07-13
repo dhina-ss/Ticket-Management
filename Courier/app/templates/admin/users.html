@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="row align-items-center mb-3 mt-3">
+  <div class="col">
+    <h4 class="fw-bold mb-0"><i class="bi bi-people me-2 text-primary"></i>User Management</h4>
+  </div>
+  <div class="col-auto">
+    <a href="{{ url_for('admin.add_user') }}" class="btn btn-sm btn-primary">
+      <i class="bi bi-person-plus me-1"></i>Add User
+    </a>
+  </div>
+</div>
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-dark">
+        <tr><th>#</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Branch</th><th>Last Login</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.id }}</td>
+          <td class="fw-semibold">{{ u.name }}</td>
+          <td><code>{{ u.username }}</code></td>
+          <td>{{ u.email }}</td>
+          <td>
+            <span class="badge
+              {% if u.role == 'superadmin' %}bg-danger
+              {% elif u.role == 'admin' %}bg-warning text-dark
+              {% elif u.role == 'manager' %}bg-info text-dark
+              {% else %}bg-secondary{% endif %}">
+              {{ u.role }}
+            </span>
+          </td>
+          <td>{{ u.branch.name if u.branch else '<span class="text-muted">All</span>'|safe }}</td>
+          <td><small class="text-muted">{{ u.last_login.strftime('%d %b %Y %H:%M') if u.last_login else 'Never' }}</small></td>
+          <td>
+            <span class="badge {% if u.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+              {{ 'Active' if u.is_active else 'Inactive' }}
+            </span>
+          </td>
+          <td>
+            <div class="d-flex gap-1">
+              <a href="{{ url_for('admin.edit_user', user_id=u.id) }}" class="btn btn-xs btn-outline-warning" title="Edit">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% if current_user.is_superadmin() and u.id != current_user.id %}
+              <form method="POST" action="{{ url_for('admin.delete_user', user_id=u.id) }}"
+                    onsubmit="return confirm('Delete user {{ u.name }}?')">
+                <button type="submit" class="btn btn-xs btn-outline-danger" title="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-4">No users found</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

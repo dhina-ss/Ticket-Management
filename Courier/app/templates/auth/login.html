@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login – Courier Register</title>
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Material Symbols -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#ec1d22',
+                        'background-light': '#f8fafc',
+                        'background-dark': '#181D27',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-display {
+            font-family: 'Outfit', sans-serif;
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center p-6 transition-colors duration-200">
+    <div class="w-full max-w-md">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none p-8 md:p-10 border border-slate-100 dark:border-slate-800">
+            <!-- Logos -->
+            <div class="flex flex-col items-center justify-center mb-5">
+                <img src="/assets/logo.png" alt="Logo" class="h-24 object-contain dark:hidden" />
+                <img src="/assets/logo1.png" alt="Logo" class="h-24 object-contain hidden dark:block" />
+            </div>
+            
+            <!-- Header Text -->
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2 font-display">Courier Register</h2>
+                <p class="text-slate-500 dark:text-slate-400 text-sm">Please enter your credentials to access the register.</p>
+            </div>
+
+            <!-- Flash Alert Block -->
+            {% if request.args.get('reason') == 'timeout' %}
+            <div class="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/30 rounded-xl text-xs text-center flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined text-base">schedule</span>
+                <span>You were automatically logged out after <strong>5 minutes</strong> of inactivity.</span>
+            </div>
+            {% endif %}
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="mb-4 p-3 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 border border-red-200/50 dark:border-red-900/30 rounded-xl text-xs text-center flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-base">error</span>
+                    <span>{{ message }}</span>
+                </div>
+                {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            <!-- Login Form -->
+            <form class="space-y-6" method="POST" action="{{ url_for('auth.login') }}">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2" for="username">Username / Email <span class="text-red-500">*</span></label>
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg">mail</span>
+                        <input
+                            class="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
+                            id="username"
+                            name="username"
+                            placeholder="Enter your username or email"
+                            required
+                            type="text"
+                            autofocus
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2" for="password">Password <span class="text-red-500">*</span></label>
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg">lock</span>
+                        <input
+                            class="w-full pl-12 pr-12 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
+                            id="passwordField"
+                            name="password"
+                            placeholder="••••••"
+                            required
+                            type="password"
+                        />
+                        <button type="button" onclick="togglePwd()" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none flex items-center justify-center">
+                            <span class="material-symbols-outlined text-lg" id="eyeIcon">visibility</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600 dark:text-slate-400">
+                        <input type="checkbox" name="remember" id="rememberMe" class="w-4.5 h-4.5 rounded border-slate-300 text-primary focus:ring-primary accent-[#ec1d22]">
+                        Remember me
+                    </label>
+                </div>
+
+                <div class="flex gap-2 mt-4">
+                    <button
+                        type="button"
+                        onclick="window.location.href='/'"
+                        class="w-1/2 py-3.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                        <span class="material-symbols-outlined text-lg">home</span>
+                        Go to Home
+                    </button>
+                    <button
+                        class="w-1/2 py-3.5 px-4 bg-[#ec1d22] hover:bg-[#ec1d22]/90 text-white font-bold rounded-xl shadow-lg shadow-[#ec1d22]/25 transition-all focus:ring-4 focus:ring-[#ec1d22]/30 flex items-center justify-center gap-2 cursor-pointer border-0"
+                        type="submit"
+                    >
+                        <span>Sign In</span>
+                        <span class="material-symbols-outlined text-lg">login</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function togglePwd() {
+            const f = document.getElementById('passwordField');
+            const i = document.getElementById('eyeIcon');
+            if (f.type === 'password') {
+                f.type = 'text';
+                i.textContent = 'visibility_off';
+            } else {
+                f.type = 'password';
+                i.textContent = 'visibility';
+            }
+        }
+
+        // Initialize dark mode if user's OS preference is set to dark
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+</body>
+</html>

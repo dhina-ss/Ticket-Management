@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Petty Cash Manager</title>
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Material Symbols -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#ec1d22',
+                        'background-light': '#f8fafc',
+                        'background-dark': '#181D27',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-display {
+            font-family: 'Outfit', sans-serif;
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center p-6 transition-colors duration-200">
+    <div class="w-full max-w-md my-8">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none p-8 md:p-10 border border-slate-100 dark:border-slate-800">
+            <!-- Logos -->
+            <div class="flex flex-col items-center justify-center mb-5">
+                <img src="/assets/logo.png" alt="Logo" class="h-24 object-contain dark:hidden" />
+                <img src="/assets/logo1.png" alt="Logo" class="h-24 object-contain hidden dark:block" />
+            </div>
+            
+            <!-- Header Text -->
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2 font-display">Petty Cash</h2>
+                <p class="text-slate-500 dark:text-slate-400 text-sm">Please enter your credentials to access the manager.</p>
+            </div>
+
+            <!-- Flash Alert Block -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="mb-4 p-3 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 border border-red-200/50 dark:border-red-900/30 rounded-xl text-xs text-center flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-base">error</span>
+                    <span>{{ message }}</span>
+                </div>
+                {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            <!-- Login Form -->
+            <form class="space-y-6" method="POST">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2" for="username">Username <span class="text-red-500">*</span></label>
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg">mail</span>
+                        <input
+                            class="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
+                            id="username"
+                            name="username"
+                            placeholder="Enter username"
+                            required
+                            type="text"
+                            autofocus
+                            autocomplete="username"
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2" for="password">Password <span class="text-red-500">*</span></label>
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg">lock</span>
+                        <input
+                            class="w-full pl-12 pr-12 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none"
+                            id="pwField"
+                            name="password"
+                            placeholder="••••••"
+                            required
+                            type="password"
+                            autocomplete="current-password"
+                        />
+                        <button type="button" onclick="togglePw()" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none flex items-center justify-center">
+                            <span class="material-symbols-outlined text-lg" id="pwIcon">visibility</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600 dark:text-slate-400">
+                        <input type="checkbox" name="remember" class="w-4.5 h-4.5 rounded border-slate-300 text-primary focus:ring-primary accent-[#ec1d22]">
+                        Remember me
+                    </label>
+                </div>
+
+                <div class="flex gap-2 mt-4">
+                    <button
+                        type="button"
+                        onclick="window.location.href='/'"
+                        class="w-1/2 py-3.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                        <span class="material-symbols-outlined text-lg">home</span>
+                        Go to Home
+                    </button>
+                    <button
+                        class="w-1/2 py-3.5 px-4 bg-[#ec1d22] hover:bg-[#ec1d22]/90 text-white font-bold rounded-xl shadow-lg shadow-[#ec1d22]/25 transition-all focus:ring-4 focus:ring-[#ec1d22]/30 flex items-center justify-center gap-2 cursor-pointer border-0"
+                        type="submit"
+                    >
+                        <span>Sign In</span>
+                        <span class="material-symbols-outlined text-lg">login</span>
+                    </button>
+                </div>
+            </form>
+
+            <!-- Default Accounts -->
+            <div class="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
+                <div class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">Default Accounts</div>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-100 dark:border-slate-800/30 text-xs">
+                        <span class="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                            <span class="bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 rounded-md px-2 py-0.5 font-bold text-[10px]">ADMIN</span>
+                            admin
+                        </span>
+                        <span class="font-mono text-slate-500 dark:text-slate-400">admin123</span>
+                    </div>
+                    <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-100 dark:border-slate-800/30 text-xs">
+                        <span class="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                            <span class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-md px-2 py-0.5 font-bold text-[10px]">MANAGER</span>
+                            manager
+                        </span>
+                        <span class="font-mono text-slate-500 dark:text-slate-400">manager123</span>
+                    </div>
+                    <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-100 dark:border-slate-800/30 text-xs">
+                        <span class="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                            <span class="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-md px-2 py-0.5 font-bold text-[10px]">STAFF</span>
+                            cashier
+                        </span>
+                        <span class="font-mono text-slate-500 dark:text-slate-400">cash123</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function togglePw() {
+            const f = document.getElementById('pwField');
+            const i = document.getElementById('pwIcon');
+            if (f.type === 'password') {
+                f.type = 'text';
+                i.textContent = 'visibility_off';
+            } else {
+                f.type = 'password';
+                i.textContent = 'visibility';
+            }
+        }
+
+        // Initialize dark mode if user's OS preference is set to dark
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+</body>
+</html>

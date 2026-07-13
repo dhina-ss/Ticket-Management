@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python --version 2>$null)",
+      "PowerShell(node --version 2>$null)",
+      "PowerShell(pip --version 2>$null)",
+      "PowerShell(Get-Command python3 -ErrorAction SilentlyContinue)",
+      "PowerShell(Test-Path \"C:\\\\Python312\\\\python.exe\"; Test-Path \"C:\\\\Python311\\\\python.exe\"; Test-Path \"C:\\\\Python310\\\\python.exe\"; Test-Path \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; Test-Path \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python311\\\\python.exe\")",
+      "PowerShell(py --version 2>&1)",
+      "PowerShell(py -m pip --version 2>&1)",
+      "PowerShell(New-Item -ItemType Directory -Force \"D:\\\\Petty Cash\\\\templates\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"D:\\\\Petty Cash\\\\static\\\\css\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"D:\\\\Petty Cash\\\\static\\\\js\")",
+      "PowerShell(py -m pip install flask flask-sqlalchemy flask-login werkzeug --quiet 2>&1)",
+      "PowerShell(py -c \"import flask, flask_sqlalchemy, flask_login; print\\('All packages OK:', flask.__version__\\)\")",
+      "Read(//c/Users/Admin/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/f92f91b1-4cf5-47ed-991c-f9d975c06ed9/df8728ba-a6c6-485d-8d58-0f055935d486/skills/xlsx/**)",
+      "Bash(extract-text \"C:\\\\Users\\\\Admin\\\\Downloads\\\\PettyCash 01-04-2026 to 31-03-2027.xlsx\")",
+      "mcp__Claude_Preview__preview_start",
+      "PowerShell(Stop-Process -Id 20052 -Force)",
+      "PowerShell(Stop-Process -Id 14268 -Force)",
+      "PowerShell(Stop-Process -Id 8548 -Force)"
+    ]
+  }
+}

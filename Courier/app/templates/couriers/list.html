@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+{% block title %}Courier Entries{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-3 mt-3">
+  <div class="col">
+    <h4 class="fw-bold mb-0"><i class="bi bi-box-seam me-2 text-primary"></i>Courier Entries</h4>
+  </div>
+  <div class="col-auto d-flex gap-2">
+    <a href="{{ url_for('reports.export_csv') }}" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-download me-1"></i>Export CSV
+    </a>
+    <a href="{{ url_for('couriers.add_courier') }}" class="btn btn-sm btn-primary">
+      <i class="bi bi-plus-circle me-1"></i>New Entry
+    </a>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2">
+    <form method="GET" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <input type="text" name="search" class="form-control form-control-sm"
+               placeholder="Search AWB, sender, destination…" value="{{ request.args.get('search','') }}">
+      </div>
+      <div class="col-md-2">
+        <select name="dept" class="form-select form-select-sm">
+          <option value="">All Departments</option>
+          {% for d in departments %}
+          <option value="{{ d }}" {% if request.args.get('dept') == d %}selected{% endif %}>{{ d }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select name="trans_type" class="form-select form-select-sm">
+          <option value="">All Types</option>
+          <option value="Dispatch" {% if request.args.get('trans_type') == 'Dispatch' %}selected{% endif %}>Dispatch</option>
+          <option value="Pick Up" {% if request.args.get('trans_type') == 'Pick Up' %}selected{% endif %}>Pick Up</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select name="budgeted" class="form-select form-select-sm">
+          <option value="">All Budget</option>
+          <option value="Budgeted" {% if request.args.get('budgeted') == 'Budgeted' %}selected{% endif %}>Budgeted</option>
+          <option value="Non Budgeted" {% if request.args.get('budgeted') == 'Non Budgeted' %}selected{% endif %}>Non Budgeted</option>
+        </select>
+      </div>
+      <div class="col-md-1">
+        <input type="date" name="from_date" class="form-control form-control-sm"
+               value="{{ request.args.get('from_date','') }}" title="From Date">
+      </div>
+      <div class="col-md-1">
+        <input type="date" name="to_date" class="form-control form-control-sm"
+               value="{{ request.args.get('to_date','') }}" title="To Date">
+      </div>
+      {% if current_user.is_superadmin() %}
+      <div class="col-md-2">
+        <select name="branch_id" class="form-select form-select-sm">
+          <option value="">All Branches</option>
+          {% for b in branches %}
+          <option value="{{ b.id }}" {% if request.args.get('branch_id')|int == b.id %}selected{% endif %}>{{ b.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-auto d-flex gap-1">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search"></i></button>
+        <a href="{{ url_for('couriers.list_couriers') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-lg"></i></a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-sm mb-0 align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>#</th>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Sender</th>
+            <th>Dept</th>
+            <th>From</th>
+            <th>Receiver</th>
+            <th>Destination</th>
+            <th>Product</th>
+            <th>Courier</th>
+            <th>AWB No</th>
+            <th>Wt(Kg)</th>
+            <th>Cost(₹)</th>
+            <th>Budget</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in couriers %}
+          <tr>
+            <td><small class="text-muted">{{ c.id }}</small></td>
+            <td><small>{{ c.date.strftime('%d %b %y') }}</small></td>
+            <td>
+              <span class="badge rounded-pill {% if c.transaction_type == 'Dispatch' %}bg-primary{% else %}bg-success{% endif %}">
+                {{ (c.transaction_type or 'Dispatch')[:4] }}
+              </span>
+            </td>
+            <td><small>{{ c.sender or '–' }}</small></td>
+            <td><small><span class="badge bg-secondary-subtle text-dark">{{ c.department or '–' }}</span></small></td>
+            <td><small>{{ c.sending_from or '–' }}</small></td>
+            <td><small>{{ c.receiver or '–' }}</small></td>
+            <td><small class="fw-semibold">{{ c.destination or '–' }}</small></td>
+            <td><small>{{ c.product_description or '–' }}</small></td>
+            <td><small>{{ c.courier_name or '–' }}</small></td>
+            <td><small class="font-monospace text-primary">{{ c.awb_no or '–' }}</small></td>
+            <td><small>{{ c.weight_kg or '–' }}</small></td>
+            <td>
+              <small>
+                {% if c.courier_cost %}<span class="text-success fw-semibold">₹{{ '%.0f'|format(c.courier_cost) }}</span>
+                {% else %}–{% endif %}
+              </small>
+            </td>
+            <td>
+              <span class="badge {% if 'Non' in (c.budgeted or '') %}bg-danger-subtle text-danger{% else %}bg-success-subtle text-success{% endif %}">
+                {% if 'Non' in (c.budgeted or '') %}NB{% else %}B{% endif %}
+              </span>
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{{ url_for('couriers.view_courier', courier_id=c.id) }}"
+                   class="btn btn-xs btn-outline-info" title="View"><i class="bi bi-eye"></i></a>
+                <a href="{{ url_for('couriers.edit_courier', courier_id=c.id) }}"
+                   class="btn btn-xs btn-outline-warning" title="Edit"><i class="bi bi-pencil"></i></a>
+                {% if current_user.role in ('superadmin','admin') %}
+                <form method="POST" action="{{ url_for('couriers.delete_courier', courier_id=c.id) }}"
+                      onsubmit="return confirm('Delete this entry?')">
+                  <button type="submit" class="btn btn-xs btn-outline-danger" title="Delete">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="15" class="text-center text-muted py-5">
+            <i class="bi bi-inbox fs-3 d-block mb-2"></i>No courier entries found
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% if pagination.pages > 1 %}
+  <div class="card-footer bg-white border-0">
+    <nav>
+      <ul class="pagination pagination-sm mb-0 justify-content-center">
+        {% if pagination.has_prev %}
+        <li class="page-item"><a class="page-link" href="{{ url_for('couriers.list_couriers', page=pagination.prev_num, **filter_args) }}">‹</a></li>
+        {% endif %}
+        {% for p in pagination.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+          {% if p %}
+          <li class="page-item {% if p == pagination.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('couriers.list_couriers', page=p, **filter_args) }}">{{ p }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item"><a class="page-link" href="{{ url_for('couriers.list_couriers', page=pagination.next_num, **filter_args) }}">›</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+    <div class="text-center text-muted small mt-1">
+      Showing {{ ((pagination.page-1)*20)+1 }}–{{ [pagination.page*20, pagination.total]|min }} of {{ pagination.total }} entries
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

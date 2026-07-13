@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block title %}End of Day — Petty Cash Manager{% endblock %}
+{% block page_title %}End of Day Report{% endblock %}
+
+{% block content %}
+{% set now = today %}
+
+<!-- Date Header -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+  <div>
+    <h2 style="font-size:20px;font-weight:800;">{{ today.strftime('%A, %d %B %Y') }}</h2>
+    <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">
+      {% if today_ledger and today_ledger.is_closed %}
+        <span style="color:var(--green);font-weight:600;"><i class="fas fa-check-circle"></i> Day Closed</span>
+        — at {{ today_ledger.closed_at.strftime('%I:%M %p') }} by {{ today_ledger.closed_by.full_name }}
+      {% else %}
+        <span style="color:var(--amber);font-weight:600;"><i class="fas fa-clock"></i> Day Open</span>
+        — pending end-of-day closure
+      {% endif %}
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button onclick="window.print()" class="btn btn-outline btn-sm"><i class="fas fa-print"></i> Print</button>
+    <a href="{{ url_for('reports') }}" class="btn btn-outline btn-sm"><i class="fas fa-chart-bar"></i> Full Reports</a>
+  </div>
+</div>
+
+<!-- Balance Summary Cards -->
+<div class="balance-grid">
+  <div class="balance-item">
+    <div class="balance-label"><i class="fas fa-wallet" style="margin-right:4px;"></i>Opening Balance</div>
+    <div class="balance-amount blue">₹{{ '%.2f'|format(opening) }}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Cash at start of day</div>
+  </div>
+  <div class="balance-item">
+    <div class="balance-label"><i class="fas fa-minus-circle" style="margin-right:4px;color:var(--red);"></i>Total Expenses</div>
+    <div class="balance-amount red">₹{{ '%.2f'|format(total_expenses) }}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">{{ approved_exps|length }} approved transaction{{ 's' if approved_exps|length != 1 }}</div>
+  </div>
+  <div class="balance-item" style="border:{% if closing_balance >= 0 %}2px solid var(--green){% else %}2px solid var(--red){% endif %};">
+    <div class="balance-label"><i class="fas fa-coins" style="margin-right:4px;"></i>Closing Balance</div>
+    <div class="balance-amount {{ 'green' if closing_balance >= 0 else 'red' }}">
+      {% if closing_balance < 0 %}-{% endif %}₹{{ '%.2f'|format(closing_balance|abs) }}
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+      {% if closing_balance < 0 %}
+        <span style="color:var(--red);">⚠ Deficit — replenishment needed</span>
+      {% else %}
+        Cash remaining in hand
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Category Breakdown + Close Day Form -->
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px;">
+
+  <!-- Category Breakdown -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-tags" style="color:var(--blue);margin-right:6px;"></i>Expense Breakdown by Category</span>
+    </div>
+    {% if cat_breakdown %}
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr><th>Category</th><th>Amount</th><th style="text-align:right;">% of Total</th></tr>
+        </thead>
+        <tbody>
+          {% for cat, amt in (cat_breakdown.items()|sort(attribute='1', reverse=True)) %}
+          <tr>
+            <td>
+              <span class="cat-pill">
+                <i class="fas {{ CATEGORY_ICONS.get(cat,'fa-tag') }}" style="font-size:10px;"></i>
+                {{ cat }}
+              </span>
+            </td>
+            <td class="amount-cell">₹{{ '%.2f'|format(amt) }}</td>
+            <td style="text-align:right;">
+              <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+                <div style="width:80px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+                  <div style="height:100%;background:var(--blue);border-radius:3px;width:{{ (amt/total_expenses*100)|round|int if total_expenses > 0 else 0 }}%;"></div>
+                </div>
+                <span style="font-size:12px;font-weight:600;color:var(--text-muted);width:36px;">
+                  {{ (amt/total_expenses*100)|round(1) if total_expenses > 0 else 0 }}%
+                </span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          <tr style="background:#f8fafc;font-weight:700;">
+            <td>Total</td>
+            <td class="amount-cell">₹{{ '%.2f'|format(total_expenses) }}</td>
+            <td style="text-align:right;font-size:12px;">100%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:32px;">
+      <i class="fas fa-receipt"></i>
+      <p>No approved expenses today.</p>
+    </div>
+    {% endif %}
+
+    <!-- Pending Warning -->
+    {% if pending_exps %}
+    <div style="padding:12px 20px;background:#fffbeb;border-top:1px solid #fde68a;">
+      <div style="display:flex;align-items:center;gap:8px;color:#d97706;font-size:13px;font-weight:600;">
+        <i class="fas fa-exclamation-triangle"></i>
+        {{ pending_exps|length }} expense{{ 's' if pending_exps|length != 1 }} pending approval (not included in totals)
+        <a href="{{ url_for('expenses') }}?status=pending" style="margin-left:auto;font-size:12px;">Review →</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Close Day Panel -->
+  <div class="card">
+    {% if today_ledger and today_ledger.is_closed %}
+    <div class="card-header">
+      <span class="card-title" style="color:var(--green);"><i class="fas fa-check-circle"></i> Day Closed</span>
+    </div>
+    <div class="card-body">
+      <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin-bottom:16px;">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Closed by</div>
+        <div style="font-weight:700;">{{ today_ledger.closed_by.full_name }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;margin-bottom:4px;">Time</div>
+        <div style="font-weight:600;">{{ today_ledger.closed_at.strftime('%I:%M %p') }}</div>
+        {% if today_ledger.added_cash > 0 %}
+        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;margin-bottom:4px;">Cash Added</div>
+        <div style="font-weight:600;color:var(--green);">+ ₹{{ '%.2f'|format(today_ledger.added_cash) }}</div>
+        {% endif %}
+        {% if today_ledger.notes %}
+        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;margin-bottom:4px;">Notes</div>
+        <div style="font-size:13px;">{{ today_ledger.notes }}</div>
+        {% endif %}
+      </div>
+      <div style="background:#f8fafc;border-radius:8px;padding:12px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:12px;color:var(--text-muted);">Opening</span>
+          <span style="font-weight:600;">₹{{ '%.2f'|format(today_ledger.opening_balance) }}</span>
+        </div>
+        {% if today_ledger.added_cash > 0 %}
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:12px;color:var(--text-muted);">Cash Added</span>
+          <span style="font-weight:600;color:var(--green);">+ ₹{{ '%.2f'|format(today_ledger.added_cash) }}</span>
+        </div>
+        {% endif %}
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:12px;color:var(--text-muted);">Expenses</span>
+          <span style="font-weight:600;color:var(--red);">- ₹{{ '%.2f'|format(today_ledger.total_expenses) }}</span>
+        </div>
+        <div class="divider" style="margin:8px 0;"></div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:13px;font-weight:700;">Closing</span>
+          <span style="font-size:15px;font-weight:800;color:{{ 'var(--green)' if today_ledger.closing_balance >= 0 else 'var(--red)' }};">
+            ₹{{ '%.2f'|format(today_ledger.closing_balance) }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    {% elif current_user.is_manager %}
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-calendar-check" style="color:var(--blue);margin-right:6px;"></i>Close Today</span>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('close_day') }}">
+        <div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:12px;color:var(--text-muted);">Opening Balance</span>
+            <span style="font-weight:700;">₹{{ '%.2f'|format(opening) }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:12px;color:var(--text-muted);">Approved Expenses</span>
+            <span style="font-weight:700;color:var(--red);">- ₹{{ '%.2f'|format(total_expenses) }}</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Cash Added Today (₹)</label>
+          <input type="number" name="added_cash" class="form-control" step="0.01" min="0"
+            placeholder="0.00" value="0" oninput="updateCalc(this.value)">
+          <div class="form-hint">Any cash replenishment added during the day</div>
+        </div>
+
+        <div style="background:#eff6ff;border-radius:8px;padding:12px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;">
+            <span style="font-size:13px;font-weight:700;">Projected Closing</span>
+            <span id="projClosing" style="font-size:15px;font-weight:800;color:var(--blue);">
+              ₹{{ '%.2f'|format(closing_balance) }}
+            </span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-control" rows="2" placeholder="Any remarks for today…"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:10px;"
+          onclick="return confirm('Close the day? This will lock today\'s balance.')">
+          <i class="fas fa-lock"></i> Close Day
+        </button>
+      </form>
+    </div>
+
+    {% else %}
+    <div class="card-header"><span class="card-title">Day Status</span></div>
+    <div class="card-body">
+      <div class="empty-state" style="padding:24px 12px;">
+        <i class="fas fa-clock" style="color:var(--amber);opacity:1;font-size:32px;"></i>
+        <p style="margin-top:12px;font-size:13px;">Day is open. Manager will close at end of day.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Today's Transactions Table -->
+{% if approved_exps %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title"><i class="fas fa-receipt" style="color:var(--blue);margin-right:6px;"></i>Today's Approved Transactions</span>
+    <span class="text-muted" style="font-size:13px;">{{ approved_exps|length }} entries · ₹{{ '%.2f'|format(total_expenses) }}</span>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Time</th><th>Category</th><th>Description</th><th>Submitted By</th><th>Amount</th></tr>
+      </thead>
+      <tbody>
+        {% for e in approved_exps %}
+        <tr>
+          <td style="color:var(--text-muted);font-size:11px;">{{ loop.index }}</td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ e.created_at.strftime('%I:%M %p') }}</td>
+          <td><span class="cat-pill"><i class="fas {{ CATEGORY_ICONS.get(e.category,'fa-tag') }}" style="font-size:10px;"></i>{{ e.category }}</span></td>
+          <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ e.description }}</td>
+          <td style="font-size:13px;">{{ e.submitter.full_name }}</td>
+          <td class="amount-cell">₹{{ '%.2f'|format(e.amount) }}</td>
+        </tr>
+        {% endfor %}
+        <tr style="background:#f8fafc;font-weight:700;">
+          <td colspan="5" style="text-align:right;padding-right:14px;">Total</td>
+          <td class="amount-cell" style="color:var(--blue);">₹{{ '%.2f'|format(total_expenses) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Past 7 Days History -->
+{% if past_ledgers %}
+<div class="card" style="margin-top:16px;">
+  <div class="card-header">
+    <span class="card-title"><i class="fas fa-history" style="color:var(--blue);margin-right:6px;"></i>Recent EOD History</span>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Opening</th><th>Cash Added</th><th>Expenses</th><th>Closing</th><th>Closed By</th></tr>
+      </thead>
+      <tbody>
+        {% for l in past_ledgers %}
+        <tr>
+          <td style="white-space:nowrap;font-weight:600;">{{ l.date.strftime('%d %b %Y') }}</td>
+          <td class="amount-cell">₹{{ '%.2f'|format(l.opening_balance) }}</td>
+          <td class="amount-cell" style="color:var(--green);">{% if l.added_cash > 0 %}+ ₹{{ '%.2f'|format(l.added_cash) }}{% else %}—{% endif %}</td>
+          <td class="amount-cell" style="color:var(--red);">₹{{ '%.2f'|format(l.total_expenses) }}</td>
+          <td class="amount-cell" style="font-weight:800;color:{{ 'var(--green)' if l.closing_balance >= 0 else 'var(--red)' }};">
+            ₹{{ '%.2f'|format(l.closing_balance) }}
+          </td>
+          <td style="font-size:12px;">{{ l.closed_by.full_name if l.closed_by else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const opening = {{ opening }};
+const expenses = {{ total_expenses }};
+function updateCalc(val) {
+  const added = parseFloat(val) || 0;
+  const closing = opening + added - expenses;
+  const el = document.getElementById('projClosing');
+  if (el) {
+    el.textContent = (closing < 0 ? '-' : '') + '₹' + Math.abs(closing).toFixed(2);
+    el.style.color = closing < 0 ? 'var(--red)' : 'var(--blue)';
+  }
+}
+</script>
+{% endblock %}

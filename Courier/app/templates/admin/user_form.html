@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if user else 'Add' }} User{% endblock %}
+{% block content %}
+<div class="row align-items-center mb-3 mt-3">
+  <div class="col">
+    <h4 class="fw-bold mb-0"><i class="bi bi-person-gear me-2 text-primary"></i>{{ 'Edit' if user else 'Add' }} User</h4>
+  </div>
+  <div class="col-auto">
+    <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back</a>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm" style="max-width:640px;">
+  <div class="card-body p-4">
+    <form method="POST">
+
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Full Name <span class="text-danger">*</span></label>
+          <input type="text" name="name" class="form-control" required
+                 value="{{ user.name if user else '' }}" placeholder="Full name">
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
+          <input type="text" name="username" class="form-control" required
+                 value="{{ user.username if user else '' }}" placeholder="login username"
+                 {% if user %}readonly{% endif %}>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
+        <input type="email" name="email" class="form-control" required
+               value="{{ user.email if user else '' }}" placeholder="email@company.com">
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Role</label>
+          <select name="role" class="form-select" id="roleSelect" onchange="syncRolePerms()">
+            {% for r in roles %}
+            {% if current_user.is_superadmin() or r != 'superadmin' %}
+            <option value="{{ r }}"
+              {% if user and user.role == r %}selected
+              {% elif not user and r == 'staff' %}selected{% endif %}>{{ r|capitalize }}</option>
+            {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label fw-semibold">Branch</label>
+          <select name="branch_id" class="form-select">
+            <option value="">-- All Branches --</option>
+            {% for b in branches %}
+            <option value="{{ b.id }}"
+              {% if user and user.branch_id == b.id %}selected
+              {% elif not user and current_user.branch_id == b.id %}selected{% endif %}>
+              {{ b.name }} ({{ b.code }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">{{ 'New Password' if user else 'Password' }}</label>
+        <input type="password" name="{{ 'new_password' if user else 'password' }}" class="form-control"
+               {% if not user %}required{% endif %} minlength="6"
+               placeholder="{% if user %}Leave blank to keep current{% else %}Min 6 characters{% endif %}">
+      </div>
+
+      <!-- Permissions -->
+      <div class="card bg-light border-0 mb-3" id="permCard">
+        <div class="card-body py-3">
+          <div class="fw-semibold mb-2 small text-uppercase text-muted letter-spacing-1">
+            <i class="bi bi-shield-check me-1"></i>Access Permissions
+            <span class="ms-2 text-info small" id="adminOverrideNote" style="display:none;">(superadmin/admin always have full access)</span>
+          </div>
+          <div class="row g-2">
+            {% set perms = [
+              ('perm_view_entries', 'bi-eye',         'View Entries',   user.perm_view_entries if user else true),
+              ('perm_add',          'bi-plus-circle',  'Add Entries',    user.perm_add if user else true),
+              ('perm_edit',         'bi-pencil',       'Edit Entries',   user.perm_edit if user else false),
+              ('perm_delete',       'bi-trash',        'Remove Entries', user.perm_delete if user else false),
+              ('perm_view_cost',    'bi-currency-rupee','View Cost',     user.perm_view_cost if user else false),
+              ('perm_view_reports', 'bi-bar-chart',    'View Reports',   user.perm_view_reports if user else true),
+            ] %}
+            {% for name, icon, label, checked in perms %}
+            <div class="col-6 col-sm-4">
+              <div class="form-check">
+                <input class="form-check-input perm-check" type="checkbox"
+                       name="{{ name }}" id="{{ name }}"
+                       {% if checked %}checked{% endif %}>
+                <label class="form-check-label small" for="{{ name }}">
+                  <i class="bi {{ icon }} me-1 text-secondary"></i>{{ label }}
+                </label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      {% if user %}
+      <div class="mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="is_active" id="isActive"
+                 {% if user.is_active %}checked{% endif %}>
+          <label class="form-check-label" for="isActive">Active User</label>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-dark">
+          <i class="bi bi-save me-1"></i>{{ 'Update' if user else 'Create' }} User
+        </button>
+        <a href="{{ url_for('admin.users') }}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function syncRolePerms() {
+  const role = document.getElementById('roleSelect').value;
+  const note = document.getElementById('adminOverrideNote');
+  const checks = document.querySelectorAll('.perm-check');
+  if (role === 'superadmin' || role === 'admin') {
+    note.style.display = '';
+    checks.forEach(c => { c.checked = true; c.disabled = true; });
+  } else {
+    note.style.display = 'none';
+    checks.forEach(c => { c.disabled = false; });
+  }
+}
+syncRolePerms();
+</script>
+{% endblock %}
