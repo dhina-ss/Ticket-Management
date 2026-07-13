@@ -631,7 +631,7 @@ const Courier = () => {
 				</div>
 
 				{/* Table list of entries */}
-				<div className="bg-white dark:bg-[#1C212B] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex-1 flex flex-col max-h-[600px]">
+				<div className="bg-white dark:bg-[#1C212B] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[calc(100vh-10px)] max-h-[calc(100vh-10px)]">
 					{loading ? (
 						<div className="p-20 text-center text-slate-500">
 							<span className="material-symbols-outlined text-4xl animate-spin text-pink-500 mb-2">progress_activity</span>

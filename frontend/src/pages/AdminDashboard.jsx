@@ -1316,7 +1316,7 @@ const AssetsView = ({
         <div className="flex-1 flex flex-col px-20 py-8 pt-0 gap-8 animate-in fade-in duration-200">
 
             {/* Assets Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col max-h-[600px] flex-1 overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col min-h-[calc(100vh-10px)] max-h-[calc(100vh-10px)] flex-1 overflow-hidden">
                 <div className="flex flex-col w-full flex-1 min-h-0">
                     <div className="w-full bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700" style={{ paddingRight: '5px' }}>
                         <table className="w-full text-left border-collapse table-fixed select-none">
@@ -5682,7 +5682,7 @@ const AdminDashboard = () => {
 
                 {/* Tickets View */}
                 {activeView === 'tickets' && <div className="flex-1 flex flex-col px-20 pb-10 gap-6 bg-[#F8FAFC] dark:bg-[#181D27]">
-                    <div className="ticket-table-card bg-white dark:bg-slate-900 rounded-2xl flex flex-col max-h-[600px] flex-1 overflow-hidden">
+                    <div className="ticket-table-card bg-white dark:bg-slate-900 rounded-2xl flex flex-col min-h-[calc(100vh-10px)] max-h-[calc(100vh-10px)] flex-1 overflow-hidden">
 
                         <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
                             <table className="w-full text-left border-collapse">
