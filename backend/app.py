@@ -2611,6 +2611,11 @@ def api_petty_cash_dashboard():
             month_exps = cur.fetchall()
             month_total = sum(e[0] for e in month_exps if e[0])
             
+            # month credit
+            cur.execute("SELECT SUM(added_cash) FROM day_ledger WHERE date >= %s", (month_start,))
+            month_credit_result = cur.fetchone()[0]
+            month_credit = float(month_credit_result) if month_credit_result else 0.0
+            
             days_since_sunday = today.isoweekday() % 7
             last_sunday = today - timedelta(days=days_since_sunday)
             next_saturday = last_sunday + timedelta(days=6)
@@ -2683,6 +2688,7 @@ def api_petty_cash_dashboard():
             "today_total": float(today_total),
             "today_count": today_count,
             "month_total": float(month_total),
+            "month_credit": month_credit,
             "this_week_total": this_week_total,
             "pending_count": pending_count,
             "current_balance": float(current_balance),
@@ -2856,15 +2862,15 @@ def api_petty_cash_close_ledger():
         data = request.json
         today = date.today()
         user_name = data.get('user_name', 'admin')
-        added_cash = float(data.get('added_cash', 0))
         notes = data.get('notes', '')
         
         from database import _get_conn
         conn = _get_conn()
         with conn.cursor() as cur:
             # check if exists
-            cur.execute("SELECT id FROM day_ledger WHERE date=%s", (today,))
+            cur.execute("SELECT id, added_cash FROM day_ledger WHERE date=%s", (today,))
             exists = cur.fetchone()
+            current_added_cash = float(exists[1]) if exists and exists[1] else 0.0
             
             # calculate closing
             cur.execute("SELECT SUM(expense_amount) FROM pettycash WHERE date=%s AND status != 'rejected'", (today,))
@@ -2875,19 +2881,86 @@ def api_petty_cash_close_ledger():
             prev = cur.fetchone()
             opening = float(prev[0]) if prev else 0.0
             
-            closing = opening + added_cash - total_exp
+            closing = opening + current_added_cash - total_exp
             
             if exists:
-                cur.execute("UPDATE day_ledger SET added_cash=%s, total_expenses=%s, closing_balance=%s, is_closed=TRUE, notes=%s, closed_at=NOW() WHERE date=%s", 
-                            (added_cash, total_exp, closing, notes, today))
+                cur.execute("UPDATE day_ledger SET total_expenses=%s, closing_balance=%s, is_closed=TRUE, notes=%s, closed_at=NOW() WHERE date=%s", 
+                            (total_exp, closing, notes, today))
             else:
                 cur.execute("INSERT INTO day_ledger (date, opening_balance, added_cash, total_expenses, closing_balance, is_closed, notes, closed_at) VALUES (%s, %s, %s, %s, %s, TRUE, %s, NOW())",
-                            (today, opening, added_cash, total_exp, closing, notes))
+                            (today, opening, 0.0, total_exp, closing, notes))
             conn.commit()
         conn.close()
         return jsonify({"success": True}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/petty-cash/ledger/add-cash', methods=['POST'])
+def api_petty_cash_add_cash():
+    try:
+        from datetime import date
+        data = request.json
+        today = date.today()
+        new_cash = float(data.get('amount', 0))
+        user_name = data.get('user_name', 'admin')
+        
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM day_ledger WHERE date=%s", (today,))
+            exists = cur.fetchone()
+            
+            cur.execute("SELECT closing_balance FROM day_ledger WHERE date < %s AND is_closed=TRUE ORDER BY date DESC LIMIT 1", (today,))
+            prev = cur.fetchone()
+            opening = float(prev[0]) if prev else 0.0
+            
+            if exists:
+                cur.execute("UPDATE day_ledger SET added_cash = COALESCE(added_cash, 0) + %s, closing_balance = CASE WHEN is_closed=TRUE THEN COALESCE(closing_balance, 0) + %s ELSE closing_balance END WHERE date=%s", (new_cash, new_cash, today))
+            else:
+                cur.execute("INSERT INTO day_ledger (date, opening_balance, added_cash, is_closed) VALUES (%s, %s, %s, FALSE)",
+                            (today, opening, new_cash))
+            
+            cur.execute("INSERT INTO cash_add_history (date, amount, user_name) VALUES (%s, %s, %s)",
+                        (today, new_cash, user_name))
+            
+            conn.commit()
+        conn.close()
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/petty-cash/credit-history', methods=['GET'])
+def api_petty_cash_credit_history():
+    try:
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, date, amount, user_name, created_at
+                FROM cash_add_history
+                WHERE EXTRACT(MONTH FROM date) = EXTRACT(MONTH FROM CURRENT_DATE)
+                  AND EXTRACT(YEAR FROM date) = EXTRACT(YEAR FROM CURRENT_DATE)
+                ORDER BY created_at DESC
+            """)
+            rows = cur.fetchall()
+            history = []
+            for r in rows:
+                history.append({
+                    "id": r[0],
+                    "date": r[1].isoformat(),
+                    "amount": float(r[2]),
+                    "user_name": r[3],
+                    "created_at": r[4].strftime("%Y-%m-%d %I:%M %p") if r[4] else ""
+                })
+        conn.close()
+        return jsonify(history), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/petty-cash/reports/export', methods=['GET'])
 def api_petty_cash_export():

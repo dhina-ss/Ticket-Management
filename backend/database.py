@@ -654,7 +654,24 @@ def init_db():
     except Exception as e:
         print(f"DEBUG: day_ledger table error: {e}")
 
-
+    # ---- cash_add_history table ----
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS cash_add_history (
+                        id SERIAL PRIMARY KEY,
+                        date DATE NOT NULL,
+                        amount DOUBLE PRECISION,
+                        user_name VARCHAR(100),
+                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                    );
+                """)
+        conn.close()
+        print("DEBUG: cash_add_history table ready.")
+    except Exception as e:
+        print(f"DEBUG: cash_add_history table error: {e}")
 
 
 # ---------------------------------------------------------------------------
