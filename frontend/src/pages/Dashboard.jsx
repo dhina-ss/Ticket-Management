@@ -314,7 +314,7 @@ const Dashboard = () => {
         {/* Welcome Banner */}
         <div className="mb-10 p-8 rounded-[32px] bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-transparent border border-blue-500/10 dark:border-slate-800 shadow-sm relative overflow-hidden">
           <div className="relative z-10">
-            <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight mb-2">Welcome to {user?.name || 'User'}</h1>
+            <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight mb-2">Welcome back {user?.name || 'User'}</h1>
           </div>
         </div>
 
