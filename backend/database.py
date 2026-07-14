@@ -603,6 +603,57 @@ def init_db():
     except Exception as e:
         print(f"DEBUG: admin_assets table error: {e}")
 
+    # ---- pettycash table ----
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS pettycash (
+                        id SERIAL PRIMARY KEY,
+                        date DATE,
+                        description TEXT,
+                        expense_amount NUMERIC(15,2),
+                        category TEXT,
+                        sub_category TEXT,
+                        user_name TEXT,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        status TEXT DEFAULT 'approved',
+                        approved_by TEXT,
+                        approved_at TIMESTAMPTZ,
+                        manager_notes TEXT,
+                        sub_remarks TEXT
+                    );
+                """)
+        conn.close()
+        print("DEBUG: pettycash table ready.")
+    except Exception as e:
+        print(f"DEBUG: pettycash table error: {e}")
+
+    # ---- day_ledger table ----
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS day_ledger (
+                        id SERIAL PRIMARY KEY,
+                        date DATE UNIQUE NOT NULL,
+                        opening_balance DOUBLE PRECISION,
+                        added_cash DOUBLE PRECISION,
+                        total_expenses DOUBLE PRECISION,
+                        closing_balance DOUBLE PRECISION,
+                        notes VARCHAR(500),
+                        is_closed BOOLEAN,
+                        closed_by_id INTEGER,
+                        closed_at TIMESTAMP WITHOUT TIME ZONE
+                    );
+                """)
+        conn.close()
+        print("DEBUG: day_ledger table ready.")
+    except Exception as e:
+        print(f"DEBUG: day_ledger table error: {e}")
+
 
 
 

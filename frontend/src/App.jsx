@@ -11,6 +11,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AssetDetails from './pages/AssetDetails';
 import Courier from './pages/Courier';
 import PettyCash from './pages/PettyCash';
+import PettyCashAnalysis from './pages/PettyCashAnalysis';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -25,7 +26,7 @@ function App() {
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
   const isDashboardRoute = location.pathname === '/';
-  const isAdminRoute = ['/admin', '/tickets', '/assets', '/assets/add', '/admin-assets', '/admin-assets/add', '/users', '/settings', '/courier', '/petty-cash'].includes(location.pathname);
+  const isAdminRoute = ['/admin', '/tickets', '/assets', '/assets/add', '/admin-assets', '/admin-assets/add', '/users', '/settings', '/courier', '/petty-cash', '/petty-cash/analysis'].includes(location.pathname);
   const shouldHideHeaderFooter = isLoginPage || isDashboardRoute || isAdminRoute;
 
   // Mobile check
@@ -97,6 +98,11 @@ function App() {
           <Route path="/petty-cash" element={
             <ProtectedRoute>
               <PettyCash />
+            </ProtectedRoute>
+          } />
+          <Route path="/petty-cash/analysis" element={
+            <ProtectedRoute>
+              <PettyCashAnalysis />
             </ProtectedRoute>
           } />
         </Routes>

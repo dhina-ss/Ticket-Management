@@ -151,7 +151,7 @@ const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onC
                         {options.map((option) => (
                             <label
                                 key={option}
-                                className={`flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer group ${isSelected(option) ? 'bg-primary/5' : ''}`}
+                                className={`relative flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer group ${isSelected(option) ? 'bg-primary/5' : ''}`}
                             >
                                 <input
                                     type="checkbox"
@@ -163,7 +163,7 @@ const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onC
                                     {isSelected(option) && <span className="material-symbols-outlined text-white text-[12px] font-bold">check</span>}
                                 </div>
                                 <span className={`text-[13px] font-medium transition-colors ${isSelected(option) ? 'text-primary' : 'text-slate-600 dark:text-slate-300'}`}>
-                                    {option === 'All' ? `All Branches` : option}
+                                    {option === 'All' ? `All` : option}
                                 </span>
                             </label>
                         ))}
@@ -253,6 +253,13 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
     );
 
     const toggleAccess = (perm) => {
+        if (perm === 'All') {
+            setNewUser(p => ({
+                ...p,
+                access: p.access.length === ACCESS_OPTIONS.length ? [] : [...ACCESS_OPTIONS]
+            }));
+            return;
+        }
         setNewUser(p => ({
             ...p,
             access: p.access.includes(perm)
@@ -262,6 +269,13 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
     };
 
     const toggleSupportType = (type) => {
+        if (type === 'All') {
+            setNewUser(p => ({
+                ...p,
+                support_type: p.support_type.length === SUPPORT_TYPE_OPTIONS.length ? [] : [...SUPPORT_TYPE_OPTIONS]
+            }));
+            return;
+        }
         setNewUser(p => ({
             ...p,
             support_type: p.support_type.includes(type)
@@ -271,6 +285,13 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
     };
 
     const toggleAllowedMenu = (menu) => {
+        if (menu === 'All') {
+            setNewUser(p => ({
+                ...p,
+                allowed_menus: p.allowed_menus.length === MENU_OPTIONS.length ? [] : [...MENU_OPTIONS]
+            }));
+            return;
+        }
         setNewUser(p => ({
             ...p,
             allowed_menus: p.allowed_menus.includes(menu)
@@ -496,8 +517,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                                     <MultiSelectFormDropdown
                                         label="Access"
                                         icon="admin_panel_settings"
-                                        options={ACCESS_OPTIONS}
-                                        selected={newUser.access}
+                                        options={['All', ...ACCESS_OPTIONS]}
+                                        selected={newUser.access.length === ACCESS_OPTIONS.length ? ['All', ...newUser.access] : newUser.access}
                                         onChange={toggleAccess}
                                     />
                                 </div>
@@ -510,8 +531,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                                     <MultiSelectFormDropdown
                                         label="Support Type"
                                         icon="support_agent"
-                                        options={SUPPORT_TYPE_OPTIONS}
-                                        selected={newUser.support_type}
+                                        options={['All', ...SUPPORT_TYPE_OPTIONS]}
+                                        selected={newUser.support_type.length === SUPPORT_TYPE_OPTIONS.length ? ['All', ...newUser.support_type] : newUser.support_type}
                                         onChange={toggleSupportType}
                                     />
                                 </div>
@@ -524,8 +545,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                                     <MultiSelectFormDropdown
                                         label="Allowed Menus"
                                         icon="menu"
-                                        options={MENU_OPTIONS}
-                                        selected={newUser.allowed_menus}
+                                        options={['All', ...MENU_OPTIONS]}
+                                        selected={newUser.allowed_menus.length === MENU_OPTIONS.length ? ['All', ...newUser.allowed_menus] : newUser.allowed_menus}
                                         onChange={toggleAllowedMenu}
                                     />
                                 </div>

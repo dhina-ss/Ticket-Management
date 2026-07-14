@@ -14,7 +14,12 @@ import uuid
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'petty-cash-mgmt-2024-xk9m2p'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///petty_cash.db'
+
+env = os.environ.get("APP_ENV", "local")
+db_pwd = "cotton123" if env == "prod" else "1234"
+pg_url = os.environ.get("DATABASE_URL", f"postgresql://postgres:{db_pwd}@localhost:5432/ticketdb")
+
+app.config['SQLALCHEMY_DATABASE_URI'] = pg_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'instance', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024   # 32 MB

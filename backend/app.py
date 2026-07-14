@@ -2587,360 +2587,315 @@ def api_courier_delete(entry_id):
 # ---------------------------------------------------------------------------
 # Petty Cash API Endpoints
 # ---------------------------------------------------------------------------
+
 @app.route('/api/petty-cash/dashboard', methods=['GET'])
 def api_petty_cash_dashboard():
     try:
         from datetime import date, timedelta
         from collections import defaultdict
-        with petty_cash_app.app_context():
-            today = date.today()
-            month_start = today.replace(day=1)
-            
-            today_expenses = petty_cash_app_module.Expense.query.filter(
-                petty_cash_app_module.Expense.date == today,
-                petty_cash_app_module.Expense.status != 'rejected'
-            ).all()
-            today_total = sum(e.amount for e in today_expenses)
+        
+        today = date.today()
+        month_start = today.replace(day=1)
+        
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            # today expenses
+            cur.execute("SELECT expense_amount, category FROM pettycash WHERE date = %s AND status != 'rejected'", (today,))
+            today_expenses = cur.fetchall()
+            today_total = sum(e[0] for e in today_expenses if e[0])
             today_count = len(today_expenses)
             
-            month_exps = petty_cash_app_module.Expense.query.filter(
-                petty_cash_app_module.Expense.date >= month_start,
-                petty_cash_app_module.Expense.status == 'approved'
-            ).all()
-            month_total = sum(e.amount for e in month_exps)
+            # month expenses
+            cur.execute("SELECT expense_amount FROM pettycash WHERE date >= %s AND status = 'approved'", (month_start,))
+            month_exps = cur.fetchall()
+            month_total = sum(e[0] for e in month_exps if e[0])
             
-            pending_count = petty_cash_app_module.Expense.query.filter_by(status='pending').count()
+            days_since_sunday = today.isoweekday() % 7
+            last_sunday = today - timedelta(days=days_since_sunday)
+            next_saturday = last_sunday + timedelta(days=6)
+            cur.execute("SELECT SUM(expense_amount) FROM pettycash WHERE date >= %s AND date <= %s AND status = 'approved'", (last_sunday, next_saturday))
+            this_week_sum = cur.fetchone()[0]
+            this_week_total = float(this_week_sum) if this_week_sum else 0.0
             
-            last_ledger = petty_cash_app_module.DayLedger.query.filter(
-                petty_cash_app_module.DayLedger.date <= today,
-                petty_cash_app_module.DayLedger.is_closed == True
-            ).order_by(petty_cash_app_module.DayLedger.date.desc()).first()
-            opening = last_ledger.closing_balance if last_ledger else 0.0
-            current_balance = opening - today_total
+            # pending count
+            cur.execute("SELECT COUNT(*) FROM pettycash WHERE status = 'pending'")
+            pending_count = cur.fetchone()[0]
+            
+            # last ledger
+            cur.execute("SELECT closing_balance FROM day_ledger WHERE date < %s AND is_closed = TRUE ORDER BY date DESC LIMIT 1", (today,))
+            last_ledger = cur.fetchone()
+            opening = float(last_ledger[0]) if last_ledger else 0.0
+            
             
             cat_totals = defaultdict(float)
             for e in today_expenses:
-                cat_totals[e.category] += e.amount
+                if e[0]:
+                    cat_totals[e[1]] += float(e[0])
             
+            # week data
             week_data = []
             for i in range(6, -1, -1):
                 d = today - timedelta(days=i)
-                exps = petty_cash_app_module.Expense.query.filter(
-                    petty_cash_app_module.Expense.date == d,
-                    petty_cash_app_module.Expense.status != 'rejected'
-                ).all()
+                cur.execute("SELECT SUM(expense_amount) FROM pettycash WHERE date = %s AND status != 'rejected'", (d,))
+                s = cur.fetchone()[0]
+                total = float(s) if s else 0.0
                 week_data.append({
                     'label': d.strftime('%d %b'),
-                    'total': round(sum(e.amount for e in exps), 2)
+                    'total': round(total, 2)
                 })
+                
+            # today ledger
+            cur.execute("SELECT added_cash, closing_balance, is_closed, notes FROM day_ledger WHERE date = %s", (today,))
+            today_ledger = cur.fetchone()
             
-            today_ledger = petty_cash_app_module.DayLedger.query.filter_by(date=today).first()
+            today_added = float(today_ledger[0]) if today_ledger else 0.0
+            today_closed = bool(today_ledger[2]) if today_ledger else False
+            
+            if today_closed:
+                current_balance = float(today_ledger[1])
+            else:
+                current_balance = opening + today_added - float(today_total)
+                
             ledger_info = {
                 "opening_balance": opening,
-                "added_cash": today_ledger.added_cash if today_ledger else 0.0,
-                "closing_balance": today_ledger.closing_balance if today_ledger else current_balance,
-                "is_closed": today_ledger.is_closed if today_ledger else False,
-                "notes": today_ledger.notes if today_ledger else ""
+                "added_cash": float(today_ledger[0]) if today_ledger else 0.0,
+                "closing_balance": float(today_ledger[1]) if today_ledger else current_balance,
+                "is_closed": bool(today_ledger[2]) if today_ledger else False,
+                "notes": today_ledger[3] if today_ledger and today_ledger[3] else ""
             }
             
-            # Load categories and subcategories from DB
+            # categories
             from database import get_categories
             db_cats = get_categories('Petty Cash')
-            
             categories_list = []
             subcategories_map = {}
             for cat in db_cats:
                 cat_name = cat['name']
                 categories_list.append(cat_name)
-                # Split subcategories comma-separated string into list
                 subs = [s.strip() for s in cat.get('subcategories', '').split(',') if s.strip()]
-                # If DB subcategories is empty, check default subcategories from the sub-application
-                if not subs:
-                    subs = list(petty_cash_app_module.SUBCATEGORIES.get(cat_name, []))
-                # Ensure "Other" is always added if not present (Petty Cash uses "Other" for remarks)
                 if 'Other' not in subs:
                     subs.append('Other')
                 subcategories_map[cat_name] = subs
-                
-            if not categories_list:
-                categories_list = petty_cash_app_module.CATEGORIES
-                subcategories_map = petty_cash_app_module.SUBCATEGORIES
-
-            return jsonify({
-                "today_total": today_total,
-                "today_count": today_count,
-                "month_total": month_total,
-                "pending_count": pending_count,
-                "current_balance": current_balance,
-                "cat_totals": dict(cat_totals),
-                "week_data": week_data,
-                "ledger": ledger_info,
-                "categories": categories_list,
-                "subcategories": subcategories_map
-            }), 200
+        conn.close()
+        
+        return jsonify({
+            "today_total": float(today_total),
+            "today_count": today_count,
+            "month_total": float(month_total),
+            "this_week_total": this_week_total,
+            "pending_count": pending_count,
+            "current_balance": float(current_balance),
+            "cat_totals": dict(cat_totals),
+            "week_data": week_data,
+            "ledger": ledger_info,
+            "categories": categories_list,
+            "subcategories": subcategories_map
+        }), 200
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/petty-cash/expenses', methods=['GET'])
 def api_petty_cash_expenses():
     try:
         from datetime import datetime
-        with petty_cash_app.app_context():
-            date_from = request.args.get('date_from', '')
-            date_to = request.args.get('date_to', '')
-            category = request.args.get('category', '')
-            status_f = request.args.get('status', '')
+        date_from = request.args.get('date_from', '')
+        date_to = request.args.get('date_to', '')
+        category = request.args.get('category', '')
+        status_f = request.args.get('status', '')
+        
+        query = "SELECT id, date, category, sub_category, sub_remarks, expense_amount, description, status, user_name, approved_by, approved_at, manager_notes FROM pettycash WHERE 1=1"
+        params = []
+        
+        if date_from:
+            query += " AND date >= %s"
+            params.append(date_from)
+        if date_to:
+            query += " AND date <= %s"
+            params.append(date_to)
+        if category:
+            query += " AND category = %s"
+            params.append(category)
+        if status_f:
+            query += " AND status = %s"
+            params.append(status_f)
             
-            q = petty_cash_app_module.Expense.query
-            if date_from:
-                try:
-                    q = q.filter(petty_cash_app_module.Expense.date >= datetime.strptime(date_from, '%Y-%m-%d').date())
-                except ValueError:
-                    pass
-            if date_to:
-                try:
-                    q = q.filter(petty_cash_app_module.Expense.date <= datetime.strptime(date_to, '%Y-%m-%d').date())
-                except ValueError:
-                    pass
-            if category:
-                q = q.filter_by(category=category)
-            if status_f:
-                q = q.filter_by(status=status_f)
-                
-            expenses = q.order_by(petty_cash_app_module.Expense.date.desc(), petty_cash_app_module.Expense.created_at.desc()).all()
+        query += " ORDER BY date DESC, created_at DESC"
+        
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
             
             result = []
-            for e in expenses:
+            for r in rows:
                 result.append({
-                    "id": e.id,
-                    "date": e.date.isoformat() if e.date else "",
-                    "category": e.category,
-                    "subcategory": e.subcategory,
-                    "sub_remarks": e.sub_remarks,
-                    "amount": e.amount,
-                    "description": e.description,
-                    "status": e.status,
-                    "submitted_by": e.submitter.full_name if e.submitter else "Unknown",
-                    "approved_by": e.approver.full_name if e.approver else "",
-                    "approved_at": e.approved_at.isoformat() if e.approved_at else "",
-                    "manager_notes": e.manager_notes
+                    "id": r[0],
+                    "date": r[1].isoformat() if r[1] else "",
+                    "category": r[2] or "",
+                    "subcategory": r[3] or "",
+                    "sub_remarks": r[4] or "",
+                    "amount": float(r[5]) if r[5] else 0.0,
+                    "description": r[6] or "",
+                    "status": r[7] or "approved",
+                    "submitted_by": r[8] or "Unknown",
+                    "approved_by": r[9] or "",
+                    "approved_at": r[10].isoformat() if r[10] else "",
+                    "manager_notes": r[11] or ""
                 })
-            return jsonify(result), 200
+        conn.close()
+        return jsonify(result), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/petty-cash/expenses', methods=['POST'])
-def api_petty_cash_create_expense():
+def api_petty_cash_add():
     try:
-        from datetime import datetime
-        data = request.json or {}
-        with petty_cash_app.app_context():
-            exp_date = datetime.strptime(data['date'], '%Y-%m-%d').date() if data.get('date') else datetime.now().date()
-            category = data.get('category')
-            amount = float(data.get('amount') or 0)
-            description = data.get('description', '').strip()
-            subcategory = data.get('subcategory', '').strip()
-            sub_remarks = data.get('sub_remarks', '').strip()
+        data = request.json
+        user_name = data.get('submitted_by', 'admin')
+        is_manager = data.get('is_manager', False)
+        
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            status = 'approved' if is_manager else 'pending'
+            approved_by = user_name if is_manager else None
             
-            submitted_by_id = 1
-            submitter_name = data.get('submitted_by', '')
-            if submitter_name:
-                user = petty_cash_app_module.User.query.filter_by(username=submitter_name.lower()).first()
-                if user:
-                    submitted_by_id = user.id
-                    
-            is_mgr = data.get('is_manager', False)
-            
-            expense = petty_cash_app_module.Expense(
-                date=exp_date,
-                category=category,
-                amount=round(amount, 2),
-                description=description,
-                submitted_by_id=submitted_by_id,
-                subcategory=subcategory,
-                sub_remarks=sub_remarks if subcategory == 'Other' else '',
-                status='approved' if is_mgr else 'pending',
-                approved_by_id=submitted_by_id if is_mgr else None,
-                approved_at=datetime.utcnow() if is_mgr else None
-            )
-            petty_cash_app_module.db.session.add(expense)
-            petty_cash_app_module.db.session.commit()
-            return jsonify({"success": True, "id": expense.id}), 201
+            cur.execute("""
+                INSERT INTO pettycash (date, category, sub_category, sub_remarks, expense_amount, description, user_name, status, approved_by, approved_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            """, (
+                data.get('date'),
+                data.get('category'),
+                data.get('subcategory'),
+                data.get('sub_remarks'),
+                data.get('amount', 0),
+                data.get('description'),
+                user_name,
+                status,
+                approved_by
+            ))
+            conn.commit()
+        conn.close()
+        return jsonify({"success": True}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/petty-cash/expenses/<int:eid>/approve', methods=['POST'])
 def api_petty_cash_approve(eid):
     try:
-        from datetime import datetime
-        data = request.json or {}
-        notes = data.get('notes', '')
-        user_name = data.get('user_name', 'manager')
-        with petty_cash_app.app_context():
-            e = petty_cash_app_module.Expense.query.get_or_404(eid)
-            e.status = 'approved'
-            user = petty_cash_app_module.User.query.filter_by(username=user_name.lower()).first()
-            e.approved_by_id = user.id if user else 2
-            e.approved_at = datetime.utcnow()
-            e.manager_notes = notes
-            petty_cash_app_module.db.session.commit()
-            return jsonify({"success": True}), 200
+        data = request.json
+        user_name = data.get('user_name', 'admin')
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("UPDATE pettycash SET status='approved', approved_by=%s, approved_at=NOW() WHERE id=%s", (user_name, eid))
+            conn.commit()
+        conn.close()
+        return jsonify({"success": True}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/petty-cash/expenses/<int:eid>/reject', methods=['POST'])
 def api_petty_cash_reject(eid):
     try:
-        from datetime import datetime
-        data = request.json or {}
+        data = request.json
+        user_name = data.get('user_name', 'admin')
         notes = data.get('notes', '')
-        user_name = data.get('user_name', 'manager')
-        with petty_cash_app.app_context():
-            e = petty_cash_app_module.Expense.query.get_or_404(eid)
-            e.status = 'rejected'
-            user = petty_cash_app_module.User.query.filter_by(username=user_name.lower()).first()
-            e.approved_by_id = user.id if user else 2
-            e.approved_at = datetime.utcnow()
-            e.manager_notes = notes
-            petty_cash_app_module.db.session.commit()
-            return jsonify({"success": True}), 200
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("UPDATE pettycash SET status='rejected', manager_notes=%s, approved_by=%s, approved_at=NOW() WHERE id=%s", (notes, user_name, eid))
+            conn.commit()
+        conn.close()
+        return jsonify({"success": True}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/petty-cash/expenses/<int:eid>', methods=['PUT'])
-def api_petty_cash_update_expense(eid):
+def api_petty_cash_update(eid):
     try:
-        from datetime import datetime
-        data = request.json or {}
-        with petty_cash_app.app_context():
-            e = petty_cash_app_module.Expense.query.get_or_404(eid)
-            if 'date' in data:
-                e.date = datetime.strptime(data['date'], '%Y-%m-%d').date() if data.get('date') else e.date
-            if 'category' in data:
-                e.category = data.get('category')
-            if 'amount' in data:
-                e.amount = round(float(data.get('amount') or 0), 2)
-            if 'description' in data:
-                e.description = data.get('description', '').strip()
-            if 'subcategory' in data:
-                e.subcategory = data.get('subcategory', '').strip()
-            if 'sub_remarks' in data:
-                e.sub_remarks = data.get('sub_remarks', '').strip()
-            if 'submitted_by' in data:
-                submitter_name = data.get('submitted_by', '')
-                if submitter_name:
-                    user = petty_cash_app_module.User.query.filter_by(username=submitter_name.lower()).first()
-                    if user:
-                        e.submitted_by_id = user.id
-            petty_cash_app_module.db.session.commit()
-            return jsonify({"success": True}), 200
+        data = request.json
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE pettycash 
+                SET date=%s, category=%s, sub_category=%s, sub_remarks=%s, expense_amount=%s, description=%s
+                WHERE id=%s
+            """, (
+                data.get('date'), data.get('category'), data.get('subcategory'),
+                data.get('sub_remarks'), data.get('amount'), data.get('description'), eid
+            ))
+            conn.commit()
+        conn.close()
+        return jsonify({"success": True}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/petty-cash/expenses/<int:eid>', methods=['DELETE'])
-def api_petty_cash_delete_expense(eid):
+def api_petty_cash_delete(eid):
     try:
-        with petty_cash_app.app_context():
-            e = petty_cash_app_module.Expense.query.get_or_404(eid)
-            petty_cash_app_module.db.session.delete(e)
-            petty_cash_app_module.db.session.commit()
-            return jsonify({"success": True}), 200
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM pettycash WHERE id=%s", (eid,))
+            conn.commit()
+        conn.close()
+        return jsonify({"success": True}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/petty-cash/ledger/close', methods=['POST'])
 def api_petty_cash_close_ledger():
     try:
-        from datetime import date, datetime
-        data = request.json or {}
-        added_cash = float(data.get('added_cash', 0) or 0)
+        from datetime import date
+        data = request.json
+        today = date.today()
+        user_name = data.get('user_name', 'admin')
+        added_cash = float(data.get('added_cash', 0))
         notes = data.get('notes', '')
-        user_name = data.get('user_name', 'manager')
         
-        with petty_cash_app.app_context():
-            today = date.today()
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            # check if exists
+            cur.execute("SELECT id FROM day_ledger WHERE date=%s", (today,))
+            exists = cur.fetchone()
             
-            last_ledger = petty_cash_app_module.DayLedger.query.filter(
-                petty_cash_app_module.DayLedger.date < today,
-                petty_cash_app_module.DayLedger.is_closed == True
-            ).order_by(petty_cash_app_module.DayLedger.date.desc()).first()
-            opening = last_ledger.closing_balance if last_ledger else 0.0
+            # calculate closing
+            cur.execute("SELECT SUM(expense_amount) FROM pettycash WHERE date=%s AND status != 'rejected'", (today,))
+            exp_sum = cur.fetchone()[0]
+            total_exp = float(exp_sum) if exp_sum else 0.0
             
-            approved_exps = petty_cash_app_module.Expense.query.filter(
-                petty_cash_app_module.Expense.date == today,
-                petty_cash_app_module.Expense.status == 'approved'
-            ).all()
-            total_expenses = sum(e.amount for e in approved_exps)
-            closing_balance = opening + added_cash - total_expenses
+            cur.execute("SELECT closing_balance FROM day_ledger WHERE date < %s AND is_closed=TRUE ORDER BY date DESC LIMIT 1", (today,))
+            prev = cur.fetchone()
+            opening = float(prev[0]) if prev else 0.0
             
-            ledger = petty_cash_app_module.DayLedger.query.filter_by(date=today).first()
-            if not ledger:
-                ledger = petty_cash_app_module.DayLedger(date=today)
-                petty_cash_app_module.db.session.add(ledger)
-                
-            ledger.opening_balance = opening
-            ledger.added_cash = added_cash
-            ledger.total_expenses = total_expenses
-            ledger.closing_balance = closing_balance
-            ledger.notes = notes
-            ledger.is_closed = True
+            closing = opening + added_cash - total_exp
             
-            user = petty_cash_app_module.User.query.filter_by(username=user_name.lower()).first()
-            ledger.closed_by_id = user.id if user else 2
-            ledger.closed_at = datetime.utcnow()
-            
-            petty_cash_app_module.db.session.commit()
-            return jsonify({"success": True, "closing_balance": closing_balance}), 200
+            if exists:
+                cur.execute("UPDATE day_ledger SET added_cash=%s, total_expenses=%s, closing_balance=%s, is_closed=TRUE, notes=%s, closed_at=NOW() WHERE date=%s", 
+                            (added_cash, total_exp, closing, notes, today))
+            else:
+                cur.execute("INSERT INTO day_ledger (date, opening_balance, added_cash, total_expenses, closing_balance, is_closed, notes, closed_at) VALUES (%s, %s, %s, %s, %s, TRUE, %s, NOW())",
+                            (today, opening, added_cash, total_exp, closing, notes))
+            conn.commit()
+        conn.close()
+        return jsonify({"success": True}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/petty-cash/reports/export', methods=['GET'])
-def api_petty_cash_export_reports():
+def api_petty_cash_export():
     try:
-        from datetime import datetime
-        import csv
-        import io
-        from flask import make_response
-        
-        date_from = request.args.get('date_from', '')
-        date_to = request.args.get('date_to', '')
-        
-        with petty_cash_app.app_context():
-            q = petty_cash_app_module.Expense.query.filter(petty_cash_app_module.Expense.status == 'approved')
-            if date_from:
-                try:
-                    q = q.filter(petty_cash_app_module.Expense.date >= datetime.strptime(date_from, '%Y-%m-%d').date())
-                except ValueError:
-                    pass
-            if date_to:
-                try:
-                    q = q.filter(petty_cash_app_module.Expense.date <= datetime.strptime(date_to, '%Y-%m-%d').date())
-                except ValueError:
-                    pass
-            
-            exps = q.order_by(petty_cash_app_module.Expense.date.asc()).all()
-            out = io.StringIO()
-            w = csv.writer(out)
-            w.writerow(['#', 'Date', 'Category', 'Amount (INR)', 'Description', 'Submitted By', 'Approved By', 'Approved At'])
-            for i, e in enumerate(exps, 1):
-                w.writerow([
-                    i, e.date.strftime('%d-%m-%Y') if e.date else '', e.category,
-                    f'{e.amount:.2f}', e.description,
-                    e.submitter.full_name if e.submitter else '',
-                    e.approver.full_name if e.approver else '',
-                    e.approved_at.strftime('%d-%m-%Y %H:%M') if e.approved_at else ''
-                ])
-            w.writerow([])
-            w.writerow(['', '', 'TOTAL', f'{sum(e.amount for e in exps):.2f}', '', '', '', ''])
-            
-            out.seek(0)
-            resp = make_response(out.getvalue())
-            fname = f'petty_cash_{date_from or "all"}_{date_to or "all"}.csv'
-            resp.headers['Content-Type'] = 'text/csv'
-            resp.headers['Content-Disposition'] = f'attachment; filename={fname}'
-            return resp
+        return jsonify({"message": "Use frontend export for now"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     import argparse

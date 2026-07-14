@@ -8,7 +8,7 @@ import 'react-date-range/dist/theme/default.css';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
-const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, variant = 'default', icon, widthClass = 'w-full' }) => {
+const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, variant = 'default', icon, widthClass = 'w-full', disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -19,10 +19,10 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
   return (
     <div className="relative" ref={ref}>
       <div
-        onClick={() => setIsOpen(o => !o)}
+        onClick={() => !disabled && setIsOpen(o => !o)}
         className={variant === 'filter'
-          ? `flex items-center justify-between gap-2 px-3 py-2 bg-[#eceef0] dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700 outline-none focus:outline-none focus:ring-0 cursor-pointer ${widthClass} ${isOpen ? 'bg-white dark:bg-slate-900 shadow-sm' : ''}`
-          : `flex items-center justify-between ${widthClass} px-3 py-2 text-sm rounded-xl border-none cursor-pointer transition-all bg-slate-50 dark:bg-slate-800 font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/20' : ''}`
+          ? `flex items-center justify-between gap-2 px-3 py-2 bg-[#eceef0] dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700 outline-none focus:outline-none focus:ring-0 cursor-pointer ${widthClass} ${isOpen ? 'bg-white dark:bg-slate-900 shadow-sm' : ''} ${disabled ? 'opacity-50 cursor-not-allowed hover:bg-[#eceef0] dark:hover:bg-slate-800' : ''}`
+          : `flex items-center justify-between ${widthClass} px-3 py-2 text-sm rounded-xl border-none cursor-pointer transition-all bg-slate-50 dark:bg-slate-800 font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/20' : ''} ${disabled ? 'opacity-50 cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800' : ''}`
         }
       >
         <div className="flex items-center gap-2 truncate">
@@ -111,6 +111,7 @@ const PettyCash = () => {
     today_total: 0,
     today_count: 0,
     month_total: 0,
+    this_week_total: 0,
     pending_count: 0,
     current_balance: 0,
     cat_totals: {},
@@ -133,8 +134,7 @@ const PettyCash = () => {
   const [filters, setFilters] = useState({
     date_from: '',
     date_to: '',
-    category: '',
-    status: ''
+    category: ''
   });
 
   // Modals
@@ -144,6 +144,37 @@ const PettyCash = () => {
   const [selectedExpense, setSelectedExpense] = useState(null);
   const [editingExpense, setEditingExpense] = useState(null);
 
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategorySubs, setNewCategorySubs] = useState('');
+  const [isSubmittingCat, setIsSubmittingCat] = useState(false);
+  const [catError, setCatError] = useState('');
+
+  const handleAddCategorySubmit = async (e) => {
+    e.preventDefault();
+    setCatError('');
+    if (!newCategoryName.trim()) {
+        setCatError('Category name is required.');
+        return;
+    }
+    setIsSubmittingCat(true);
+    try {
+        await api.post('/api/categories', { 
+            name: newCategoryName, 
+            support_type: 'Petty Cash',
+            subcategories: newCategorySubs
+        });
+        fetchDashboard();
+        setShowAddCategory(false);
+        setNewCategoryName('');
+        setNewCategorySubs('');
+    } catch (err) {
+        setCatError(err.response?.data?.error || 'Failed to add category');
+    } finally {
+        setIsSubmittingCat(false);
+    }
+  };
+
   const handleOpenAdd = () => {
     setEditingExpense(null);
     setExpenseForm({
@@ -152,7 +183,8 @@ const PettyCash = () => {
       subcategory: '',
       sub_remarks: '',
       amount: '',
-      description: ''
+      description: '',
+      approved_by: ''
     });
     setShowAddModal(true);
   };
@@ -165,7 +197,8 @@ const PettyCash = () => {
       subcategory: exp.subcategory || '',
       sub_remarks: exp.sub_remarks || '',
       amount: exp.amount || '',
-      description: exp.description || ''
+      description: exp.description || '',
+      approved_by: exp.approved_by || ''
     });
     setShowAddModal(true);
   };
@@ -397,9 +430,9 @@ const PettyCash = () => {
       'Subcategory': exp.subcategory || '',
       'Remarks': exp.sub_remarks || '',
       'Submitted By': exp.submitted_by,
+      'Approved By': exp.approved_by || '-',
       'Amount (INR)': exp.amount,
-      'Description': exp.description,
-      'Status': exp.status ? exp.status.toUpperCase() : ''
+      'Description': exp.description
     }));
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
@@ -443,6 +476,13 @@ const PettyCash = () => {
         </div>
 
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/petty-cash/analysis')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 dark:text-blue-400 font-bold rounded-xl transition-all border border-blue-500/20 cursor-pointer text-sm"
+          >
+            <span className="material-symbols-outlined text-lg">analytics</span>
+            Analysis
+          </button>
           {isManager && !dashboard.ledger.is_closed && (
             <button
               onClick={() => setShowCloseModal(true)}
@@ -560,6 +600,16 @@ const PettyCash = () => {
 
           <div className="bg-white dark:bg-[#1C212B] rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
             <div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Weekly Expenses</p>
+              <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2">₹{(dashboard.this_week_total || 0).toFixed(2)}</h3>
+            </div>
+            <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-amber-600">
+              <span className="material-symbols-outlined text-2xl">view_week</span>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-[#1C212B] rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Monthly Expenses</p>
               <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2">₹{dashboard.month_total.toFixed(2)}</h3>
             </div>
@@ -568,15 +618,6 @@ const PettyCash = () => {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#1C212B] rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pending Approvals</p>
-              <h3 className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 mt-2">{dashboard.pending_count}</h3>
-            </div>
-            <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center text-amber-600">
-              <span className="material-symbols-outlined text-2xl">hourglass_empty</span>
-            </div>
-          </div>
         </div>
 
         {/* Filters Section */}
@@ -605,22 +646,6 @@ const PettyCash = () => {
               options={[
                 { label: 'All Categories', value: '' },
                 ...dashboard.categories.map(c => ({ label: c, value: c }))
-              ]}
-            />
-
-            {/* Status */}
-            <SelectDropdown
-              variant="filter"
-              icon="checklist"
-              widthClass="w-50"
-              label="All Statuses"
-              value={filters.status}
-              onChange={val => setFilters(prev => ({ ...prev, status: val }))}
-              options={[
-                { label: 'All Statuses', value: '' },
-                { label: 'Pending', value: 'pending' },
-                { label: 'Approved', value: 'approved' },
-                { label: 'Rejected', value: 'rejected' }
               ]}
             />
 
@@ -697,11 +722,11 @@ const PettyCash = () => {
             </button>
 
             {/* Clear Filters */}
-            {(searchQuery !== '' || filters.category !== '' || filters.status !== '' || isDateFilterActive) && (
+            {(searchQuery !== '' || filters.category !== '' || isDateFilterActive) && (
               <button
                 onClick={() => {
                   setSearchQuery('');
-                  setFilters({ category: '', status: '', date_from: '', date_to: '' });
+                  setFilters({ category: '', date_from: '', date_to: '' });
                   setIsDateFilterActive(false);
                   setDateRange([{ startDate: new Date(), endDate: new Date(), key: 'selection' }]);
                 }}
@@ -738,8 +763,8 @@ const PettyCash = () => {
                       <th className="p-4">Category</th>
                       <th className="p-4">Username</th>
                       <th className="p-4">Description</th>
-                      <th className="p-4 font-semibold">Amount (INR)</th>
-                      <th className="p-4 font-semibold">Status</th>
+                      <th className="p-4 font-semibold">Amount (₹)</th>
+                      <th className="p-4">Approved By</th>
                       {hasEditPermission && <th className="p-4 text-right font-semibold">Actions</th>}
                     </tr>
                   </thead>
@@ -759,22 +784,7 @@ const PettyCash = () => {
                         <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.submitted_by}</td>
                         <td className="px-4 py-2 max-w-[200px] truncate" title={exp.description}>{exp.description}</td>
                         <td className="px-4 py-2 font-bold text-[#ec1d22]">₹{exp.amount.toFixed(2)}</td>
-                        <td className="px-4 py-2">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${exp.status === 'approved'
-                              ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600'
-                              : exp.status === 'rejected'
-                                ? 'bg-red-50 dark:bg-red-950/20 text-red-600'
-                                : 'bg-amber-50 dark:bg-amber-950/20 text-amber-600'
-                            }`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${exp.status === 'approved'
-                                ? 'bg-emerald-500'
-                                : exp.status === 'rejected'
-                                  ? 'bg-red-500'
-                                  : 'bg-amber-500'
-                              }`}></span>
-                            {exp.status.toUpperCase()}
-                          </span>
-                        </td>
+                        <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.approved_by || '-'}</td>
                         {hasEditPermission && (
                           <td className="px-4 py-2 text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -914,7 +924,12 @@ const PettyCash = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Category *</label>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Category *</label>
+                    <button type="button" onClick={() => setShowAddCategory(true)} className="text-xs font-bold text-amber-600 hover:text-amber-700 transition-colors cursor-pointer bg-transparent border-none p-0 flex items-center gap-1">
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span> Add Category
+                    </button>
+                  </div>
                   <SelectDropdown
                     label="Select Category"
                     options={dashboard.categories}
@@ -922,36 +937,48 @@ const PettyCash = () => {
                     onChange={handleCategoryChange}
                   />
                 </div>
-                {expenseForm.category && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory *</label>
-                    <SelectDropdown
-                      label="Select Subcategory"
-                      options={dashboard.subcategories[expenseForm.category] || []}
-                      value={expenseForm.subcategory}
-                      onChange={val => setExpenseForm(prev => ({ ...prev, subcategory: val }))}
-                    />
-                    {(dashboard.subcategories[expenseForm.category] || []).filter(s => s !== 'Other').length > 0 && (
-                      <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 flex flex-wrap gap-1 items-center">
-                      </div>
-                    )}
-                  </div>
-                )}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory *</label>
+                  <SelectDropdown
+                    label="Select Subcategory"
+                    options={expenseForm.category ? dashboard.subcategories[expenseForm.category] || [] : []}
+                    value={expenseForm.subcategory}
+                    onChange={val => setExpenseForm(prev => ({ ...prev, subcategory: val }))}
+                    disabled={!expenseForm.category || !dashboard.subcategories[expenseForm.category] || dashboard.subcategories[expenseForm.category].length === 0}
+                  />
+                  {expenseForm.category && (dashboard.subcategories[expenseForm.category] || []).filter(s => s !== 'Other').length > 0 && (
+                    <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 flex flex-wrap gap-1 items-center">
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {expenseForm.subcategory === 'Other' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory Remarks *</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {expenseForm.subcategory === 'Other' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory Remarks *</label>
+                    <input
+                      type="text"
+                      required
+                      value={expenseForm.sub_remarks}
+                      onChange={e => setExpenseForm(prev => ({ ...prev, sub_remarks: e.target.value }))}
+                      placeholder="E.g. Stationery purchase detail"
+                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+                    />
+                  </div>
+                )}
+
+                <div className={expenseForm.subcategory !== 'Other' ? 'md:col-span-2' : ''}>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Approved By</label>
                   <input
                     type="text"
-                    required
-                    value={expenseForm.sub_remarks}
-                    onChange={e => setExpenseForm(prev => ({ ...prev, sub_remarks: e.target.value }))}
-                    placeholder="E.g. Stationery purchase detail"
+                    value={expenseForm.approved_by}
+                    onChange={e => setExpenseForm(prev => ({ ...prev, approved_by: e.target.value }))}
+                    placeholder="Approver's username (optional)"
                     className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
                   />
                 </div>
-              )}
+              </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Description / Purpose *</label>
@@ -1016,7 +1043,7 @@ const PettyCash = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Added Cash (Refill amount)</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Credit Cash (Refill amount)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1079,12 +1106,8 @@ const PettyCash = () => {
                   <p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedExpense.date ? selectedExpense.date.split('-').reverse().join('-') : '-'}</p>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Status</label>
-                  <p className="font-medium text-sm">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${selectedExpense.status === 'approved' ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600' : selectedExpense.status === 'rejected' ? 'bg-red-50 dark:bg-red-950/20 text-red-600' : 'bg-amber-50 dark:bg-amber-950/20 text-amber-600'}`}>
-                      {selectedExpense.status.toUpperCase()}
-                    </span>
-                  </p>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Approved By</label>
+                  <p className="font-medium text-sm text-slate-800 dark:text-slate-200">{selectedExpense.approved_by || '-'}</p>
                 </div>
               </div>
               
@@ -1120,6 +1143,79 @@ const PettyCash = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Category Modal */}
+      {showAddCategory && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-semibold text-slate-800 dark:text-white">Add New Category</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddCategory(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-transparent border-0 cursor-pointer flex"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleAddCategorySubmit} className="space-y-4">
+              {catError && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg text-sm">
+                  {catError}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category Name</label>
+                <input
+                  type="text"
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/50 text-sm"
+                  placeholder="e.g. Hardware Issue"
+                  value={newCategoryName}
+                  onChange={e => setNewCategoryName(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Support Type</label>
+                <select
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 outline-none focus:ring-2 focus:ring-amber-500/50 text-sm cursor-not-allowed"
+                  value="Petty Cash"
+                  disabled
+                >
+                  <option value="Petty Cash">Petty Cash</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Sub Categories (comma-separated)</label>
+                <input
+                  type="text"
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500/50 text-sm"
+                  placeholder="e.g. Office Supplies, Travel, Food"
+                  value={newCategorySubs}
+                  onChange={e => setNewCategorySubs(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddCategory(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-0 cursor-pointer bg-transparent"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingCat}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors text-white border-0 cursor-pointer ${isSubmittingCat ? 'bg-amber-600/70 cursor-wait' : 'bg-amber-600 hover:bg-amber-700'}`}
+                >
+                  {isSubmittingCat ? 'Saving...' : 'Add Category'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
