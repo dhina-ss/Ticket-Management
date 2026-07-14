@@ -665,6 +665,7 @@ def init_db():
                         date DATE NOT NULL,
                         amount DOUBLE PRECISION,
                         user_name VARCHAR(100),
+                        description TEXT,
                         created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
                     );
                 """)

@@ -2710,47 +2710,73 @@ def api_petty_cash_expenses():
         date_from = request.args.get('date_from', '')
         date_to = request.args.get('date_to', '')
         category = request.args.get('category', '')
+        subcategory = request.args.get('subcategory', '')
+        purpose = request.args.get('purpose', '')
         status_f = request.args.get('status', '')
         
-        query = "SELECT id, date, category, sub_category, sub_remarks, expense_amount, description, status, user_name, approved_by, approved_at, manager_notes FROM pettycash WHERE 1=1"
-        params = []
+        query_expenses = "SELECT 'expense' as type, id, date, category, sub_category, sub_remarks, expense_amount, description, status, user_name, approved_by, approved_at, manager_notes, created_at FROM pettycash WHERE 1=1"
+        query_credit = "SELECT 'credit' as type, id, date, 'Added Cash' as category, '' as sub_category, '' as sub_remarks, amount as expense_amount, description, 'approved' as status, user_name, user_name as approved_by, created_at as approved_at, '' as manager_notes, created_at FROM cash_add_history WHERE 1=1"
+        
+        params_expenses = []
+        params_credit = []
         
         if date_from:
-            query += " AND date >= %s"
-            params.append(date_from)
+            query_expenses += " AND date >= %s"
+            params_expenses.append(date_from)
+            query_credit += " AND date >= %s"
+            params_credit.append(date_from)
         if date_to:
-            query += " AND date <= %s"
-            params.append(date_to)
+            query_expenses += " AND date <= %s"
+            params_expenses.append(date_to)
+            query_credit += " AND date <= %s"
+            params_credit.append(date_to)
         if category:
-            query += " AND category = %s"
-            params.append(category)
+            if category == 'Added Cash':
+                query_expenses += " AND 1=0"
+            else:
+                query_expenses += " AND category = %s"
+                params_expenses.append(category)
+                query_credit += " AND 1=0"
+        if subcategory:
+            query_expenses += " AND LOWER(sub_category) = LOWER(%s)"
+            params_expenses.append(subcategory)
+            query_credit += " AND 1=0"
+        if purpose:
+            query_expenses += " AND LOWER(user_name) = LOWER(%s)"
+            params_expenses.append(purpose)
+            query_credit += " AND LOWER(user_name) = LOWER(%s)"
+            params_credit.append(purpose)
         if status_f:
-            query += " AND status = %s"
-            params.append(status_f)
+            query_expenses += " AND status = %s"
+            params_expenses.append(status_f)
+            if status_f != 'approved':
+                query_credit += " AND 1=0"
             
-        query += " ORDER BY date DESC, created_at DESC"
+        final_query = f"SELECT * FROM ({query_expenses} UNION ALL {query_credit}) as combined ORDER BY date DESC, created_at DESC"
+        final_params = params_expenses + params_credit
         
         from database import _get_conn
         conn = _get_conn()
         with conn.cursor() as cur:
-            cur.execute(query, params)
+            cur.execute(final_query, final_params)
             rows = cur.fetchall()
             
             result = []
             for r in rows:
                 result.append({
-                    "id": r[0],
-                    "date": r[1].isoformat() if r[1] else "",
-                    "category": r[2] or "",
-                    "subcategory": r[3] or "",
-                    "sub_remarks": r[4] or "",
-                    "amount": float(r[5]) if r[5] else 0.0,
-                    "description": r[6] or "",
-                    "status": r[7] or "approved",
-                    "submitted_by": r[8] or "Unknown",
-                    "approved_by": r[9] or "",
-                    "approved_at": r[10].isoformat() if r[10] else "",
-                    "manager_notes": r[11] or ""
+                    "type": r[0],
+                    "id": r[1],
+                    "date": r[2].isoformat() if r[2] else "",
+                    "category": r[3] or "",
+                    "subcategory": r[4] or "",
+                    "sub_remarks": r[5] or "",
+                    "amount": float(r[6]) if r[6] else 0.0,
+                    "description": r[7] or "",
+                    "status": r[8] or "approved",
+                    "submitted_by": r[9] or "Unknown",
+                    "approved_by": r[10] or "",
+                    "approved_at": r[11].isoformat() if hasattr(r[11], 'isoformat') else str(r[11]) if r[11] else "",
+                    "manager_notes": r[12] or ""
                 })
         conn.close()
         return jsonify(result), 200
@@ -2898,11 +2924,13 @@ def api_petty_cash_close_ledger():
 @app.route('/api/petty-cash/ledger/add-cash', methods=['POST'])
 def api_petty_cash_add_cash():
     try:
-        from datetime import date
+        from datetime import date as dt_date
         data = request.json
-        today = date.today()
+        # Use provided date if available, else today
+        today = data.get('date') or dt_date.today().isoformat()
         new_cash = float(data.get('amount', 0))
         user_name = data.get('user_name', 'admin')
+        description = data.get('description', '')
         
         from database import _get_conn
         conn = _get_conn()
@@ -2920,8 +2948,8 @@ def api_petty_cash_add_cash():
                 cur.execute("INSERT INTO day_ledger (date, opening_balance, added_cash, is_closed) VALUES (%s, %s, %s, FALSE)",
                             (today, opening, new_cash))
             
-            cur.execute("INSERT INTO cash_add_history (date, amount, user_name) VALUES (%s, %s, %s)",
-                        (today, new_cash, user_name))
+            cur.execute("INSERT INTO cash_add_history (date, amount, user_name, description) VALUES (%s, %s, %s, %s)",
+                        (today, new_cash, user_name, description))
             
             conn.commit()
         conn.close()
@@ -2961,6 +2989,35 @@ def api_petty_cash_credit_history():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/petty-cash/ledger/all', methods=['GET'])
+def api_petty_cash_ledger_all():
+    try:
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, date, opening_balance, added_cash, total_expenses, closing_balance, is_closed
+                FROM day_ledger
+                ORDER BY date ASC
+            """)
+            rows = cur.fetchall()
+            ledger_data = []
+            for r in rows:
+                ledger_data.append({
+                    "id": r[0],
+                    "date": r[1].isoformat() if hasattr(r[1], 'isoformat') else str(r[1]),
+                    "opening_balance": float(r[2] or 0),
+                    "added_cash": float(r[3] or 0),
+                    "total_expenses": float(r[4] or 0),
+                    "closing_balance": float(r[5] or 0),
+                    "is_closed": bool(r[6])
+                })
+        conn.close()
+        return jsonify(ledger_data), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/petty-cash/reports/export', methods=['GET'])
 def api_petty_cash_export():

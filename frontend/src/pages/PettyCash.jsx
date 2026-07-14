@@ -134,7 +134,9 @@ const PettyCash = () => {
 	const [filters, setFilters] = useState({
 		date_from: '',
 		date_to: '',
-		category: ''
+		category: '',
+		subcategory: '',
+		purpose: ''
 	});
 
 	// Modals
@@ -142,6 +144,8 @@ const PettyCash = () => {
 	const [showCloseModal, setShowCloseModal] = useState(false);
 	const [showAddCashModal, setShowAddCashModal] = useState(false);
 	const [addCashAmount, setAddCashAmount] = useState('');
+	const [addCashDate, setAddCashDate] = useState(new Date().toISOString().split('T')[0]);
+	const [addCashDescription, setAddCashDescription] = useState('');
 	const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 	const [showCreditHistoryModal, setShowCreditHistoryModal] = useState(false);
 	const [creditHistory, setCreditHistory] = useState([]);
@@ -211,7 +215,8 @@ const PettyCash = () => {
 			sub_remarks: '',
 			amount: '',
 			description: '',
-			approved_by: ''
+			approved_by: '',
+			purpose: 'Admin'
 		});
 		setShowAddModal(true);
 	};
@@ -225,7 +230,8 @@ const PettyCash = () => {
 			sub_remarks: exp.sub_remarks || '',
 			amount: exp.amount || '',
 			description: exp.description || '',
-			approved_by: exp.approved_by || ''
+			approved_by: exp.approved_by || '',
+			purpose: exp.submitted_by || 'Admin'
 		});
 		setShowAddModal(true);
 	};
@@ -238,7 +244,9 @@ const PettyCash = () => {
 			subcategory: '',
 			sub_remarks: '',
 			amount: '',
-			description: ''
+			description: '',
+			approved_by: '',
+			purpose: 'Admin'
 		});
 		setShowAddModal(false);
 	};
@@ -285,7 +293,9 @@ const PettyCash = () => {
 		subcategory: '',
 		sub_remarks: '',
 		amount: '',
-		description: ''
+		description: '',
+		approved_by: '',
+		purpose: 'Admin'
 	});
 
 	const [closeForm, setCloseForm] = useState({
@@ -348,7 +358,7 @@ const PettyCash = () => {
 		try {
 			const payload = {
 				...expenseForm,
-				submitted_by: editingExpense ? editingExpense.submitted_by : (user?.name || user?.email || 'admin'),
+				submitted_by: expenseForm.purpose,
 				is_manager: isManager
 			};
 
@@ -407,6 +417,8 @@ const PettyCash = () => {
 		try {
 			const payload = {
 				amount,
+				date: addCashDate,
+				description: addCashDescription,
 				user_name: user?.name || user?.email || 'admin'
 			};
 			const res = await api.post('/api/petty-cash/ledger/add-cash', payload);
@@ -414,6 +426,8 @@ const PettyCash = () => {
 				fetchDashboard();
 				setShowAddCashModal(false);
 				setAddCashAmount('');
+				setAddCashDate(new Date().toISOString().split('T')[0]);
+				setAddCashDescription('');
 				window.alert(`Successfully added ₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })} to Petty Cash!`);
 			}
 		} catch (err) {
@@ -479,7 +493,14 @@ const PettyCash = () => {
 			alert('No data to export for the selected filters.');
 			return;
 		}
-		const dataToExport = filteredExpenses.map((exp, index) => ({
+		
+		const sortedForExport = [...filteredExpenses].sort((a, b) => {
+			if (!a.date) return 1;
+			if (!b.date) return -1;
+			return a.date.localeCompare(b.date);
+		});
+
+		const dataToExport = sortedForExport.map((exp, index) => ({
 			'S.No': index + 1,
 			'Date': exp.date ? exp.date.split('-').reverse().join('-') : '',
 			'Category': exp.category,
@@ -487,7 +508,8 @@ const PettyCash = () => {
 			'Remarks': exp.sub_remarks || '',
 			'Submitted By': exp.submitted_by,
 			'Approved By': exp.approved_by || '-',
-			'Amount (INR)': exp.amount,
+			'Debit (INR)': exp.type !== 'credit' ? exp.amount : 0,
+			'Credit (INR)': exp.type === 'credit' ? exp.amount : 0,
 			'Description': exp.description
 		}));
 		const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -506,6 +528,9 @@ const PettyCash = () => {
 	);
 
 	const pagedExpenses = filteredExpenses.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+	const pageDebitTotal = pagedExpenses.reduce((sum, exp) => exp.type !== 'credit' ? sum + parseFloat(exp.amount || 0) : sum, 0);
+	const pageCreditTotal = pagedExpenses.reduce((sum, exp) => exp.type === 'credit' ? sum + parseFloat(exp.amount || 0) : sum, 0);
 
 	return (
 		<div className="font-display bg-background-light dark:bg-[#181D27] text-slate-900 dark:text-[#f0f0f2] min-h-screen flex flex-col">
@@ -720,10 +745,40 @@ const PettyCash = () => {
 							widthClass="w-50"
 							label="All Categories"
 							value={filters.category}
-							onChange={val => setFilters(prev => ({ ...prev, category: val }))}
+							onChange={val => setFilters(prev => ({ ...prev, category: val, subcategory: '' }))}
 							options={[
 								{ label: 'All Categories', value: '' },
 								...dashboard.categories.map(c => ({ label: c, value: c }))
+							]}
+						/>
+
+						{/* Subcategory */}
+						<SelectDropdown
+							variant="filter"
+							icon="list"
+							widthClass="w-50"
+							label="All Subcategories"
+							value={filters.subcategory}
+							onChange={val => setFilters(prev => ({ ...prev, subcategory: val }))}
+							options={[
+								{ label: 'All Subcategories', value: '' },
+								...(filters.category && dashboard.subcategories[filters.category] ? dashboard.subcategories[filters.category].map(s => ({ label: s, value: s })) : [])
+							]}
+							disabled={!filters.category}
+						/>
+
+						{/* Purpose */}
+						<SelectDropdown
+							variant="filter"
+							icon="person"
+							widthClass="w-40"
+							label="All Purposes"
+							value={filters.purpose}
+							onChange={val => setFilters(prev => ({ ...prev, purpose: val }))}
+							options={[
+								{ label: 'All Purposes', value: '' },
+								{ label: 'Admin', value: 'Admin' },
+								{ label: 'Management', value: 'Management' }
 							]}
 						/>
 
@@ -800,11 +855,11 @@ const PettyCash = () => {
 						</button>
 
 						{/* Clear Filters */}
-						{(searchQuery !== '' || filters.category !== '' || isDateFilterActive) && (
+						{(searchQuery !== '' || filters.category !== '' || filters.subcategory !== '' || filters.purpose !== '' || isDateFilterActive) && (
 							<button
 								onClick={() => {
 									setSearchQuery('');
-									setFilters({ category: '', date_from: '', date_to: '' });
+									setFilters({ category: '', subcategory: '', purpose: '', date_from: '', date_to: '' });
 									setIsDateFilterActive(false);
 									setDateRange([{ startDate: new Date(), endDate: new Date(), key: 'selection' }]);
 								}}
@@ -839,9 +894,10 @@ const PettyCash = () => {
 											<th className="p-4 w-16 text-center">#</th>
 											<th className="p-4">Date</th>
 											<th className="p-4">Category</th>
-											<th className="p-4">Username</th>
+											<th className="p-4">Purpose</th>
 											<th className="p-4">Description</th>
-											<th className="p-4 font-semibold">Amount (₹)</th>
+											<th className="p-4 font-semibold text-red-600 dark:text-red-400 text-right">Debit (₹)</th>
+											<th className="p-4 font-semibold text-emerald-600 dark:text-emerald-400 text-right">Credit (₹)</th>
 											<th className="p-4">Approved By</th>
 											{hasEditPermission && <th className="p-4 text-right font-semibold">Actions</th>}
 										</tr>
@@ -859,50 +915,62 @@ const PettyCash = () => {
 														</div>
 													</div>
 												</td>
-												<td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.submitted_by}</td>
+												<td className="px-4 py-2 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : exp.submitted_by}</td>
 												<td className="px-4 py-2 max-w-[200px] truncate" title={exp.description}>{exp.description}</td>
-												<td className="px-4 py-2 font-bold text-[#ec1d22]">₹{exp.amount.toFixed(2)}</td>
-												<td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.approved_by || '-'}</td>
+												<td className="px-4 py-2 font-bold text-[#ec1d22] text-right">{exp.type !== 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+												<td className="px-4 py-2 font-bold text-emerald-600 dark:text-emerald-400 text-right">{exp.type === 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+												<td className="px-4 py-2 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : (exp.approved_by || '-')}</td>
 												{hasEditPermission && (
 													<td className="px-4 py-2 text-right">
-														<div className="flex items-center justify-end gap-2">
-															{isManager && exp.status === 'pending' && (
-																<>
-																	<button
-																		onClick={(e) => { e.stopPropagation(); handleApprove(exp.id); }}
-																		className="px-2.5 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer border-0 shadow-sm"
-																	>
-																		Approve
-																	</button>
-																	<button
-																		onClick={(e) => { e.stopPropagation(); handleReject(exp.id); }}
-																		className="px-2.5 py-1 text-xs font-bold bg-red-650 hover:bg-red-700 text-white rounded-lg cursor-pointer border-0 shadow-sm"
-																	>
-																		Reject
-																	</button>
-																</>
-															)}
-															<button
-																onClick={(e) => { e.stopPropagation(); handleOpenEdit(exp); }}
-																className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
-																title="Edit Expense"
-															>
-																<span className="material-symbols-outlined text-lg">edit</span>
-															</button>
-															{isAdmin && (
+														{exp.type !== 'credit' && (
+															<div className="flex items-center justify-end gap-2">
+																{isManager && exp.status === 'pending' && (
+																	<>
+																		<button
+																			onClick={(e) => { e.stopPropagation(); handleApprove(exp.id); }}
+																			className="px-2.5 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer border-0 shadow-sm"
+																		>
+																			Approve
+																		</button>
+																		<button
+																			onClick={(e) => { e.stopPropagation(); handleReject(exp.id); }}
+																			className="px-2.5 py-1 text-xs font-bold bg-red-650 hover:bg-red-700 text-white rounded-lg cursor-pointer border-0 shadow-sm"
+																		>
+																			Reject
+																		</button>
+																	</>
+																)}
 																<button
-																	onClick={(e) => { e.stopPropagation(); handleDelete(exp.id); }}
-																	className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
+																	onClick={(e) => { e.stopPropagation(); handleOpenEdit(exp); }}
+																	className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
+																	title="Edit Expense"
 																>
-																	<span className="material-symbols-outlined text-lg">delete</span>
+																	<span className="material-symbols-outlined text-lg">edit</span>
 																</button>
-															)}
-														</div>
+																{isAdmin && (
+																	<button
+																		onClick={(e) => { e.stopPropagation(); handleDelete(exp.id); }}
+																		className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
+																	>
+																		<span className="material-symbols-outlined text-lg">delete</span>
+																	</button>
+																)}
+															</div>
+														)}
 													</td>
 												)}
 											</tr>
 										))}
 									</tbody>
+									<tfoot className="bg-slate-50 dark:bg-slate-800/80 sticky bottom-0 z-10 border-t-2 border-slate-200 dark:border-slate-700">
+										<tr className="font-bold text-slate-800 dark:text-slate-200">
+											<td colSpan="5" className="p-4 text-right uppercase tracking-wider text-xs text-slate-500 dark:text-slate-400">Page Total:</td>
+											<td className="p-4 text-[#ec1d22] text-right">{pageDebitTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+											<td className="p-4 text-emerald-600 dark:text-emerald-400 text-right">{pageCreditTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+											<td className="p-4"></td>
+											{hasEditPermission && <td className="p-4"></td>}
+										</tr>
+									</tfoot>
 								</table>
 							</div>
 							{/* Pagination Controls */}
@@ -1031,22 +1099,31 @@ const PettyCash = () => {
 								</div>
 							</div>
 
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-								{expenseForm.subcategory === 'Other' && (
-									<div>
-										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory Remarks *</label>
-										<input
-											type="text"
-											required
-											value={expenseForm.sub_remarks}
-											onChange={e => setExpenseForm(prev => ({ ...prev, sub_remarks: e.target.value }))}
-											placeholder="E.g. Stationery purchase detail"
-											className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
-										/>
-									</div>
-								)}
+							{expenseForm.subcategory === 'Other' && (
+								<div className="mb-4">
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory Remarks *</label>
+									<input
+										type="text"
+										required
+										value={expenseForm.sub_remarks}
+										onChange={e => setExpenseForm(prev => ({ ...prev, sub_remarks: e.target.value }))}
+										placeholder="E.g. Stationery purchase detail"
+										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+									/>
+								</div>
+							)}
 
-								<div className={expenseForm.subcategory !== 'Other' ? 'md:col-span-2' : ''}>
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Purpose *</label>
+									<SelectDropdown
+										label="Select Purpose"
+										options={['Admin', 'Management']}
+										value={expenseForm.purpose}
+										onChange={val => setExpenseForm(prev => ({ ...prev, purpose: val }))}
+									/>
+								</div>
+								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Approved By</label>
 									<input
 										type="text"
@@ -1167,22 +1244,46 @@ const PettyCash = () => {
 						</div>
 
 						<form onSubmit={handleAddCashSubmit} className="space-y-4">
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date</label>
+									<input
+										type="date"
+										required
+										value={addCashDate}
+										onChange={e => setAddCashDate(e.target.value)}
+										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 text-slate-900 dark:text-white"
+									/>
+								</div>
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Amount</label>
+									<input
+										type="text"
+										required
+										value={addCashAmount}
+										onChange={e => {
+											const val = e.target.value.replace(/[^0-9]/g, '');
+											if (val) {
+												setAddCashAmount(Number(val).toLocaleString('en-IN', { maximumFractionDigits: 0 }));
+											} else {
+												setAddCashAmount('');
+											}
+										}}
+										placeholder="Enter amount"
+										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 font-bold text-emerald-600"
+									/>
+								</div>
+							</div>
+
 							<div>
-								<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Amount to Add</label>
+								<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Description</label>
 								<input
 									type="text"
 									required
-									value={addCashAmount}
-									onChange={e => {
-										const val = e.target.value.replace(/[^0-9]/g, '');
-										if (val) {
-											setAddCashAmount(Number(val).toLocaleString('en-IN', { maximumFractionDigits: 0 }));
-										} else {
-											setAddCashAmount('');
-										}
-									}}
-									placeholder="Enter amount"
-									className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 font-bold text-emerald-600"
+									value={addCashDescription}
+									onChange={e => setAddCashDescription(e.target.value)}
+									placeholder="E.g. Bank withdrawal"
+									className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 text-slate-900 dark:text-white"
 								/>
 							</div>
 

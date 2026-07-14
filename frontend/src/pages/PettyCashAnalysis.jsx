@@ -15,19 +15,24 @@ const PettyCashAnalysis = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [expenses, setExpenses] = useState([]);
+  const [ledgerData, setLedgerData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchExpenses();
+    fetchData();
   }, []);
 
-  const fetchExpenses = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/petty-cash/expenses');
-      setExpenses(res.data || []);
+      const [resExp, resLedger] = await Promise.all([
+        api.get('/api/petty-cash/expenses'),
+        api.get('/api/petty-cash/ledger/all').catch(err => { console.error(err); return { data: [] }; })
+      ]);
+      setExpenses(resExp.data || []);
+      setLedgerData(resLedger.data || []);
     } catch (err) {
-      console.error('Error fetching expenses:', err);
+      console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
@@ -77,6 +82,38 @@ const PettyCashAnalysis = () => {
 
   // Get Last 12 Months to keep charts readable
   const recentMonthlyData = monthlyData.slice(-12);
+
+  // Process Monthly Summary Data (Opening Balance, Added Cash, Total Expense, Closing Balance)
+  const monthlySummaryMap = new Map();
+  const sortedLedger = [...ledgerData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  sortedLedger.forEach(curr => {
+    if (!curr.date) return;
+    const dateObj = new Date(curr.date);
+    const monthKey = format(dateObj, 'yyyy-MM');
+    const monthLabel = format(dateObj, 'MMM yyyy');
+
+    if (!monthlySummaryMap.has(monthKey)) {
+      monthlySummaryMap.set(monthKey, {
+        monthKey,
+        name: monthLabel,
+        timestamp: dateObj.getTime(),
+        'Opening Balance': curr.opening_balance,
+        'Added Cash': 0,
+        'Total Expense': 0,
+        'Closing Balance': curr.closing_balance
+      });
+    }
+
+    const monthData = monthlySummaryMap.get(monthKey);
+    monthData['Added Cash'] += curr.added_cash;
+    monthData['Total Expense'] += curr.total_expenses;
+    monthData['Closing Balance'] = curr.closing_balance;
+  });
+
+  const monthlySummaryData = Array.from(monthlySummaryMap.values())
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .slice(-6);
 
   // Process Top 5 Categories Current Month
   const currentMonthStr = format(new Date(), 'yyyy-MM');
@@ -133,6 +170,29 @@ const PettyCashAnalysis = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Monthly Financial Summary */}
+            <div className="lg:col-span-2 bg-white dark:bg-[#1C212B] rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-6 flex items-center gap-2">
+                <span className="material-symbols-outlined text-indigo-500">account_balance</span>
+                Monthly Financial Summary
+              </h2>
+              <div className="h-[400px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlySummaryData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} vertical={false} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#888' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#888' }} tickFormatter={(value) => `₹${value}`} />
+                    <RechartsTooltip cursor={{ fill: 'rgba(0,0,0,0.05)' }} formatter={(value) => formatCurrency(value)} />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
+                    <Bar dataKey="Opening Balance" fill="#8884d8" radius={[4, 4, 0, 0]} name="Opening Balance" />
+                    <Bar dataKey="Added Cash" fill="#82ca9d" radius={[4, 4, 0, 0]} name="Added Cash" />
+                    <Bar dataKey="Total Expense" fill="#ffc658" radius={[4, 4, 0, 0]} name="Total Expense" />
+                    <Bar dataKey="Closing Balance" fill="#ff7300" radius={[4, 4, 0, 0]} name="Closing Balance" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
             {/* Category Pie Chart */}
             <div className="bg-white dark:bg-[#1C212B] rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-6 flex items-center gap-2">
