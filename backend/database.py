@@ -285,6 +285,9 @@ def init_db():
                     );
                 """)
                 cur.execute("ALTER TABLE assignees ADD COLUMN IF NOT EXISTS is_delete BOOLEAN DEFAULT FALSE;")
+                cur.execute("ALTER TABLE assignees ADD COLUMN IF NOT EXISTS name TEXT;")
+                cur.execute("ALTER TABLE assignees ADD COLUMN IF NOT EXISTS support_type TEXT NOT NULL DEFAULT 'IT Support,Admin Support';")
+                cur.execute("ALTER TABLE assignees ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();")
         conn.close()
         print("DEBUG: assignees table ready.")
     except Exception as e:
@@ -305,6 +308,9 @@ def init_db():
                     );
                 """)
                 cur.execute("ALTER TABLE departments ADD COLUMN IF NOT EXISTS is_delete BOOLEAN DEFAULT FALSE;")
+                cur.execute("ALTER TABLE departments ADD COLUMN IF NOT EXISTS name TEXT;")
+                cur.execute("ALTER TABLE departments ADD COLUMN IF NOT EXISTS support_type TEXT;")
+                cur.execute("ALTER TABLE departments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();")
                 
                 # Seed with default departments if empty
                 cur.execute("SELECT COUNT(*) FROM departments;")
@@ -348,6 +354,9 @@ def init_db():
                 """)
                 cur.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_delete BOOLEAN DEFAULT FALSE;")
                 cur.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS subcategories TEXT DEFAULT '';")
+                cur.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS name TEXT;")
+                cur.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS support_type TEXT;")
+                cur.execute("ALTER TABLE categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();")
         conn.close()
         print("DEBUG: categories table ready.")
     except Exception as e:
@@ -401,6 +410,8 @@ def init_db():
                 cur.execute("ALTER TABLE asset_types ADD COLUMN IF NOT EXISTS is_delete BOOLEAN DEFAULT FALSE;")
                 cur.execute("ALTER TABLE asset_types ADD COLUMN IF NOT EXISTS asset_group TEXT DEFAULT 'IT';")
                 cur.execute("ALTER TABLE asset_types ADD COLUMN IF NOT EXISTS prefix VARCHAR(3);")
+                cur.execute("ALTER TABLE asset_types ADD COLUMN IF NOT EXISTS name TEXT;")
+                cur.execute("ALTER TABLE asset_types ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();")
         conn.close()
         print("DEBUG: asset_types table ready.")
     except Exception as e:
@@ -625,6 +636,23 @@ def init_db():
                         sub_remarks TEXT
                     );
                 """)
+                # Ensure all columns exist for pettycash
+                alter_pettycash = [
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS date DATE;",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS category TEXT;",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS sub_category TEXT;",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS expense_amount NUMERIC(15,2);",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS description TEXT;",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved';",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS approved_by TEXT;",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS manager_notes TEXT;",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS sub_remarks TEXT;",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS user_name TEXT;"
+                ]
+                for stmt in alter_pettycash:
+                    cur.execute(stmt)
         conn.close()
         print("DEBUG: pettycash table ready.")
     except Exception as e:
@@ -649,6 +677,23 @@ def init_db():
                         closed_at TIMESTAMP WITHOUT TIME ZONE
                     );
                 """)
+                # Ensure all columns exist for day_ledger
+                alter_day_ledger = [
+                    "ALTER TABLE day_ledger ADD COLUMN IF NOT EXISTS date DATE UNIQUE NOT NULL;",
+                    "ALTER TABLE day_ledger ADD COLUMN IF NOT EXISTS opening_balance DOUBLE PRECISION;",
+                    "ALTER TABLE day_ledger ADD COLUMN IF NOT EXISTS added_cash DOUBLE PRECISION;",
+                    "ALTER TABLE day_ledger ADD COLUMN IF NOT EXISTS total_expenses DOUBLE PRECISION;",
+                    "ALTER TABLE day_ledger ADD COLUMN IF NOT EXISTS closing_balance DOUBLE PRECISION;",
+                    "ALTER TABLE day_ledger ADD COLUMN IF NOT EXISTS notes VARCHAR(500);",
+                    "ALTER TABLE day_ledger ADD COLUMN IF NOT EXISTS is_closed BOOLEAN;",
+                    "ALTER TABLE day_ledger ADD COLUMN IF NOT EXISTS closed_by_id INTEGER;",
+                    "ALTER TABLE day_ledger ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP WITHOUT TIME ZONE;"
+                ]
+                for stmt in alter_day_ledger:
+                    try:
+                        cur.execute(stmt)
+                    except Exception:
+                        pass # Ignore unique constraint errors if column already exists without it
         conn.close()
         print("DEBUG: day_ledger table ready.")
     except Exception as e:
@@ -669,7 +714,16 @@ def init_db():
                         created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
                     );
                 """)
-                cur.execute("ALTER TABLE cash_add_history ADD COLUMN IF NOT EXISTS description TEXT;")
+                # Ensure all columns exist for cash_add_history
+                alter_cash_add = [
+                    "ALTER TABLE cash_add_history ADD COLUMN IF NOT EXISTS date DATE;",
+                    "ALTER TABLE cash_add_history ADD COLUMN IF NOT EXISTS amount DOUBLE PRECISION;",
+                    "ALTER TABLE cash_add_history ADD COLUMN IF NOT EXISTS user_name VARCHAR(100);",
+                    "ALTER TABLE cash_add_history ADD COLUMN IF NOT EXISTS description TEXT;",
+                    "ALTER TABLE cash_add_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW();"
+                ]
+                for stmt in alter_cash_add:
+                    cur.execute(stmt)
         conn.close()
         print("DEBUG: cash_add_history table ready.")
     except Exception as e:
