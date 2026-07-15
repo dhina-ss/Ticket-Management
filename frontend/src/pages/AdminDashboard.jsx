@@ -3336,7 +3336,6 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
                                         placeholder="e.g. Office Supplies, Travel, Food"
                                         value={subcategories}
                                         onChange={e => setSubcategories(e.target.value)}
-                                        required
                                     />
                                 </div>
                             )}
