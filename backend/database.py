@@ -669,6 +669,7 @@ def init_db():
                         created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
                     );
                 """)
+                cur.execute("ALTER TABLE cash_add_history ADD COLUMN IF NOT EXISTS description TEXT;")
         conn.close()
         print("DEBUG: cash_add_history table ready.")
     except Exception as e:
