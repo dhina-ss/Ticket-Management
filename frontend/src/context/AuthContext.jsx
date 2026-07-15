@@ -51,6 +51,12 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    useEffect(() => {
+        if (isAuthenticated && user?.email) {
+            refreshUser();
+        }
+    }, []); // Fetch fresh data on initial load/refresh
+
     return (
         <AuthContext.Provider value={{ isAuthenticated, user, login, logout, refreshUser }}>
             {children}

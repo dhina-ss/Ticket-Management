@@ -29,7 +29,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 					{icon && variant === 'filter' && <span className="material-symbols-outlined text-slate-400 text-lg">{icon}</span>}
 					<span className={variant === 'filter'
 						? `truncate max-w-[120px] font-medium ${!value ? 'text-slate-500 dark:text-slate-400' : 'text-primary'}`
-						: "text-slate-800 dark:text-slate-350 truncate"
+						: "text-slate-800 dark:text-slate-300 truncate"
 					}>
 						{(options.find(o => (o.value ?? o) === value) || {}).label || value || label}
 					</span>
@@ -102,9 +102,12 @@ const PettyCash = () => {
 	};
 
 	// Determine roles
-	const isManager = user?.email === 'admin@support.com' || user?.role === 'Manager' || user?.receiver_position === 'Manager' || user?.access === 'Edit' || true; // For local testing, default to manager permissions
-	const isAdmin = user?.email === 'admin@support.com' || true;
-	const hasEditPermission = user?.email === 'admin@support.com' || user?.access === 'Edit';
+	const isManager = user?.email === 'admin@support.com' || user?.role === 'Manager' || user?.receiver_position === 'Manager' || user?.access?.includes('Edit');
+	const isAdmin = user?.email === 'admin@support.com';
+	const hasEditPermission = user?.email === 'admin@support.com' || user?.access?.includes('Edit');
+	const hasDeletePermission = user?.email === 'admin@support.com' || user?.access?.includes('Delete');
+	const hasActionPermission = hasEditPermission || hasDeletePermission;
+	const hasExportPermission = user?.email === 'admin@support.com' || user?.access?.includes('Export');
 
 	// States
 	const [dashboard, setDashboard] = useState({
@@ -582,6 +585,7 @@ const PettyCash = () => {
 							Close Day (EOD)
 						</button>
 					)}
+					{hasEditPermission && (
 					<button
 						onClick={handleOpenAdd}
 						className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer border-0 text-sm"
@@ -589,6 +593,7 @@ const PettyCash = () => {
 						<span className="material-symbols-outlined text-lg">add</span>
 						Add Expense
 					</button>
+					)}
 
 					<div className="relative flex items-center" ref={userPopupRef}>
 						{/* User Avatar Button */}
@@ -846,6 +851,7 @@ const PettyCash = () => {
 						</div>
 
 						{/* Export Button */}
+						{hasExportPermission && (
 						<button
 							onClick={handleExportExcel}
 							title="Export to Excel"
@@ -853,6 +859,7 @@ const PettyCash = () => {
 						>
 							<span className="material-symbols-outlined text-[20px]">download</span>
 						</button>
+						)}
 
 						{/* Clear Filters */}
 						{(searchQuery !== '' || filters.category !== '' || filters.subcategory !== '' || filters.purpose !== '' || isDateFilterActive) && (
@@ -899,7 +906,7 @@ const PettyCash = () => {
 											<th className="p-4 font-semibold text-red-600 dark:text-red-400 text-right">Debit (₹)</th>
 											<th className="p-4 font-semibold text-emerald-600 dark:text-emerald-400 text-right">Credit (₹)</th>
 											<th className="p-4">Approved By</th>
-											{hasEditPermission && <th className="p-4 text-right font-semibold">Actions</th>}
+											{hasActionPermission && <th className="p-4 text-right font-semibold">Actions</th>}
 										</tr>
 									</thead>
 									<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -920,7 +927,7 @@ const PettyCash = () => {
 												<td className="px-4 py-2 font-bold text-[#ec1d22] text-right">{exp.type !== 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
 												<td className="px-4 py-2 font-bold text-emerald-600 dark:text-emerald-400 text-right">{exp.type === 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
 												<td className="px-4 py-2 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : (exp.approved_by || '-')}</td>
-												{hasEditPermission && (
+												{hasActionPermission && (
 													<td className="px-4 py-2 text-right">
 														{exp.type !== 'credit' && (
 															<div className="flex items-center justify-end gap-2">
@@ -940,14 +947,16 @@ const PettyCash = () => {
 																		</button>
 																	</>
 																)}
-																<button
-																	onClick={(e) => { e.stopPropagation(); handleOpenEdit(exp); }}
-																	className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
-																	title="Edit Expense"
-																>
-																	<span className="material-symbols-outlined text-lg">edit</span>
-																</button>
-																{isAdmin && (
+																{hasEditPermission && (
+																	<button
+																		onClick={(e) => { e.stopPropagation(); handleOpenEdit(exp); }}
+																		className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
+																		title="Edit Expense"
+																	>
+																		<span className="material-symbols-outlined text-lg">edit</span>
+																	</button>
+																)}
+																{hasDeletePermission && (
 																	<button
 																		onClick={(e) => { e.stopPropagation(); handleDelete(exp.id); }}
 																		className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
@@ -968,7 +977,7 @@ const PettyCash = () => {
 											<td className="p-4 text-[#ec1d22] text-right">{pageDebitTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
 											<td className="p-4 text-emerald-600 dark:text-emerald-400 text-right">{pageCreditTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
 											<td className="p-4"></td>
-											{hasEditPermission && <td className="p-4"></td>}
+											{hasActionPermission && <td className="p-4"></td>}
 										</tr>
 									</tfoot>
 								</table>
@@ -1151,7 +1160,7 @@ const PettyCash = () => {
 								<button
 									type="button"
 									onClick={handleCloseAddModal}
-									className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-350 font-bold rounded-xl cursor-pointer border-0"
+									className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-400 font-bold rounded-xl cursor-pointer border-0"
 								>
 									Cancel
 								</button>

@@ -221,7 +221,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
     );
 };
 
-const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission }) => {
+const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission, currentUser, refreshUser }) => {
     const [newUser, setNewUser] = useState({
         name: '', email: '', password: '',
         access: ['View'],
@@ -253,10 +253,11 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
     );
 
     const toggleAccess = (perm) => {
+        const currentAccessOptions = newUser.allowed_menus.includes('Petty Cash') ? [...ACCESS_OPTIONS, 'Delete'] : ACCESS_OPTIONS;
         if (perm === 'All') {
             setNewUser(p => ({
                 ...p,
-                access: p.access.length === ACCESS_OPTIONS.length ? [] : [...ACCESS_OPTIONS]
+                access: p.access.length === currentAccessOptions.length ? [] : [...currentAccessOptions]
             }));
             return;
         }
@@ -351,7 +352,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
     const handleSaveUser = async (e) => {
         e.preventDefault();
         if (newUser.access.length === 0) { setAddError('Please select at least one access permission.'); return; }
-        if (newUser.support_type.length === 0) { setAddError('Please select at least one support type.'); return; }
+        if (newUser.support_type.length === 0 && newUser.allowed_menus.includes('Tickets')) { setAddError('Please select at least one support type.'); return; }
         if (!editingUser && !newUser.password) { setAddError('Password is required for new users.'); return; }
         if (newUser.password && newUser.password.length < 6) { setAddError('Password must be at least 6 characters long.'); return; }
         setAddError('');
@@ -380,6 +381,9 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                     is_assignee: newUser.add_as_assignee,
                     branch: newUser.branch.join(',')
                 } : u));
+                if (currentUser && currentUser.id === editingUser.id) {
+                    if (refreshUser) refreshUser();
+                }
             } else {
                 setUsers(prev => [...prev, {
                     name: newUser.name,
@@ -509,34 +513,6 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {/* Access */}
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                                        Access <span className="text-red-400">*</span>
-                                    </label>
-                                    <MultiSelectFormDropdown
-                                        label="Access"
-                                        icon="admin_panel_settings"
-                                        options={['All', ...ACCESS_OPTIONS]}
-                                        selected={newUser.access.length === ACCESS_OPTIONS.length ? ['All', ...newUser.access] : newUser.access}
-                                        onChange={toggleAccess}
-                                    />
-                                </div>
-
-                                {/* Support Type */}
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                                        Support Type <span className="text-red-400">*</span>
-                                    </label>
-                                    <MultiSelectFormDropdown
-                                        label="Support Type"
-                                        icon="support_agent"
-                                        options={['All', ...SUPPORT_TYPE_OPTIONS]}
-                                        selected={newUser.support_type.length === SUPPORT_TYPE_OPTIONS.length ? ['All', ...newUser.support_type] : newUser.support_type}
-                                        onChange={toggleSupportType}
-                                    />
-                                </div>
-
                                 {/* Allowed Menus */}
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
@@ -550,6 +526,36 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                                         onChange={toggleAllowedMenu}
                                     />
                                 </div>
+
+                                {/* Access */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                        Access <span className="text-red-400">*</span>
+                                    </label>
+                                    <MultiSelectFormDropdown
+                                        label="Access"
+                                        icon="admin_panel_settings"
+                                        options={['All', ...(newUser.allowed_menus.includes('Petty Cash') ? [...ACCESS_OPTIONS, 'Delete'] : ACCESS_OPTIONS)]}
+                                        selected={newUser.access.length === (newUser.allowed_menus.includes('Petty Cash') ? ACCESS_OPTIONS.length + 1 : ACCESS_OPTIONS.length) ? ['All', ...newUser.access] : newUser.access}
+                                        onChange={toggleAccess}
+                                    />
+                                </div>
+
+                                {/* Support Type */}
+                                {newUser.allowed_menus.includes('Tickets') && (
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                        Support Type <span className="text-red-400">*</span>
+                                    </label>
+                                    <MultiSelectFormDropdown
+                                        label="Support Type"
+                                        icon="support_agent"
+                                        options={['All', ...SUPPORT_TYPE_OPTIONS]}
+                                        selected={newUser.support_type.length === SUPPORT_TYPE_OPTIONS.length ? ['All', ...newUser.support_type] : newUser.support_type}
+                                        onChange={toggleSupportType}
+                                    />
+                                </div>
+                                )}
                             </div>
 
                             {/* Add as Assignee & Send Mail (Row 1) */}
@@ -3714,6 +3720,16 @@ const AdminDashboard = () => {
     const [error, setError] = useState(null);
     const [selectedTicket, setSelectedTicket] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    
+    useEffect(() => {
+        if (isModalOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [isModalOpen]);
+
     const [updateStatus, setUpdateStatus] = useState('');
     const [updateAssignee, setUpdateAssignee] = useState('');
     const [expandedSettingsView, setExpandedSettingsView] = useState('assignees');
@@ -5615,6 +5631,8 @@ const AdminDashboard = () => {
                         setShowAddUser={setShowAddUser}
                         searchQuery={userSearchQuery}
                         hasEditPermission={hasEditPermission}
+                        currentUser={user}
+                        refreshUser={refreshUser}
                     />
                 )}
 
@@ -5827,7 +5845,7 @@ const AdminDashboard = () => {
                 {/* Ticket Details Modal */}
                 {
                     isModalOpen && selectedTicket && (
-                        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={closeModal}>
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={closeModal}>
                             <div ref={ticketDetailsRef} className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                                 <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 z-10">
                                     <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
