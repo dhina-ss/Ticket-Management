@@ -1349,8 +1349,8 @@ const PettyCash = () => {
 												<div>
 													<p className="text-sm font-bold text-slate-800 dark:text-slate-200">{item.user_name}</p>
 													<p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
-														<span className="material-symbols-outlined text-[12px]">schedule</span>
-														{item.created_at}
+														<span className="material-symbols-outlined text-[12px]">calendar_today</span>
+														{item.date ? item.date.split('T')[0].split('-').reverse().join('-') : item.created_at}
 													</p>
 												</div>
 											</div>

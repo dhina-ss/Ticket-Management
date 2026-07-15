@@ -2720,33 +2720,33 @@ def api_petty_cash_expenses():
         params_expenses = []
         params_credit = []
         
-        if date_from:
+        if date_from and date_from not in ('null', 'undefined'):
             query_expenses += " AND date >= %s"
             params_expenses.append(date_from)
             query_credit += " AND date >= %s"
             params_credit.append(date_from)
-        if date_to:
+        if date_to and date_to not in ('null', 'undefined'):
             query_expenses += " AND date <= %s"
             params_expenses.append(date_to)
             query_credit += " AND date <= %s"
             params_credit.append(date_to)
-        if category:
+        if category and category not in ('null', 'undefined'):
             if category == 'Added Cash':
                 query_expenses += " AND 1=0"
             else:
                 query_expenses += " AND category = %s"
                 params_expenses.append(category)
                 query_credit += " AND 1=0"
-        if subcategory:
+        if subcategory and subcategory not in ('null', 'undefined'):
             query_expenses += " AND LOWER(sub_category) = LOWER(%s)"
             params_expenses.append(subcategory)
             query_credit += " AND 1=0"
-        if purpose:
+        if purpose and purpose not in ('null', 'undefined'):
             query_expenses += " AND LOWER(user_name) = LOWER(%s)"
             params_expenses.append(purpose)
             query_credit += " AND LOWER(user_name) = LOWER(%s)"
             params_credit.append(purpose)
-        if status_f:
+        if status_f and status_f not in ('null', 'undefined'):
             query_expenses += " AND status = %s"
             params_expenses.append(status_f)
             if status_f != 'approved':
