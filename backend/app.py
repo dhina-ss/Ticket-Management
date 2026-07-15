@@ -2781,6 +2781,15 @@ def api_petty_cash_expenses():
         conn.close()
         return jsonify(result), 200
     except Exception as e:
+        import traceback
+        with open('expenses_error.log', 'w') as f:
+            f.write(traceback.format_exc())
+            f.write(f"\ndate_from={request.args.get('date_from', '')}")
+            f.write(f"\ndate_to={request.args.get('date_to', '')}")
+            f.write(f"\ncategory={request.args.get('category', '')}")
+            f.write(f"\nsubcategory={request.args.get('subcategory', '')}")
+            f.write(f"\npurpose={request.args.get('purpose', '')}")
+            f.write(f"\nstatus={request.args.get('status', '')}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/petty-cash/expenses', methods=['POST'])
