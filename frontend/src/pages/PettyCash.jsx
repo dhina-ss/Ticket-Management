@@ -219,6 +219,8 @@ const PettyCash = () => {
 			amount: '',
 			description: '',
 			approved_by: '',
+			verified_by: '',
+			receiver_name: '',
 			purpose: 'Admin'
 		});
 		setShowAddModal(true);
@@ -234,6 +236,8 @@ const PettyCash = () => {
 			amount: exp.amount || '',
 			description: exp.description || '',
 			approved_by: exp.approved_by || '',
+			verified_by: exp.verified_by || '',
+			receiver_name: exp.receiver_name || '',
 			purpose: exp.submitted_by || 'Admin'
 		});
 		setShowAddModal(true);
@@ -249,6 +253,8 @@ const PettyCash = () => {
 			amount: '',
 			description: '',
 			approved_by: '',
+			verified_by: '',
+			receiver_name: '',
 			purpose: 'Admin'
 		});
 		setShowAddModal(false);
@@ -278,11 +284,16 @@ const PettyCash = () => {
 		setCurrentPage(1);
 	}, [searchQuery, filters, dateRange]);
 	const datePickerRef = useRef(null);
+	const downloadDropdownRef = useRef(null);
+	const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
 
 	useEffect(() => {
 		const handleOutsideClick = (e) => {
 			if (datePickerRef.current && !datePickerRef.current.contains(e.target)) {
 				setShowDatePicker(false);
+			}
+			if (downloadDropdownRef.current && !downloadDropdownRef.current.contains(e.target)) {
+				setShowDownloadDropdown(false);
 			}
 		};
 		document.addEventListener('mousedown', handleOutsideClick);
@@ -298,6 +309,8 @@ const PettyCash = () => {
 		amount: '',
 		description: '',
 		approved_by: '',
+		verified_by: '',
+		receiver_name: '',
 		purpose: 'Admin'
 	});
 
@@ -519,6 +532,38 @@ const PettyCash = () => {
 		const workbook = XLSX.utils.book_new();
 		XLSX.utils.book_append_sheet(workbook, worksheet, "Petty Cash");
 		XLSX.writeFile(workbook, `Petty_Cash_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+	};
+
+	const handleExportLog = () => {
+		if (filteredExpenses.length === 0) {
+			alert('No data to export for the selected filters.');
+			return;
+		}
+		
+		const sortedForExport = [...filteredExpenses].sort((a, b) => {
+			if (!a.date) return 1;
+			if (!b.date) return -1;
+			return a.date.localeCompare(b.date);
+		});
+
+		let textContent = "Petty Cash Log Report\n\n";
+		sortedForExport.forEach((exp, index) => {
+			textContent += `[${index + 1}] Date: ${exp.date ? exp.date.split('-').reverse().join('-') : ''} | `;
+			textContent += `Category: ${exp.category} | `;
+			textContent += `Subcategory: ${exp.subcategory || ''} | `;
+			textContent += `Submitted By: ${exp.submitted_by} | `;
+			textContent += `Debit: ${exp.type !== 'credit' ? exp.amount : 0} | `;
+			textContent += `Credit: ${exp.type === 'credit' ? exp.amount : 0} | `;
+			textContent += `Description: ${exp.description}\n`;
+		});
+
+		const element = document.createElement("a");
+		const file = new Blob([textContent], {type: 'text/plain'});
+		element.href = URL.createObjectURL(file);
+		element.download = `Petty_Cash_Log_${format(new Date(), 'yyyy-MM-dd')}.txt`;
+		document.body.appendChild(element); // Required for this to work in FireFox
+		element.click();
+		document.body.removeChild(element);
 	};
 
 	const filteredExpenses = expenses.filter(exp =>
@@ -852,13 +897,39 @@ const PettyCash = () => {
 
 						{/* Export Button */}
 						{hasExportPermission && (
-						<button
-							onClick={handleExportExcel}
-							title="Export to Excel"
-							className="flex items-center justify-center w-9 h-9 rounded-lg border-none bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shadow-sm cursor-pointer"
-						>
-							<span className="material-symbols-outlined text-[20px]">download</span>
-						</button>
+						<div className="relative" ref={downloadDropdownRef}>
+							<button
+								onClick={() => {
+									if (isAdmin) {
+										setShowDownloadDropdown(!showDownloadDropdown);
+									} else {
+										handleExportExcel();
+									}
+								}}
+								title={isAdmin ? "Download Options" : "Export to Excel"}
+								className={`flex items-center justify-center w-9 h-9 rounded-lg border-none ${showDownloadDropdown ? 'bg-slate-200 dark:bg-slate-700' : 'bg-white dark:bg-slate-800'} text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shadow-sm cursor-pointer`}
+							>
+								<span className="material-symbols-outlined text-[20px]">download</span>
+							</button>
+							{isAdmin && showDownloadDropdown && (
+								<div className="absolute top-12 right-0 z-[200] w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+									<button
+										onClick={() => { handleExportExcel(); setShowDownloadDropdown(false); }}
+										className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer border-none bg-transparent font-medium flex items-center gap-2"
+									>
+										<span className="material-symbols-outlined text-[18px]">table</span>
+										Expense Report
+									</button>
+									<button
+										onClick={() => { handleExportLog(); setShowDownloadDropdown(false); }}
+										className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer border-none bg-transparent font-medium flex items-center gap-2"
+									>
+										<span className="material-symbols-outlined text-[18px]">article</span>
+										Log Report
+									</button>
+								</div>
+							)}
+						</div>
 						)}
 
 						{/* Clear Filters */}
@@ -1133,10 +1204,33 @@ const PettyCash = () => {
 									/>
 								</div>
 								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Receiver Name</label>
+									<input
+										type="text"
+										value={expenseForm.receiver_name || ''}
+										onChange={e => setExpenseForm(prev => ({ ...prev, receiver_name: e.target.value }))}
+										placeholder="Receiver's name (optional)"
+										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+									/>
+								</div>
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Verified By</label>
+									<input
+										type="text"
+										value={expenseForm.verified_by || ''}
+										onChange={e => setExpenseForm(prev => ({ ...prev, verified_by: e.target.value }))}
+										placeholder="Verifier's name (optional)"
+										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+									/>
+								</div>
+								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Approved By</label>
 									<input
 										type="text"
-										value={expenseForm.approved_by}
+										value={expenseForm.approved_by || ''}
 										onChange={e => setExpenseForm(prev => ({ ...prev, approved_by: e.target.value }))}
 										placeholder="Approver's username (optional)"
 										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
@@ -1410,6 +1504,17 @@ const PettyCash = () => {
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Approved By</label>
 									<p className="font-medium text-sm text-slate-800 dark:text-slate-200">{selectedExpense.approved_by || '-'}</p>
+								</div>
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+								<div>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Verified By</label>
+									<p className="text-sm font-medium text-slate-800 dark:text-slate-200">{selectedExpense.verified_by || '-'}</p>
+								</div>
+								<div>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Receiver Name</label>
+									<p className="text-sm font-medium text-slate-800 dark:text-slate-200">{selectedExpense.receiver_name || '-'}</p>
 								</div>
 							</div>
 

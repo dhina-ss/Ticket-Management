@@ -40,7 +40,7 @@ const PettyCashAnalysis = () => {
 
   // Process Category Data
   const categoryData = expenses.reduce((acc, curr) => {
-    if (curr.status === 'rejected') return acc;
+    if (curr.status === 'rejected' || curr.category === 'Added Cash') return acc;
     const existing = acc.find(c => c.name === curr.category);
     if (existing) {
       existing.value += curr.amount;
@@ -52,7 +52,7 @@ const PettyCashAnalysis = () => {
 
   // Process Monthly Data
   const monthlyData = expenses.reduce((acc, curr) => {
-    if (curr.status === 'rejected') return acc;
+    if (curr.status === 'rejected' || curr.category === 'Added Cash') return acc;
     const dateObj = new Date(curr.date);
     const month = format(dateObj, 'MMM yyyy');
     const existing = acc.find(m => m.name === month);
@@ -71,7 +71,7 @@ const PettyCashAnalysis = () => {
   });
 
   const last7DaysData = expenses.reduce((acc, curr) => {
-    if (curr.status === 'rejected') return acc;
+    if (curr.status === 'rejected' || curr.category === 'Added Cash') return acc;
     // curr.date is 'YYYY-MM-DD'
     const target = acc.find(day => day.dateStr === curr.date.substring(0, 10));
     if (target) {
@@ -117,7 +117,7 @@ const PettyCashAnalysis = () => {
 
   // Process Top 5 Categories Current Month
   const currentMonthStr = format(new Date(), 'yyyy-MM');
-  const currentMonthExpenses = expenses.filter(curr => curr.status !== 'rejected' && curr.date && curr.date.startsWith(currentMonthStr));
+  const currentMonthExpenses = expenses.filter(curr => curr.status !== 'rejected' && curr.category !== 'Added Cash' && curr.date && curr.date.startsWith(currentMonthStr));
   
   const top5CatMap = currentMonthExpenses.reduce((acc, curr) => {
     acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
