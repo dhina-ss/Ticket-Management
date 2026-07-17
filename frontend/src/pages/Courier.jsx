@@ -7,7 +7,7 @@ import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
 import { format } from 'date-fns';
 
-const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, variant = 'default', icon, widthClass = 'w-full' }) => {
+const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, variant = 'default', icon, widthClass = 'w-full', menuWidthClass = 'w-full' }) => {
 	const [isOpen, setIsOpen] = useState(false);
 	const ref = useRef(null);
 	useEffect(() => {
@@ -36,7 +36,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 				<span className={`material-symbols-outlined text-slate-400 ${variant === 'filter' ? 'text-base' : 'text-[18px] shrink-0 ml-1'} transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
 			</div>
 			{isOpen && (
-				<div className={`absolute left-0 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border-none z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
+				<div className={`absolute left-0 ${menuWidthClass} bg-white dark:bg-slate-900 rounded-xl shadow-xl border-none z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
 					? 'bottom-full mb-1.5 origin-bottom'
 					: 'top-full mt-1.5 origin-top'
 					}`}>
@@ -64,6 +64,7 @@ const Courier = () => {
 	const navigate = useNavigate();
 	const { user, isAuthenticated, logout } = useAuth();
 	const hasEditPermission = user?.email === 'admin@support.com' || user?.access === 'Edit';
+	const isAdmin = user?.email === 'admin@support.com' || user?.role === 'Super admin' || user?.role === 'admin';
 
 	// Dark mode state
 	const [darkMode, setDarkMode] = useState(() => {
@@ -188,7 +189,9 @@ const Courier = () => {
 		courier_cost: 0,
 		payment_mode: '',
 		remarks: '',
-		branch_id: ''
+		branch_id: '',
+		item: '',
+		ref_type: 'PI'
 	});
 
 	// Load Lookup Data
@@ -298,7 +301,9 @@ const Courier = () => {
 			courier_cost: 0,
 			payment_mode: lookups.payment_modes[0] || '',
 			remarks: '',
-			branch_id: lookups.branches[0]?.id || ''
+			branch_id: lookups.branches[0]?.id || '',
+			item: '',
+			ref_type: 'PI'
 		});
 		setShowModal(true);
 	};
@@ -336,7 +341,9 @@ const Courier = () => {
 			courier_cost: entry.courier_cost || 0,
 			payment_mode: entry.payment_mode || '',
 			remarks: entry.remarks || '',
-			branch_id: entry.branch_id || ''
+			branch_id: entry.branch_id || '',
+			item: entry.item || '',
+			ref_type: entry.ref_type || 'PI'
 		});
 		setShowModal(true);
 	};
@@ -344,7 +351,7 @@ const Courier = () => {
 	// Quick stats
 	const totalCost = entries.reduce((acc, c) => acc + (c.courier_cost || 0), 0);
 	const dispatches = entries.filter(c => c.transaction_type === 'Dispatch').length;
-	const receipts = entries.filter(c => c.transaction_type === 'Receipt').length;
+	const pickups = entries.filter(c => c.transaction_type === 'Pickup' || c.transaction_type === 'Drop').length;
 
 	return (
 		<div className="font-display bg-background-light dark:bg-[#181D27] text-slate-900 dark:text-[#f0f0f2] min-h-screen flex flex-col">
@@ -462,8 +469,8 @@ const Courier = () => {
 						<h3 className="text-3xl font-extrabold text-blue-600 dark:text-blue-400 mt-2">{dispatches}</h3>
 					</div>
 					<div className="bg-white dark:bg-[#1C212B] rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
-						<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Receipts</p>
-						<h3 className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-2">{receipts}</h3>
+						<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pickups & Drops</p>
+						<h3 className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-2">{pickups}</h3>
 					</div>
 				</div>
 
@@ -507,7 +514,8 @@ const Courier = () => {
 							options={[
 								{ label: 'All Types', value: '' },
 								{ label: 'Dispatch', value: 'Dispatch' },
-								{ label: 'Receipt', value: 'Receipt' }
+								{ label: 'Pickup', value: 'Pickup' },
+								{ label: 'Drop', value: 'Drop' }
 							]}
 						/>
 
@@ -651,9 +659,10 @@ const Courier = () => {
 											<th className="p-4 w-16">#</th>
 											<th className="p-4">Date</th>
 											<th className="p-4">Type</th>
-											<th className="p-4">Sender</th>
-											<th className="p-4">Receiver</th>
-											<th className="p-4">Destination</th>
+											<th className="p-4">Branch</th>
+											<th className="p-4">From Name</th>
+											<th className="p-4">To Name</th>
+											<th className="p-4">To Location</th>
 											<th className="p-4">Courier / AWB</th>
 											<th className="p-4">Cost (INR)</th>
 											<th className="p-4 font-semibold">Remarks</th>
@@ -672,6 +681,11 @@ const Courier = () => {
 														}`}>
 														{entry.transaction_type}
 													</span>
+												</td>
+												<td className="px-4 py-2">
+													<div className="font-semibold text-slate-700 dark:text-slate-300">
+														{lookups.branches?.find(b => b.id === entry.branch_id)?.name || entry.branch_name || '-'}
+													</div>
 												</td>
 												<td className="px-4 py-2">
 													<div>
@@ -821,7 +835,8 @@ const Courier = () => {
 										label="Transaction Type"
 										options={[
 											{ label: 'Dispatch', value: 'Dispatch' },
-											{ label: 'Receipt', value: 'Receipt' }
+											{ label: 'Pickup', value: 'Pickup' },
+											{ label: 'Drop', value: 'Drop' }
 										]}
 										value={formData.transaction_type}
 										onChange={val => setFormData(prev => ({ ...prev, transaction_type: val }))}
@@ -843,7 +858,7 @@ const Courier = () => {
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 								{/* Sender */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Sender Name</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">From Name</label>
 									<input
 										type="text"
 										value={formData.sender}
@@ -855,7 +870,7 @@ const Courier = () => {
 
 								{/* Receiver */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Receiver Name</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">To Name</label>
 									<input
 										type="text"
 										value={formData.receiver}
@@ -869,7 +884,7 @@ const Courier = () => {
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 								{/* Sending From */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Sending From</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">From Location</label>
 									<input
 										type="text"
 										value={formData.sending_from}
@@ -881,7 +896,7 @@ const Courier = () => {
 
 								{/* Destination */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Destination</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">To Location</label>
 									<input
 										type="text"
 										value={formData.destination}
@@ -893,42 +908,91 @@ const Courier = () => {
 							</div>
 
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-								{/* Courier Name */}
+								{/* Item */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Courier Operator</label>
-									<SelectDropdown
-										label="Courier Operator"
-										options={lookups.courier_names.map(c => ({ label: c, value: c }))}
-										value={formData.courier_name}
-										onChange={val => setFormData(prev => ({ ...prev, courier_name: val }))}
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Item</label>
+									<input
+										type="text"
+										value={formData.item}
+										onChange={e => setFormData(prev => ({ ...prev, item: e.target.value }))}
+										placeholder="Item description"
+										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
 									/>
 								</div>
 
-								{/* AWB No */}
+								{/* Ref Type */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">AWB / Tracking Number</label>
-									<input
-										type="text"
-										value={formData.awb_no}
-										onChange={e => setFormData(prev => ({ ...prev, awb_no: e.target.value }))}
-										placeholder="Tracking tag code"
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 font-mono"
-									/>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Ref Type</label>
+									<div className="flex gap-2">
+										<div className="w-[90px] shrink-0">
+											<SelectDropdown
+												label="Ref Type"
+												options={[
+													{ label: 'PI', value: 'PI' },
+													{ label: 'SO', value: 'SO' },
+													{ label: 'ENQ', value: 'ENQ' },
+													{ label: 'SAMPLE REF', value: 'SAMPLE REF' },
+													{ label: 'OTHERS', value: 'OTHERS' }
+												]}
+												value={formData.ref_type}
+												onChange={val => setFormData(prev => ({ ...prev, ref_type: val }))}
+												menuWidthClass="w-[150px]"
+											/>
+										</div>
+										<div className="flex-1">
+											<input
+												type="text"
+												value={formData.order_reference}
+												onChange={e => setFormData(prev => ({ ...prev, order_reference: e.target.value }))}
+												placeholder={formData.ref_type || 'Reference'}
+												className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 font-medium"
+											/>
+										</div>
+									</div>
 								</div>
 							</div>
 
-							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-								{/* Cost */}
-								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Cost (INR)</label>
-									<input
-										type="number"
-										step="0.01"
-										value={formData.courier_cost}
-										onChange={e => setFormData(prev => ({ ...prev, courier_cost: e.target.value }))}
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 font-bold text-pink-600"
-									/>
+							{isAdmin && (
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+									{/* Courier Name */}
+									<div>
+										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Courier Operator</label>
+										<SelectDropdown
+											label="Courier Operator"
+											options={lookups.courier_names.map(c => ({ label: c, value: c }))}
+											value={formData.courier_name}
+											onChange={val => setFormData(prev => ({ ...prev, courier_name: val }))}
+										/>
+									</div>
+
+									{/* AWB No */}
+									<div>
+										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">AWB / Tracking Number</label>
+										<input
+											type="text"
+											value={formData.awb_no}
+											onChange={e => setFormData(prev => ({ ...prev, awb_no: e.target.value }))}
+											placeholder="Tracking tag code"
+											className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+										/>
+									</div>
 								</div>
+							)}
+
+							<div className={isAdmin ? "grid grid-cols-1 md:grid-cols-3 gap-4" : "grid grid-cols-1 gap-4"}>
+								{/* Cost */}
+								{isAdmin && (
+									<div>
+										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Cost (INR)</label>
+										<input
+											type="number"
+											step="0.01"
+											value={formData.courier_cost}
+											onChange={e => setFormData(prev => ({ ...prev, courier_cost: e.target.value }))}
+											className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 font-bold text-pink-600"
+										/>
+									</div>
+								)}
 
 								{/* Budget status */}
 								<div>
@@ -945,13 +1009,55 @@ const Courier = () => {
 								</div>
 
 								{/* Payment Mode */}
+								{isAdmin && (
+									<div>
+										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Payment Mode</label>
+										<SelectDropdown
+											label="Payment Mode"
+											options={lookups.payment_modes.map(pm => ({ label: pm, value: pm }))}
+											value={formData.payment_mode}
+											onChange={val => setFormData(prev => ({ ...prev, payment_mode: val }))}
+										/>
+									</div>
+								)}
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+								{/* Package Type */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Payment Mode</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Package Type</label>
 									<SelectDropdown
-										label="Payment Mode"
-										options={lookups.payment_modes.map(pm => ({ label: pm, value: pm }))}
-										value={formData.payment_mode}
-										onChange={val => setFormData(prev => ({ ...prev, payment_mode: val }))}
+										label="Package Type"
+										options={[
+											{ label: 'Cover', value: 'Cover' },
+											{ label: 'Box', value: 'Box' }
+										]}
+										value={formData.package_type}
+										onChange={val => setFormData(prev => ({ ...prev, package_type: val }))}
+									/>
+								</div>
+
+								{/* Number of packages */}
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Number of Packages</label>
+									<input
+										type="text"
+										value={formData.num_packages}
+										onChange={e => setFormData(prev => ({ ...prev, num_packages: e.target.value }))}
+										placeholder="E.g. 5"
+										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+									/>
+								</div>
+
+								{/* Weight */}
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Weight (Kg)</label>
+									<input
+										type="text"
+										value={formData.weight_kg}
+										onChange={e => setFormData(prev => ({ ...prev, weight_kg: e.target.value }))}
+										placeholder="E.g. 10.5"
+										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
 									/>
 								</div>
 							</div>
@@ -1030,7 +1136,7 @@ const Courier = () => {
 									</p>
 								</div>
 								<div>
-									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Sender</label>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">From Name</label>
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.sender || '-'}</p>
 								</div>
 								<div>
@@ -1038,15 +1144,15 @@ const Courier = () => {
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.department || '-'}</p>
 								</div>
 								<div>
-									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">From</label>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">From Location</label>
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.sending_from || '-'}</p>
 								</div>
 								<div>
-									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Receiver</label>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">To Name</label>
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.receiver || '-'}</p>
 								</div>
 								<div>
-									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Destination</label>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">To Location</label>
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.destination || '-'}</p>
 								</div>
 								<div>
@@ -1062,6 +1168,10 @@ const Courier = () => {
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.awb_no || '-'}</p>
 								</div>
 								<div>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Branch</label>
+									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{lookups.branches?.find(b => b.id === selectedCourier.branch_id)?.name || selectedCourier.branch_name || '-'}</p>
+								</div>
+								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Wt(Kg)</label>
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.weight_kg || '-'}</p>
 								</div>
@@ -1072,6 +1182,26 @@ const Courier = () => {
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Budget</label>
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.budgeted || '-'}</p>
+								</div>
+								<div>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Item</label>
+									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.item || '-'}</p>
+								</div>
+								<div>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Ref Type</label>
+									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.ref_type || '-'}</p>
+								</div>
+								<div>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{selectedCourier.ref_type || 'Reference'} Value</label>
+									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.order_reference || '-'}</p>
+								</div>
+								<div>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Package Type</label>
+									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.package_type || '-'}</p>
+								</div>
+								<div>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">No. of Packages</label>
+									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.num_packages || '-'}</p>
 								</div>
 								
 								<div className="col-span-2 md:col-span-3 lg:col-span-3">

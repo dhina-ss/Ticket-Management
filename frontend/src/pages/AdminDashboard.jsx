@@ -231,7 +231,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
         add_as_assignee: false,
         can_receive_mail: false,
         can_send_mail: false,
-        receiver_position: ''
+        receiver_position: '',
+        role: 'user'
     });
     const [addError, setAddError] = useState('');
     const [addLoading, setAddLoading] = useState(false);
@@ -326,7 +327,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
             add_as_assignee: false,
             can_receive_mail: false,
             can_send_mail: false,
-            receiver_position: ''
+            receiver_position: '',
+            role: 'user'
         });
     };
 
@@ -343,7 +345,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
             can_receive_mail: !!user.can_receive_mail,
             can_send_mail: !!user.can_send_mail,
             receiver_position: user.receiver_position || '',
-            branch: (user.branch || 'All').split(',').map(s => s.trim())
+            branch: (user.branch || 'All').split(',').map(s => s.trim()),
+            role: user.role || 'user'
         });
         setAddError('');
         setShowAddUser(true);
@@ -379,7 +382,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                     can_send_mail: newUser.can_send_mail,
                     receiver_position: newUser.receiver_position,
                     is_assignee: newUser.add_as_assignee,
-                    branch: newUser.branch.join(',')
+                    branch: newUser.branch.join(','),
+                    role: newUser.role
                 } : u));
                 if (currentUser && currentUser.id === editingUser.id) {
                     if (refreshUser) refreshUser();
@@ -397,7 +401,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                     can_send_mail: newUser.can_send_mail,
                     receiver_position: newUser.receiver_position,
                     is_assignee: newUser.add_as_assignee,
-                    branch: newUser.branch.join(',')
+                    branch: newUser.branch.join(','),
+                    role: newUser.role
                 }]);
             }
             closeModal();
@@ -479,8 +484,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                                 </div>
                             </div>
 
-                            {/* Branch Selection and Password in same row */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Branch Selection, Role and Password in same row */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
                                         Branch <span className="text-red-400">*</span>
@@ -491,6 +496,18 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                                         options={BRANCH_OPTIONS}
                                         selected={newUser.branch}
                                         onChange={toggleBranch}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                        Role <span className="text-red-400">*</span>
+                                    </label>
+                                    <SelectDropdown
+                                        value={newUser.role}
+                                        onChange={val => setNewUser(p => ({ ...p, role: val }))}
+                                        options={['Super admin', 'admin', 'user']}
+                                        label="Select Role"
                                     />
                                 </div>
 
@@ -699,6 +716,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                                 <tr>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">#</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Name</th>
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Role</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Email</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Access</th>
                                 <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Support Type</th>
@@ -724,7 +742,18 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                                             <span className="font-semibold text-slate-800 dark:text-white">{user.name}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{user.email}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold capitalize ${
+                                            user.role === 'Super admin' 
+                                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' 
+                                                : user.role === 'admin' 
+                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' 
+                                                    : 'bg-slate-100 text-slate-650 dark:bg-slate-800 dark:text-slate-400'
+                                        }`}>
+                                            {user.role || 'user'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-slate-650 dark:text-slate-300">{user.email}</td>
                                     <td className="px-6 py-4">
                                         <div className="flex gap-1.5 flex-wrap">
                                             {(user.access || 'View').split(',').map(p => (
@@ -870,8 +899,11 @@ const AssetsView = ({
     activeView,
     hasEditPermission
 }) => {
+    const { user } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
     const [qrLightbox, setQrLightbox] = useState(null); // holds base64 src when open
+    const [historyLogs, setHistoryLogs] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [validationErrors, setValidationErrors] = useState({});
     const ITEMS_PER_PAGE = 20;
@@ -905,9 +937,9 @@ const AssetsView = ({
     const [detailsQRBlobUrl, setDetailsQRBlobUrl] = useState('');
     const [activeImage, setActiveImage] = useState(null);
 
-    // Prevent background scrolling when lightbox is open
+    // Prevent background scrolling when lightbox, add/edit asset modal, or details modal is open
     useEffect(() => {
-        if (activeImage) {
+        if (activeImage || showAddModal || selectedAsset) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = '';
@@ -915,7 +947,7 @@ const AssetsView = ({
         return () => {
             document.body.style.overflow = '';
         };
-    }, [activeImage]);
+    }, [activeImage, showAddModal, selectedAsset]);
 
     // Close lightbox on ESC key press & handle arrow navigation
     useEffect(() => {
@@ -977,17 +1009,37 @@ const AssetsView = ({
 
     useEffect(() => {
         let active = true;
-        if (selectedAsset && selectedAsset.qrCode) {
+        if (selectedAsset) {
             setDetailsQRBlobUrl('');
-            api.get(`/api/assets/${selectedAsset.assetId}/qr?t=${Date.now()}`, { responseType: 'blob' })
+            setHistoryLogs([]);
+            setHistoryLoading(true);
+
+            if (selectedAsset.qrCode) {
+                api.get(`/api/assets/${selectedAsset.assetId}/qr?t=${Date.now()}`, { responseType: 'blob' })
+                    .then(res => {
+                        if (active) {
+                            const blobUrl = URL.createObjectURL(res.data);
+                            setDetailsQRBlobUrl(blobUrl);
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Failed to load details QR image:", err);
+                    });
+            }
+
+            api.get(`/api/assets/${selectedAsset.assetId}/history`)
                 .then(res => {
                     if (active) {
-                        const blobUrl = URL.createObjectURL(res.data);
-                        setDetailsQRBlobUrl(blobUrl);
+                        setHistoryLogs(Array.isArray(res.data) ? res.data : []);
                     }
                 })
                 .catch(err => {
-                    console.error("Failed to load details QR image:", err);
+                    console.error("Failed to load asset history logs:", err);
+                })
+                .finally(() => {
+                    if (active) {
+                        setHistoryLoading(false);
+                    }
                 });
         }
         return () => {
@@ -1108,7 +1160,8 @@ const AssetsView = ({
             condition: resolvedCondition,
             department: resolvedDepartment,
             group: resolvedGroup,
-            type: resolvedType
+            type: resolvedType,
+            updatedBy: user?.name || user?.email || 'System'
         };
 
         if (resolvedAsset.group !== 'Admin' && (!resolvedAsset.assignee || !resolvedAsset.assignee.trim())) {
@@ -1735,6 +1788,34 @@ const AssetsView = ({
                                                 Image Pending
                                             </span>
                                         </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Asset History */}
+                            <div className="mt-2 mb-6">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Asset History</p>
+                                {historyLoading ? (
+                                    <div className="text-xs text-slate-500 flex items-center gap-2">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-pulse"></span>
+                                        Loading history...
+                                    </div>
+                                ) : historyLogs && historyLogs.length > 0 ? (
+                                    <div className="bg-slate-50 dark:bg-slate-850/30 border border-slate-100 dark:border-slate-800/50 rounded-xl p-4 max-h-48 overflow-y-auto space-y-3">
+                                        {historyLogs.map((log, idx) => (
+                                            <div key={idx} className="text-xs flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 pb-2 border-b border-slate-200/50 dark:border-slate-800/30 last:border-b-0 last:pb-0">
+                                                <div className="text-slate-700 dark:text-slate-300">
+                                                    <span className="font-semibold text-slate-800 dark:text-slate-200">{log.fieldName}</span> updated from <span className="font-mono bg-slate-200/50 dark:bg-slate-700/50 px-1 rounded">{log.oldValue || 'none'}</span> to <span className="font-mono bg-slate-200/50 dark:bg-slate-700/50 px-1 rounded">{log.newValue || 'none'}</span>
+                                                </div>
+                                                <div className="text-[10px] text-slate-450 shrink-0 font-medium self-end sm:self-auto">
+                                                    by {log.changedBy || 'System'} at {log.changedAt}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="bg-slate-50/50 dark:bg-slate-800/10 border border-slate-100/30 dark:border-slate-800/30 rounded-xl p-4 text-xs text-slate-400 italic">
+                                        No history logs recorded for this asset yet.
                                     </div>
                                 )}
                             </div>

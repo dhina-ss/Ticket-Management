@@ -146,6 +146,8 @@ class Courier(db.Model):
     courier_cost = db.Column(db.Float, default=0)
     payment_mode = db.Column(db.String(50))
     remarks = db.Column(db.Text)
+    item = db.Column(db.String(100))
+    ref_type = db.Column(db.String(50))
 
     def __repr__(self):
         return f'<Courier {self.awb_no}>'

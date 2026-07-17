@@ -596,12 +596,13 @@ def create_user():
         receiver_position = data.get("receiver_position", "").strip() or None
         branch = data.get("branch", "All").strip()
         allowed_menus = data.get("allowed_menus", "").strip()
+        role = data.get("role", "user").strip()
 
         if not name or not email or not password:
             return jsonify({"error": "Name, email and password are required."}), 400
         if len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
-        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus)
+        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role)
         logging.info(f"Admin Action: Created new user - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
         
         # Optionally add as assignee
@@ -633,13 +634,14 @@ def edit_user(user_id):
         receiver_position = data.get("receiver_position", "").strip() or None
         branch = data.get("branch", "All").strip()
         allowed_menus = data.get("allowed_menus", "").strip()
+        role = data.get("role", "user").strip()
 
         if not name or not email:
             return jsonify({"error": "Name and email are required."}), 400
         if password and len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
         
-        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus)
+        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role)
         if updated:
             logging.info(f"Admin Action: Edited user {user_id} - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
             
@@ -939,6 +941,18 @@ def update_asset_route(asset_id):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/assets/<asset_id>/history', methods=['GET'])
+def get_asset_history_route(asset_id):
+    """Fetch history logs for a given asset ID."""
+    try:
+        from database import get_asset_history
+        history = get_asset_history(asset_id)
+        return jsonify(history), 200
+    except Exception as e:
+        logging.exception(f"Exception in get_asset_history_route for asset_id {asset_id}:")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/assets/<int:asset_id>', methods=['DELETE'])
 def delete_asset_route(asset_id):
     """Delete an asset by id."""
@@ -1016,7 +1030,7 @@ def get_asset_qr_endpoint(asset_id):
         # Use request.host_url for dynamic host (remove trailing slash)
         # Determine base URL for QR data: use env QR_BASE_URL if defined, else request.host_url
         base_url = os.getenv('QR_BASE_URL') or request.host_url.rstrip('/')
-        qr_data = f"{base_url}/asset/{asset_id}"
+        qr_data = f"{base_url}/asset/{asset_id}?edit=true"
 
         qr = qrcode.QRCode(version=1, box_size=10, border=1)
         qr.add_data(qr_data)
@@ -2347,6 +2361,17 @@ try:
                         if col not in existing:
                             conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {typedef}"))
                     conn.commit()
+            if 'couriers' in inspector.get_table_names():
+                existing_couriers = {c['name'] for c in inspector.get_columns('couriers')}
+                new_couriers_cols = [
+                    ("item",     "VARCHAR(100)"),
+                    ("ref_type", "VARCHAR(50)"),
+                ]
+                with db_obj.engine.connect() as conn:
+                    for col, typedef in new_couriers_cols:
+                        if col not in existing_couriers:
+                            conn.execute(text(f"ALTER TABLE couriers ADD COLUMN {col} {typedef}"))
+                    conn.commit()
         except Exception as ex_mig:
             print(f"DEBUG: Courier schema migration error: {ex_mig}")
             
@@ -2490,7 +2515,9 @@ def api_courier_entries():
                     "chargeable_weight": c.chargeable_weight,
                     "courier_cost": c.courier_cost,
                     "payment_mode": c.payment_mode,
-                    "remarks": c.remarks
+                    "remarks": c.remarks,
+                    "item": c.item,
+                    "ref_type": c.ref_type
                 })
             return jsonify(result), 200
     except Exception as e:
@@ -2527,7 +2554,9 @@ def api_courier_create():
                 chargeable_weight=float(data['chargeable_weight']) if data.get('chargeable_weight') else None,
                 courier_cost=float(data.get('courier_cost', 0) or 0),
                 payment_mode=data.get('payment_mode', '').strip(),
-                remarks=data.get('remarks', '').strip()
+                remarks=data.get('remarks', '').strip(),
+                item=data.get('item', '').strip(),
+                ref_type=data.get('ref_type', '').strip()
             )
             courier_app_pkg.db.session.add(c)
             courier_app_pkg.db.session.commit()
@@ -2568,6 +2597,8 @@ def api_courier_update(entry_id):
             c.courier_cost = float(data.get('courier_cost', c.courier_cost) or 0)
             c.payment_mode = data.get('payment_mode', c.payment_mode).strip()
             c.remarks = data.get('remarks', c.remarks).strip()
+            c.item = data.get('item', c.item).strip()
+            c.ref_type = data.get('ref_type', c.ref_type).strip()
             courier_app_pkg.db.session.commit()
             return jsonify({"success": True}), 200
     except Exception as e:

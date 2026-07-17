@@ -248,12 +248,16 @@ def init_db():
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS branch TEXT;")
                 # Add per-manager approvals tracking (like management_approvals)
                 cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_manager_approvals JSONB DEFAULT '[]'::jsonb;")
+                # Add role field
+                cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';")
+                # Ensure existing admin@support.com gets Super admin role
+                cur.execute("UPDATE admin_users SET role = 'Super admin' WHERE email = 'admin@support.com' AND (role IS NULL OR role = 'user');")
                 # Seed default admin if table is empty
                 cur.execute("SELECT COUNT(*) FROM admin_users;")
                 if cur.fetchone()[0] == 0:
                     cur.execute(
-                        "INSERT INTO admin_users (name, email, password, access, support_type, branch, allowed_menus) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                        ("Admin User", "admin@support.com", "Admin@123", "View,Edit,Export", "IT Support,Admin Support", "All", "")
+                        "INSERT INTO admin_users (name, email, password, access, support_type, branch, allowed_menus, role) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                        ("Admin User", "admin@support.com", "Admin@123", "View,Edit,Export", "IT Support,Admin Support", "All", "", "Super admin")
                     )
 
                 # Migration: Replace ', ' in branch names with '_ '
@@ -476,66 +480,56 @@ def init_db():
     # ---- assets table ----
     try:
         conn = _get_conn()
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS assets (
-                        id            SERIAL PRIMARY KEY,
-                        asset_id      TEXT UNIQUE NOT NULL,
-                        category      TEXT,
-                        brand         TEXT,
-                        model         TEXT,
-                        configuration TEXT,
-                        serial        TEXT,
-                        assignee      TEXT DEFAULT 'Unassigned',
-                        emp_code      TEXT,
-                        cug           TEXT,
-                        email         TEXT,
-                        department    TEXT,
-                        branch        TEXT,
-                        purchase_date DATE,
-                        warranty      TEXT,
-                        condition     TEXT DEFAULT 'Excellent',
-                        remarks       TEXT,
-                        images        TEXT,
-                        qr_code       TEXT,
-                        "group"       TEXT DEFAULT 'IT',
-                        created_at    TIMESTAMPTZ DEFAULT NOW(),
-                        updated_at    TIMESTAMPTZ DEFAULT NOW()
-                    );
-                    
-                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS images TEXT;
-                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS "group" TEXT DEFAULT 'IT';
-                    ALTER TABLE assets ALTER COLUMN warranty TYPE TEXT USING warranty::text;
-                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_name TEXT;
-                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS location TEXT;
-                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_provided_team TEXT;
-                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS type TEXT;
-                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS quantity TEXT;
-                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS status TEXT;
-                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS warranty_expiry TEXT;
-                    ALTER TABLE assets ADD COLUMN IF NOT EXISTS purchase_cost TEXT;
-                """)
-                
-                # Migration: rename tag to asset_id
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS assets (
+                    id            SERIAL PRIMARY KEY,
+                    asset_id      TEXT UNIQUE NOT NULL,
+                    category      TEXT,
+                    brand         TEXT,
+                    model         TEXT,
+                    configuration TEXT,
+                    serial        TEXT,
+                    assignee      TEXT DEFAULT 'Unassigned',
+                    emp_code      TEXT,
+                    cug           TEXT,
+                    email         TEXT,
+                    department    TEXT,
+                    branch        TEXT,
+                    purchase_date DATE,
+                    warranty      TEXT,
+                    condition     TEXT DEFAULT 'Excellent',
+                    remarks       TEXT,
+                    images        TEXT,
+                    qr_code       TEXT,
+                    "group"       TEXT DEFAULT 'IT',
+                    created_at    TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at    TIMESTAMPTZ DEFAULT NOW()
+                );
+            """)
+            
+            alterations = [
+                "ALTER TABLE assets ADD COLUMN IF NOT EXISTS images TEXT;",
+                'ALTER TABLE assets ADD COLUMN IF NOT EXISTS "group" TEXT DEFAULT \'IT\';',
+                "ALTER TABLE assets ALTER COLUMN warranty TYPE TEXT USING warranty::text;",
+                "ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_name TEXT;",
+                "ALTER TABLE assets ADD COLUMN IF NOT EXISTS location TEXT;",
+                "ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_provided_team TEXT;",
+                "ALTER TABLE assets ADD COLUMN IF NOT EXISTS type TEXT;",
+                "ALTER TABLE assets ADD COLUMN IF NOT EXISTS quantity TEXT;",
+                "ALTER TABLE assets ADD COLUMN IF NOT EXISTS status TEXT;",
+                "ALTER TABLE assets ADD COLUMN IF NOT EXISTS warranty_expiry TEXT;",
+                "ALTER TABLE assets ADD COLUMN IF NOT EXISTS purchase_cost TEXT;",
+                "ALTER TABLE assets RENAME COLUMN tag TO asset_id;",
+                "ALTER TABLE assets DROP COLUMN IF EXISTS date;",
+                "ALTER TABLE assets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();"
+            ]
+            for stmt in alterations:
                 try:
-                    cur.execute("ALTER TABLE assets RENAME COLUMN tag TO asset_id;")
+                    cur.execute(stmt)
                 except Exception:
                     pass
-                
-                # Migration: drop date column
-                try:
-                    cur.execute("ALTER TABLE assets DROP COLUMN IF EXISTS date;")
-                except Exception:
-                    pass
-                
-                # Migration: add updated_at column
-                try:
-                    cur.execute("ALTER TABLE assets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();")
-                except Exception:
-                    pass
-                
-                pass
         conn.close()
         print("DEBUG: assets table ready.")
     except Exception as e:
@@ -613,6 +607,28 @@ def init_db():
         print("DEBUG: admin_assets table ready.")
     except Exception as e:
         print(f"DEBUG: admin_assets table error: {e}")
+
+    # ---- asset_history table ----
+    try:
+        conn = _get_conn()
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS asset_history (
+                    id          SERIAL PRIMARY KEY,
+                    asset_id    TEXT NOT NULL,
+                    field_name  TEXT NOT NULL,
+                    old_value   TEXT,
+                    new_value   TEXT,
+                    changed_at  TIMESTAMPTZ DEFAULT NOW(),
+                    changed_by  TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_asset_history_asset_id ON asset_history (asset_id);
+            """)
+        conn.close()
+        print("DEBUG: asset_history table ready.")
+    except Exception as e:
+        print(f"DEBUG: asset_history table error: {e}")
 
     # ---- pettycash table ----
     try:
@@ -815,7 +831,7 @@ def get_admin_users() -> list:
         # We match by name and ensured it's not soft-deleted.
         cur.execute("""
             SELECT u.id, u.name, u.email, u.access, u.support_type, u.created_at, 
-                   u.can_receive_mail, u.can_send_mail, u.receiver_position, u.branch, u.allowed_menus,
+                   u.can_receive_mail, u.can_send_mail, u.receiver_position, u.branch, u.allowed_menus, u.role,
                    EXISTS (SELECT 1 FROM assignees a WHERE a.name = u.name AND a.is_delete = false) as is_assignee
             FROM admin_users u
             ORDER BY u.created_at ASC;
@@ -828,14 +844,14 @@ def get_admin_users() -> list:
     return rows
 
 
-def create_admin_user(name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus=""):
+def create_admin_user(name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus="", role="user"):
     conn = _get_conn()
     try:
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
-                    (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus)
+                    "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
+                    (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role)
                 )
                 new_id = cur.fetchone()[0]
     except Exception:
@@ -844,20 +860,20 @@ def create_admin_user(name, email, password, access, support_type, can_receive_m
     return {"id": new_id}
 
 
-def update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus=""):
+def update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus="", role="user"):
     conn = _get_conn()
     try:
         with conn:
             with conn.cursor() as cur:
                 if password:
                     cur.execute(
-                        "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s WHERE id = %s;",
-                        (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, user_id)
+                        "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s, role = %s WHERE id = %s;",
+                        (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, user_id)
                     )
                 else:
                     cur.execute(
-                        "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s WHERE id = %s;",
-                        (name, email, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, user_id)
+                        "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s, role = %s WHERE id = %s;",
+                        (name, email, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, user_id)
                     )
                 updated = cur.rowcount > 0
     except Exception:
@@ -881,7 +897,7 @@ def verify_admin_login(email: str, password: str) -> dict | None:
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch, can_receive_mail, can_send_mail, allowed_menus FROM admin_users WHERE email = %s AND password = %s;",
+                "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch, can_receive_mail, can_send_mail, allowed_menus, role FROM admin_users WHERE email = %s AND password = %s;",
                 (email, password)
             )
             row = cur.fetchone()
@@ -1782,6 +1798,7 @@ def create_asset(data: dict) -> dict:
 def update_asset(asset_id: int, data: dict) -> dict:
     import json
     try:
+        old_asset = get_asset_by_id(asset_id)
         conn = _get_conn()
         with conn:
             with conn.cursor() as cur:
@@ -1835,6 +1852,35 @@ def update_asset(asset_id: int, data: dict) -> dict:
                 ))
                 updated = cur.rowcount > 0
         conn.close()
+
+        if old_asset and updated:
+            IT_FIELDS_MAP = {
+                "category": "Category",
+                "brand": "Brand",
+                "model": "Model",
+                "configuration": "Configuration",
+                "serial": "Serial Number",
+                "assignee": "Assignee",
+                "empCode": "Employee Code",
+                "cug": "CUG",
+                "email": "Email",
+                "department": "Department",
+                "branch": "Branch",
+                "purchaseDate": "Purchase Date",
+                "warranty": "Warranty",
+                "condition": "Condition",
+                "remarks": "Remarks",
+                "assetName": "Asset Name",
+                "location": "Location",
+                "assetProvidedTeam": "Asset Provided Team",
+                "type": "Type",
+                "quantity": "Quantity",
+                "status": "Status",
+                "warrantyExpiry": "Warranty Expiry",
+                "purchaseCost": "Purchase Cost",
+            }
+            compare_and_log_changes(old_asset.get("assetId"), old_asset, data, IT_FIELDS_MAP, data.get("updatedBy", "System"))
+
         return {"success": updated}
     except Exception as e:
         import traceback
@@ -1930,6 +1976,7 @@ def create_admin_asset(data: dict) -> dict:
 
 def update_admin_asset(asset_id: int, data: dict) -> dict:
     try:
+        old_asset = get_admin_asset_by_id(asset_id)
         conn = _get_conn()
         with conn:
             with conn.cursor() as cur:
@@ -1963,6 +2010,26 @@ def update_admin_asset(asset_id: int, data: dict) -> dict:
                 ))
                 updated = cur.rowcount > 0
         conn.close()
+
+        if old_asset and updated:
+            ADMIN_FIELDS_MAP = {
+                "assetName": "Asset Name",
+                "department": "Department",
+                "serial": "Serial Number",
+                "assignee": "Assignee",
+                "location": "Location",
+                "type": "Type",
+                "quantity": "Quantity",
+                "status": "Status",
+                "branch": "Branch",
+                "warrantyExpiry": "Warranty Expiry",
+                "purchaseCost": "Purchase Cost",
+                "category": "Category",
+                "brandModel": "Brand/Model",
+                "remarks": "Remarks",
+            }
+            compare_and_log_changes(old_asset.get("assetId"), old_asset, data, ADMIN_FIELDS_MAP, data.get("updatedBy", "System"))
+
         return {"success": updated}
     except Exception as e:
         print(f"DEBUG: update_admin_asset error: {e}")
@@ -2031,3 +2098,71 @@ def delete_asset_type(type_id: int) -> bool:
             deleted = cur.rowcount > 0
     conn.close()
     return deleted
+
+def get_asset_by_id(id: int) -> dict:
+    conn = _get_conn()
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("SELECT * FROM assets WHERE id = %s", (id,))
+        row = cur.fetchone()
+    conn.close()
+    return _row_to_asset(row) if row else None
+
+def get_admin_asset_by_id(id: int) -> dict:
+    conn = _get_conn()
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("SELECT * FROM admin_assets WHERE id = %s", (id,))
+        row = cur.fetchone()
+    conn.close()
+    return _row_to_admin_asset(row) if row else None
+
+def log_asset_history(asset_id: str, field_name: str, old_value: str, new_value: str, changed_by: str):
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO asset_history (asset_id, field_name, old_value, new_value, changed_by)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (asset_id, field_name, old_value, new_value, changed_by))
+        conn.close()
+    except Exception as e:
+        print(f"DEBUG: log_asset_history error: {e}")
+
+def get_asset_history(asset_id: str) -> list:
+    try:
+        conn = _get_conn()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT field_name, old_value, new_value, changed_at, changed_by 
+                FROM asset_history 
+                WHERE asset_id = %s 
+                ORDER BY changed_at DESC
+            """, (asset_id,))
+            rows = cur.fetchall()
+        conn.close()
+        
+        result = []
+        for r in rows:
+            result.append({
+                "fieldName": r.get("field_name"),
+                "oldValue": r.get("old_value"),
+                "newValue": r.get("new_value"),
+                "changedAt": r.get("changed_at").strftime("%Y-%m-%d %H:%M:%S") if r.get("changed_at") else "",
+                "changedBy": r.get("changed_by")
+            })
+        return result
+    except Exception as e:
+        print(f"DEBUG: get_asset_history error: {e}")
+        return []
+
+def compare_and_log_changes(asset_id: str, old_dict: dict, new_dict: dict, fields_map: dict, changed_by: str):
+    for key, label in fields_map.items():
+        old_val = old_dict.get(key)
+        new_val = new_dict.get(key)
+        
+        old_str = str(old_val).strip() if old_val is not None else ""
+        new_str = str(new_val).strip() if new_val is not None else ""
+        
+        if old_str != new_str:
+            log_asset_history(asset_id, label, old_str, new_str, changed_by)
+

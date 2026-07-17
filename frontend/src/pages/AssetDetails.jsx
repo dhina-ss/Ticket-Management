@@ -240,7 +240,9 @@ const AssetDetails = () => {
             const urlParams = new URLSearchParams(location.search);
             if (urlParams.get('edit') === 'true') {
                 setScannedFromDedicatedScanner(true);
-                if (isAuthenticated && user?.access?.includes('Edit')) {
+                if (!isAuthenticated) {
+                    navigate('/login', { state: { from: location } });
+                } else if (user?.access?.includes('Edit')) {
                     setShowEditModal(true);
                 }
                 // Strip the ?edit=true parameter from URL quietly
@@ -248,7 +250,7 @@ const AssetDetails = () => {
                 window.history.replaceState({}, document.title, newUrl);
             }
         }
-    }, [asset, isAuthenticated, location.search, user]);
+    }, [asset, isAuthenticated, location, user, navigate]);
 
     const handleImageUpload = async (e) => {
         const files = Array.from(e.target.files);
@@ -285,7 +287,9 @@ const AssetDetails = () => {
     };
 
     const handleEditClick = () => {
-        if (isAuthenticated && user?.access?.includes('Edit') && scannedFromDedicatedScanner) {
+        if (!isAuthenticated) {
+            navigate('/login', { state: { from: { pathname: location.pathname, search: '?edit=true' } } });
+        } else if (user?.access?.includes('Edit')) {
             setShowEditModal(true);
         }
     };
@@ -418,7 +422,7 @@ const AssetDetails = () => {
                 </div>
 
                 <div className="flex items-center gap-3 w-full">
-                    {isAuthenticated && user?.access?.includes('Edit') && scannedFromDedicatedScanner && (
+                    {(!isAuthenticated || user?.access?.includes('Edit')) && (
                         <button
                             onClick={handleEditClick}
                             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-xs sm:text-sm font-bold rounded-xl hover:bg-primary/90 transition-all shadow-md hover:shadow-primary/10 active:scale-[0.98] cursor-pointer"
