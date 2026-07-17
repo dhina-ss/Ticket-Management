@@ -904,6 +904,7 @@ const AssetsView = ({
     const [qrLightbox, setQrLightbox] = useState(null); // holds base64 src when open
     const [historyLogs, setHistoryLogs] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [showSuccessCard, setShowSuccessCard] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [validationErrors, setValidationErrors] = useState({});
     const ITEMS_PER_PAGE = 20;
@@ -1188,6 +1189,7 @@ const AssetsView = ({
                 setSelectedAsset(updatedObj);
                 setIsEditing(false);
                 setEditingId(null);
+                setShowSuccessCard(true);
             } else {
                 const res = await api.post(apiPath, resolvedAsset);
                 const data = res.data;
@@ -2500,6 +2502,26 @@ const AssetsView = ({
                             className="w-full py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-705 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-colors cursor-pointer text-center text-sm"
                         >
                             Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+            {/* SUCCESS MODAL CARD */}
+            {showSuccessCard && (
+                <div className="fixed inset-0 bg-slate-955/60 backdrop-blur-md z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowSuccessCard(false)}>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200 flex flex-col items-center" onClick={e => e.stopPropagation()}>
+                        <div className="h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-500 dark:text-emerald-450 flex items-center justify-center mb-4 border border-emerald-200 dark:border-emerald-800/30 shadow-md">
+                            <span className="material-symbols-outlined text-[36px]">check_circle</span>
+                        </div>
+                        <h3 className="text-lg font-extrabold text-slate-900 dark:text-white font-display">Update Successful</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                            The details for asset <strong className="text-slate-700 dark:text-slate-350 font-semibold">{selectedAsset?.assetId || newAsset.assetId}</strong> have been updated successfully.
+                        </p>
+                        <button
+                            onClick={() => setShowSuccessCard(false)}
+                            className="mt-6 w-full py-3 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-650 dark:hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] cursor-pointer text-sm"
+                        >
+                            Okay, Got it
                         </button>
                     </div>
                 </div>

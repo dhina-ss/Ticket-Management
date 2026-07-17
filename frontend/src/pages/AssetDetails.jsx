@@ -53,6 +53,7 @@ const AssetDetails = () => {
         return urlParams.get('edit') === 'true';
     });
     const [showEditModal, setShowEditModal] = useState(false);
+    const [showSuccessCard, setShowSuccessCard] = useState(false);
     const [submitAction, setSubmitAction] = useState('exit'); // 'exit' | 'scan'
     const [activeImage, setActiveImage] = useState(null);
     const [departments, setDepartments] = useState([]);
@@ -357,12 +358,9 @@ const AssetDetails = () => {
         try {
             const apiPath = editForm.group === 'Admin' ? `/api/admin-assets/${asset.id}` : `/api/assets/${asset.id}`;
             await api.put(apiPath, editForm);
-            if (submitAction === 'scan') {
-                navigate('/admin');
-            } else {
-                await fetchAsset();
-                setShowEditModal(false);
-            }
+            await fetchAsset();
+            setShowEditModal(false);
+            setShowSuccessCard(true);
         } catch (err) {
             console.error("Error updating asset details:", err);
             setSaveError(err.response?.data?.error || 'Failed to update asset details.');
@@ -1117,6 +1115,32 @@ const AssetDetails = () => {
                                 {asset.images.indexOf(activeImage) + 1} / {asset.images.length}
                             </span>
                         )}
+                    </div>
+                </div>
+            )}
+            {/* SUCCESS MODAL CARD */}
+            {showSuccessCard && (
+                <div className="fixed inset-0 bg-slate-955/60 backdrop-blur-md z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => {
+                    setShowSuccessCard(false);
+                    if (submitAction === 'scan') navigate('/admin');
+                }}>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200 flex flex-col items-center" onClick={e => e.stopPropagation()}>
+                        <div className="h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-500 dark:text-emerald-450 flex items-center justify-center mb-4 border border-emerald-200 dark:border-emerald-800/30 shadow-md">
+                            <span className="material-symbols-outlined text-[36px] animate-bounce">check_circle</span>
+                        </div>
+                        <h3 className="text-lg font-extrabold text-slate-900 dark:text-white font-display">Update Successful</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                            The details for asset <strong className="text-slate-700 dark:text-slate-350 font-semibold">{asset.assetId}</strong> have been updated successfully.
+                        </p>
+                        <button
+                            onClick={() => {
+                                setShowSuccessCard(false);
+                                if (submitAction === 'scan') navigate('/admin');
+                            }}
+                            className="mt-6 w-full py-3 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-650 dark:hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] cursor-pointer text-sm"
+                        >
+                            Okay, Got it
+                        </button>
                     </div>
                 </div>
             )}

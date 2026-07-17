@@ -848,7 +848,7 @@ def update_admin_asset_route(asset_id):
         if result.get("success"):
             logging.info(f"Admin Action: Updated admin asset {asset_id}")
             return jsonify({"message": "Admin asset updated."}), 200
-        return jsonify({"error": "Admin asset not found."}), 404
+        return jsonify({"error": result.get("error", "Admin asset not found.")}), 404
     except Exception as e:
         logging.exception(f"Exception in update_admin_asset_route for asset_id {asset_id}:")
         return jsonify({"error": str(e)}), 500
@@ -935,7 +935,7 @@ def update_asset_route(asset_id):
         if result.get("success"):
             logging.info(f"Admin Action: Updated asset {asset_id}")
             return jsonify({"message": "Asset updated."}), 200
-        return jsonify({"error": "Asset not found."}), 404
+        return jsonify({"error": result.get("error", "Asset not found.")}), 404
     except Exception as e:
         logging.exception(f"Exception in update_asset_route for asset_id {asset_id}:")
         return jsonify({"error": str(e)}), 500

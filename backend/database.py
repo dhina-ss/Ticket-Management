@@ -578,31 +578,38 @@ def init_db():
     # ---- admin_assets table ----
     try:
         conn = _get_conn()
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS admin_assets (
-                        id              SERIAL PRIMARY KEY,
-                        asset_id        TEXT UNIQUE NOT NULL,
-                        created_at      TIMESTAMPTZ DEFAULT NOW(),
-                        updated_at      TIMESTAMPTZ DEFAULT NOW()
-                    );
-                """)
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS asset_name TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS department TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS serial_number TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS assignee TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS location TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS \"group\" TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS type TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS quantity TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS status TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS branch TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS warranty_expiry TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS purchase_cost TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS category TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS brand_model TEXT;")
-                cur.execute("ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS remarks TEXT;")
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS admin_assets (
+                    id              SERIAL PRIMARY KEY,
+                    asset_id        TEXT UNIQUE NOT NULL,
+                    created_at      TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at      TIMESTAMPTZ DEFAULT NOW()
+                );
+            """)
+            admin_alterations = [
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS asset_name TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS department TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS serial_number TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS assignee TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS location TEXT;",
+                'ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS "group" TEXT;',
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS type TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS quantity TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS status TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS branch TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS warranty_expiry TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS purchase_cost TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS category TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS brand_model TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS remarks TEXT;"
+            ]
+            for stmt in admin_alterations:
+                try:
+                    cur.execute(stmt)
+                except Exception:
+                    pass
         conn.close()
         print("DEBUG: admin_assets table ready.")
     except Exception as e:
