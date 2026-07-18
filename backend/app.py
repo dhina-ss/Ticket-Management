@@ -2838,6 +2838,10 @@ def api_petty_cash_add():
             status = 'approved' if is_manager else 'pending'
             approved_by = user_name if is_manager else None
             
+            amount_val = data.get('amount')
+            if amount_val == '' or amount_val is None:
+                amount_val = 0
+            
             cur.execute("""
                 INSERT INTO pettycash (date, category, sub_category, sub_remarks, expense_amount, description, user_name, status, approved_by, approved_at, receiver_name, verified_by)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, %s)
@@ -2846,7 +2850,7 @@ def api_petty_cash_add():
                 data.get('category'),
                 data.get('subcategory'),
                 data.get('sub_remarks'),
-                data.get('amount', 0),
+                amount_val,
                 data.get('description'),
                 user_name,
                 status,
@@ -2898,13 +2902,17 @@ def api_petty_cash_update(eid):
         from database import _get_conn
         conn = _get_conn()
         with conn.cursor() as cur:
+            amount_val = data.get('amount')
+            if amount_val == '' or amount_val is None:
+                amount_val = 0
+                
             cur.execute("""
                 UPDATE pettycash 
                 SET date=%s, category=%s, sub_category=%s, sub_remarks=%s, expense_amount=%s, description=%s, user_name=%s, approved_by=%s, receiver_name=%s, verified_by=%s
                 WHERE id=%s
             """, (
                 data.get('date'), data.get('category'), data.get('subcategory'),
-                data.get('sub_remarks'), data.get('amount'), data.get('description'),
+                data.get('sub_remarks'), amount_val, data.get('description'),
                 data.get('submitted_by'), data.get('approved_by'), data.get('receiver_name'), data.get('verified_by'), eid
             ))
             conn.commit()
