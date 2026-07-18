@@ -7,7 +7,7 @@ import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
 import { format } from 'date-fns';
 
-const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, variant = 'default', icon, widthClass = 'w-full', menuWidthClass = 'w-full' }) => {
+const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, variant = 'default', icon, widthClass = 'w-full', menuWidthClass = 'w-full', disabled = false }) => {
 	const [isOpen, setIsOpen] = useState(false);
 	const ref = useRef(null);
 	useEffect(() => {
@@ -18,10 +18,10 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 	return (
 		<div className="relative" ref={ref}>
 			<div
-				onClick={() => setIsOpen(o => !o)}
+				onClick={() => !disabled && setIsOpen(o => !o)}
 				className={variant === 'filter'
-					? `flex items-center justify-between gap-2 px-3 py-2 bg-[#eceef0] dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700 outline-none focus:outline-none focus:ring-0 cursor-pointer ${widthClass} ${isOpen ? 'bg-white dark:bg-slate-900 shadow-sm' : ''}`
-					: `flex items-center justify-between ${widthClass} px-3 py-2 text-sm rounded-xl border-none cursor-pointer transition-all bg-slate-50 dark:bg-slate-800 font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/20' : ''}`
+					? `flex items-center justify-between gap-2 px-3 py-2 bg-[#eceef0] dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all outline-none focus:outline-none focus:ring-0 ${widthClass} ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer'} ${isOpen ? 'bg-white dark:bg-slate-900 shadow-sm' : ''}`
+					: `flex items-center justify-between ${widthClass} px-3 py-2 text-sm rounded-xl border-none transition-all bg-slate-50 dark:bg-slate-800 font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/20' : ''} ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : 'cursor-pointer'}`
 				}
 			>
 				<div className="flex items-center gap-2 truncate">
@@ -162,6 +162,7 @@ const Courier = () => {
 	// Modal State
 	const [showModal, setShowModal] = useState(false);
 	const [editingEntry, setEditingEntry] = useState(null);
+	const [successModal, setSuccessModal] = useState({ show: false, type: '', id: '' });
 
 	// Form State
 	const [formData, setFormData] = useState({
@@ -246,12 +247,14 @@ const Courier = () => {
 					fetchEntries();
 					setShowModal(false);
 					setEditingEntry(null);
+					setSuccessModal({ show: true, type: 'Update', id: 'Courier Entry' });
 				}
 			} else {
 				const res = await api.post('/api/courier/entries', formData);
 				if (res.status === 201) {
 					fetchEntries();
 					setShowModal(false);
+					setSuccessModal({ show: true, type: 'Add', id: 'Courier Entry' });
 				}
 			}
 		} catch (err) {
@@ -924,7 +927,7 @@ const Courier = () => {
 								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Ref Type</label>
 									<div className="flex gap-2">
-										<div className="w-[90px] shrink-0">
+										<div className="w-[80px] shrink-0">
 											<SelectDropdown
 												label="Ref Type"
 												options={[
@@ -952,139 +955,139 @@ const Courier = () => {
 								</div>
 							</div>
 
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								{/* Courier Name */}
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Courier Operator</label>
+									<SelectDropdown
+										label="Courier Operator"
+										options={lookups.courier_names.map(c => ({ label: c, value: c }))}
+										value={formData.courier_name}
+										onChange={val => setFormData(prev => ({ ...prev, courier_name: val }))}
+										disabled={!isAdmin}
+									/>
+								</div>
+
+								{/* AWB No */}
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">AWB / Tracking Number</label>
+									<input
+										type="text"
+										value={formData.awb_no}
+										onChange={e => setFormData(prev => ({ ...prev, awb_no: e.target.value }))}
+										placeholder="Tracking tag code"
+										disabled={!isAdmin}
+										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800/60"
+									/>
+								</div>
+							</div>
+
 							{isAdmin && (
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									{/* Courier Name */}
-									<div>
-										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Courier Operator</label>
-										<SelectDropdown
-											label="Courier Operator"
-											options={lookups.courier_names.map(c => ({ label: c, value: c }))}
-											value={formData.courier_name}
-											onChange={val => setFormData(prev => ({ ...prev, courier_name: val }))}
-										/>
+								<>
+									<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+										{/* Cost */}
+										<div>
+											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Cost (INR)</label>
+											<input
+												type="number"
+												step="0.01"
+												value={formData.courier_cost}
+												onChange={e => setFormData(prev => ({ ...prev, courier_cost: e.target.value }))}
+												className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 font-bold text-pink-600"
+											/>
+										</div>
+
+										{/* Budget status */}
+										<div>
+											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Budgeted status</label>
+											<SelectDropdown
+												label="Budgeted status"
+												options={[
+													{ label: 'Non Budgeted', value: 'Non Budgeted' },
+													{ label: 'Budgeted', value: 'Budgeted' }
+												]}
+												value={formData.budgeted}
+												onChange={val => setFormData(prev => ({ ...prev, budgeted: val }))}
+											/>
+										</div>
+
+										{/* Payment Mode */}
+										<div>
+											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Payment Mode</label>
+											<SelectDropdown
+												label="Payment Mode"
+												options={lookups.payment_modes.map(pm => ({ label: pm, value: pm }))}
+												value={formData.payment_mode}
+												onChange={val => setFormData(prev => ({ ...prev, payment_mode: val }))}
+											/>
+										</div>
 									</div>
 
-									{/* AWB No */}
+									<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+										{/* Package Type */}
+										<div>
+											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Package Type</label>
+											<SelectDropdown
+												label="Package Type"
+												options={[
+													{ label: 'Cover', value: 'Cover' },
+													{ label: 'Box', value: 'Box' }
+												]}
+												value={formData.package_type}
+												onChange={val => setFormData(prev => ({ ...prev, package_type: val }))}
+											/>
+										</div>
+
+										{/* Number of packages */}
+										<div>
+											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Number of Packages</label>
+											<input
+												type="text"
+												value={formData.num_packages}
+												onChange={e => setFormData(prev => ({ ...prev, num_packages: e.target.value }))}
+												placeholder="E.g. 5"
+												className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+											/>
+										</div>
+
+										{/* Weight */}
+										<div>
+											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Weight (Kg)</label>
+											<input
+												type="text"
+												value={formData.weight_kg}
+												onChange={e => setFormData(prev => ({ ...prev, weight_kg: e.target.value }))}
+												placeholder="E.g. 10.5"
+												className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+											/>
+										</div>
+									</div>
+
+									{/* Product description */}
 									<div>
-										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">AWB / Tracking Number</label>
+										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Product Description</label>
 										<input
 											type="text"
-											value={formData.awb_no}
-											onChange={e => setFormData(prev => ({ ...prev, awb_no: e.target.value }))}
-											placeholder="Tracking tag code"
+											value={formData.product_description}
+											onChange={e => setFormData(prev => ({ ...prev, product_description: e.target.value }))}
+											placeholder="E.g. Cotton Fabrics Sample Box"
 											className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
 										/>
 									</div>
-								</div>
+
+									{/* Remarks */}
+									<div>
+										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Remarks</label>
+										<textarea
+											value={formData.remarks}
+											onChange={e => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
+											placeholder="Additional shipment logs or notes"
+											rows="2"
+											className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 resize-none"
+										></textarea>
+									</div>
+								</>
 							)}
-
-							<div className={isAdmin ? "grid grid-cols-1 md:grid-cols-3 gap-4" : "grid grid-cols-1 gap-4"}>
-								{/* Cost */}
-								{isAdmin && (
-									<div>
-										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Cost (INR)</label>
-										<input
-											type="number"
-											step="0.01"
-											value={formData.courier_cost}
-											onChange={e => setFormData(prev => ({ ...prev, courier_cost: e.target.value }))}
-											className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 font-bold text-pink-600"
-										/>
-									</div>
-								)}
-
-								{/* Budget status */}
-								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Budgeted status</label>
-									<SelectDropdown
-										label="Budgeted status"
-										options={[
-											{ label: 'Non Budgeted', value: 'Non Budgeted' },
-											{ label: 'Budgeted', value: 'Budgeted' }
-										]}
-										value={formData.budgeted}
-										onChange={val => setFormData(prev => ({ ...prev, budgeted: val }))}
-									/>
-								</div>
-
-								{/* Payment Mode */}
-								{isAdmin && (
-									<div>
-										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Payment Mode</label>
-										<SelectDropdown
-											label="Payment Mode"
-											options={lookups.payment_modes.map(pm => ({ label: pm, value: pm }))}
-											value={formData.payment_mode}
-											onChange={val => setFormData(prev => ({ ...prev, payment_mode: val }))}
-										/>
-									</div>
-								)}
-							</div>
-
-							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-								{/* Package Type */}
-								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Package Type</label>
-									<SelectDropdown
-										label="Package Type"
-										options={[
-											{ label: 'Cover', value: 'Cover' },
-											{ label: 'Box', value: 'Box' }
-										]}
-										value={formData.package_type}
-										onChange={val => setFormData(prev => ({ ...prev, package_type: val }))}
-									/>
-								</div>
-
-								{/* Number of packages */}
-								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Number of Packages</label>
-									<input
-										type="text"
-										value={formData.num_packages}
-										onChange={e => setFormData(prev => ({ ...prev, num_packages: e.target.value }))}
-										placeholder="E.g. 5"
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
-									/>
-								</div>
-
-								{/* Weight */}
-								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Weight (Kg)</label>
-									<input
-										type="text"
-										value={formData.weight_kg}
-										onChange={e => setFormData(prev => ({ ...prev, weight_kg: e.target.value }))}
-										placeholder="E.g. 10.5"
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
-									/>
-								</div>
-							</div>
-
-							{/* Product description */}
-							<div>
-								<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Product Description</label>
-								<input
-									type="text"
-									value={formData.product_description}
-									onChange={e => setFormData(prev => ({ ...prev, product_description: e.target.value }))}
-									placeholder="E.g. Cotton Fabrics Sample Box"
-									className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
-								/>
-							</div>
-
-							{/* Remarks */}
-							<div>
-								<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Remarks</label>
-								<textarea
-									value={formData.remarks}
-									onChange={e => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
-									placeholder="Additional shipment logs or notes"
-									rows="2"
-									className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 resize-none"
-								></textarea>
-							</div>
 
 							{/* Footer buttons */}
 							<div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -1099,7 +1102,7 @@ const Courier = () => {
 									type="submit"
 									className="px-6 py-2.5 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-xl shadow-md cursor-pointer border-0"
 								>
-									Save Entry
+									Save
 								</button>
 							</div>
 						</form>
@@ -1210,6 +1213,26 @@ const Courier = () => {
 								</div>
 							</div>
 						</div>
+					</div>
+				</div>
+			)}
+			{/* SUCCESS MODAL CARD */}
+			{successModal.show && (
+				<div className="fixed inset-0 bg-slate-955/60 backdrop-blur-md z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setSuccessModal({ ...successModal, show: false })}>
+					<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200 flex flex-col items-center" onClick={e => e.stopPropagation()}>
+						<div className="h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-500 flex items-center justify-center mb-4 border border-emerald-200 shadow-md">
+							<span className="material-symbols-outlined text-[36px]">check_circle</span>
+						</div>
+						<h3 className="text-lg font-extrabold text-slate-900 dark:text-white font-display">{successModal.type === 'Add' ? 'Added Successfully' : 'Update Successful'}</h3>
+						<p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+							<strong className="text-slate-700 dark:text-slate-300 font-semibold">{successModal.id}</strong> has been {successModal.type === 'Add' ? 'added' : 'updated'} successfully.
+						</p>
+						<button
+							onClick={() => setSuccessModal({ ...successModal, show: false })}
+							className="mt-6 w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] cursor-pointer text-sm"
+						>
+							Okay, Got it
+						</button>
 					</div>
 				</div>
 			)}

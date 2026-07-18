@@ -2745,8 +2745,8 @@ def api_petty_cash_expenses():
         purpose = request.args.get('purpose', '')
         status_f = request.args.get('status', '')
         
-        query_expenses = "SELECT 'expense' as type, id, date, category, sub_category, sub_remarks, expense_amount, description, status, user_name, approved_by, approved_at, manager_notes, created_at FROM pettycash WHERE 1=1"
-        query_credit = "SELECT 'credit' as type, id, date, 'Added Cash' as category, '' as sub_category, '' as sub_remarks, amount as expense_amount, description, 'approved' as status, user_name, user_name as approved_by, created_at as approved_at, '' as manager_notes, created_at FROM cash_add_history WHERE 1=1"
+        query_expenses = "SELECT 'expense' as type, id, date, category, sub_category, sub_remarks, expense_amount, description, status, user_name, approved_by, approved_at, manager_notes, created_at, receiver_name, verified_by FROM pettycash WHERE 1=1"
+        query_credit = "SELECT 'credit' as type, id, date, 'Added Cash' as category, '' as sub_category, '' as sub_remarks, amount as expense_amount, description, 'approved' as status, user_name, user_name as approved_by, created_at as approved_at, '' as manager_notes, created_at, '' as receiver_name, '' as verified_by FROM cash_add_history WHERE 1=1"
         
         params_expenses = []
         params_credit = []
@@ -2807,7 +2807,9 @@ def api_petty_cash_expenses():
                     "submitted_by": r[9] or "Unknown",
                     "approved_by": r[10] or "",
                     "approved_at": r[11].isoformat() if hasattr(r[11], 'isoformat') else str(r[11]) if r[11] else "",
-                    "manager_notes": r[12] or ""
+                    "manager_notes": r[12] or "",
+                    "receiver_name": r[14] or "",
+                    "verified_by": r[15] or ""
                 })
         conn.close()
         return jsonify(result), 200
@@ -2837,8 +2839,8 @@ def api_petty_cash_add():
             approved_by = user_name if is_manager else None
             
             cur.execute("""
-                INSERT INTO pettycash (date, category, sub_category, sub_remarks, expense_amount, description, user_name, status, approved_by, approved_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                INSERT INTO pettycash (date, category, sub_category, sub_remarks, expense_amount, description, user_name, status, approved_by, approved_at, receiver_name, verified_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, %s)
             """, (
                 data.get('date'),
                 data.get('category'),
@@ -2848,7 +2850,9 @@ def api_petty_cash_add():
                 data.get('description'),
                 user_name,
                 status,
-                approved_by
+                approved_by,
+                data.get('receiver_name'),
+                data.get('verified_by')
             ))
             conn.commit()
         conn.close()
@@ -2896,11 +2900,12 @@ def api_petty_cash_update(eid):
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE pettycash 
-                SET date=%s, category=%s, sub_category=%s, sub_remarks=%s, expense_amount=%s, description=%s
+                SET date=%s, category=%s, sub_category=%s, sub_remarks=%s, expense_amount=%s, description=%s, user_name=%s, approved_by=%s, receiver_name=%s, verified_by=%s
                 WHERE id=%s
             """, (
                 data.get('date'), data.get('category'), data.get('subcategory'),
-                data.get('sub_remarks'), data.get('amount'), data.get('description'), eid
+                data.get('sub_remarks'), data.get('amount'), data.get('description'),
+                data.get('submitted_by'), data.get('approved_by'), data.get('receiver_name'), data.get('verified_by'), eid
             ))
             conn.commit()
         conn.close()

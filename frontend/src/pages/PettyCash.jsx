@@ -155,6 +155,7 @@ const PettyCash = () => {
 	const [loadingHistory, setLoadingHistory] = useState(false);
 	const [selectedExpense, setSelectedExpense] = useState(null);
 	const [editingExpense, setEditingExpense] = useState(null);
+	const [successModal, setSuccessModal] = useState({ show: false, type: '', id: '' });
 
 	const fetchCreditHistory = async () => {
 		setLoadingHistory(true);
@@ -389,6 +390,7 @@ const PettyCash = () => {
 				fetchDashboard();
 				fetchExpenses();
 				handleCloseAddModal();
+				setSuccessModal({ show: true, type: editingExpense ? 'Update' : 'Add', id: 'Expense Entry' });
 			}
 		} catch (err) {
 			console.error('Error saving expense:', err);
@@ -444,7 +446,7 @@ const PettyCash = () => {
 				setAddCashAmount('');
 				setAddCashDate(new Date().toISOString().split('T')[0]);
 				setAddCashDescription('');
-				window.alert(`Successfully added ₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })} to Petty Cash!`);
+				setSuccessModal({ show: true, type: 'Add', id: `Cash Addition of ₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` });
 			}
 		} catch (err) {
 			console.error('Error adding cash:', err);
@@ -1627,6 +1629,26 @@ const PettyCash = () => {
 				</div>
 			)}
 
+			{/* SUCCESS MODAL CARD */}
+			{successModal.show && (
+				<div className="fixed inset-0 bg-slate-955/60 backdrop-blur-md z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setSuccessModal({ ...successModal, show: false })}>
+					<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200 flex flex-col items-center" onClick={e => e.stopPropagation()}>
+						<div className="h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-500 flex items-center justify-center mb-4 border border-emerald-200 shadow-md">
+							<span className="material-symbols-outlined text-[36px]">check_circle</span>
+						</div>
+						<h3 className="text-lg font-extrabold text-slate-900 dark:text-white font-display">{successModal.type === 'Add' ? 'Added Successfully' : 'Update Successful'}</h3>
+						<p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+							<strong className="text-slate-700 dark:text-slate-300 font-semibold">{successModal.id}</strong> has been {successModal.type === 'Add' ? 'added' : 'updated'} successfully.
+						</p>
+						<button
+							onClick={() => setSuccessModal({ ...successModal, show: false })}
+							className="mt-6 w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] cursor-pointer text-sm"
+						>
+							Okay, Got it
+						</button>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 };
