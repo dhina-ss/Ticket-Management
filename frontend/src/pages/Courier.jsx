@@ -173,7 +173,7 @@ const Courier = () => {
 		sending_from: '',
 		receiver: '',
 		receiver_office: '',
-		supplier_buyer_type: '',
+		supplier_buyer_type: 'Buyer',
 		supplier_buyer_name: '',
 		destination: '',
 		product_description: '',
@@ -287,7 +287,7 @@ const Courier = () => {
 			sending_from: '',
 			receiver: '',
 			receiver_office: '',
-			supplier_buyer_type: lookups.supplier_types[0] || '',
+			supplier_buyer_type: 'Buyer',
 			supplier_buyer_name: '',
 			destination: '',
 			product_description: '',
@@ -791,7 +791,7 @@ const Courier = () => {
 			{/* Add / Edit Form Modal */}
 			{showModal && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto overscroll-contain">
-					<div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl p-6 flex flex-col max-h-[90vh]">
+					<div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl p-6 flex flex-col max-h-[90vh]">
 						<div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
 							<h3 className="text-xl font-bold text-slate-900 dark:text-white">
 								{editingEntry ? 'Edit Courier' : 'Add Courier'}
@@ -956,6 +956,36 @@ const Courier = () => {
 							</div>
 
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								{/* Supplier/Buyer */}
+								<div className="md:col-span-2">
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Supplier / Buyer</label>
+									<div className="flex gap-2">
+										<div className="w-[120px] shrink-0">
+											<SelectDropdown
+												label="Type"
+												options={[
+													{ label: 'Buyer', value: 'Buyer' },
+													{ label: 'Supplier', value: 'Supplier' }
+												]}
+												value={formData.supplier_buyer_type}
+												onChange={val => setFormData(prev => ({ ...prev, supplier_buyer_type: val }))}
+												menuWidthClass="w-[150px]"
+											/>
+										</div>
+										<div className="flex-1">
+											<input
+												type="text"
+												value={formData.supplier_buyer_name}
+												onChange={e => setFormData(prev => ({ ...prev, supplier_buyer_name: e.target.value }))}
+												placeholder={formData.supplier_buyer_type || 'Name'}
+												className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 font-medium"
+											/>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 								{/* Courier Name */}
 								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Courier Operator</label>
@@ -1112,7 +1142,7 @@ const Courier = () => {
 			{/* Details Modal */}
 			{isDetailsModalOpen && selectedCourier && (
 				<div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsDetailsModalOpen(false)}>
-					<div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+					<div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
 						<div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 z-10">
 							<h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
 								<span className="material-symbols-outlined text-pink-600">local_shipping</span>
@@ -1201,6 +1231,10 @@ const Courier = () => {
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Package Type</label>
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.package_type || '-'}</p>
+								</div>
+								<div>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Supplier/Buyer</label>
+									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.supplier_buyer_type ? `${selectedCourier.supplier_buyer_type}: ${selectedCourier.supplier_buyer_name || '-'}` : '-'}</p>
 								</div>
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">No. of Packages</label>

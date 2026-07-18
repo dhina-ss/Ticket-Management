@@ -975,6 +975,8 @@ const PettyCash = () => {
 											<th className="p-4">Date</th>
 											<th className="p-4">Category</th>
 											<th className="p-4">Purpose</th>
+											<th className="p-4">Receiver</th>
+											<th className="p-4">Verified By</th>
 											<th className="p-4">Description</th>
 											<th className="p-4 font-semibold text-red-600 dark:text-red-400 text-right">Debit (₹)</th>
 											<th className="p-4 font-semibold text-emerald-600 dark:text-emerald-400 text-right">Credit (₹)</th>
@@ -996,6 +998,8 @@ const PettyCash = () => {
 													</div>
 												</td>
 												<td className="px-4 py-2 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : exp.submitted_by}</td>
+												<td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.type === 'credit' ? '-' : (exp.receiver_name || '-')}</td>
+												<td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.type === 'credit' ? '-' : (exp.verified_by || '-')}</td>
 												<td className="px-4 py-2 max-w-[200px] truncate" title={exp.description}>{exp.description}</td>
 												<td className="px-4 py-2 font-bold text-[#ec1d22] text-right">{exp.type !== 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
 												<td className="px-4 py-2 font-bold text-emerald-600 dark:text-emerald-400 text-right">{exp.type === 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
@@ -1046,7 +1050,7 @@ const PettyCash = () => {
 									</tbody>
 									<tfoot className="bg-slate-50 dark:bg-slate-800/80 sticky bottom-0 z-10 border-t-2 border-slate-200 dark:border-slate-700">
 										<tr className="font-bold text-slate-800 dark:text-slate-200">
-											<td colSpan="5" className="p-4 text-right uppercase tracking-wider text-xs text-slate-500 dark:text-slate-400">Page Total:</td>
+											<td colSpan="7" className="p-4 text-right uppercase tracking-wider text-xs text-slate-500 dark:text-slate-400">Page Total:</td>
 											<td className="p-4 text-[#ec1d22] text-right">{pageDebitTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
 											<td className="p-4 text-emerald-600 dark:text-emerald-400 text-right">{pageCreditTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
 											<td className="p-4"></td>
