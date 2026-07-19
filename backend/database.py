@@ -656,7 +656,9 @@ def init_db():
                         approved_by TEXT,
                         approved_at TIMESTAMPTZ,
                         manager_notes TEXT,
-                        sub_remarks TEXT
+                        sub_remarks TEXT,
+                        receiver_name TEXT,
+                        verified_by TEXT
                     );
                 """)
                 # Ensure all columns exist for pettycash
@@ -672,7 +674,9 @@ def init_db():
                     "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;",
                     "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS manager_notes TEXT;",
                     "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS sub_remarks TEXT;",
-                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS user_name TEXT;"
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS user_name TEXT;",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS receiver_name TEXT;",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS verified_by TEXT;"
                 ]
                 for stmt in alter_pettycash:
                     cur.execute(stmt)
