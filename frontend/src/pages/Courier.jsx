@@ -28,7 +28,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 					{icon && variant === 'filter' && <span className="material-symbols-outlined text-slate-400 text-lg">{icon}</span>}
 					<span className={variant === 'filter'
 						? `truncate max-w-[120px] font-medium ${!value ? 'text-slate-500 dark:text-slate-400' : 'text-pink-600 dark:text-pink-400'}`
-						: "text-slate-800 dark:text-slate-350 truncate"
+						: "text-slate-800 dark:text-slate-200 truncate"
 					}>
 						{(options.find(o => (o.value ?? o) === value) || {}).label || value || label}
 					</span>

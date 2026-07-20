@@ -2545,6 +2545,14 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
     const [error, setError] = useState('');
     const [itemToDelete, setItemToDelete] = useState(null);
 
+    const toggleSupportType = (type) => {
+        setSupportType(prev => {
+            const arr = prev ? String(prev).split(',').map(s => s.trim()).filter(Boolean) : [];
+            const next = arr.includes(type) ? arr.filter(t => t !== type) : [...arr, type];
+            return next.join(',');
+        });
+    };
+
     const handleAdd = async (e) => {
         e.preventDefault();
         setError('');
@@ -2643,7 +2651,7 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
 
             {/* List */}
             {isExpanded && (
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-hidden h-fit">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-y-auto overflow-x-auto custom-scrollbar max-h-[500px]">
                     {assigneesLoading ? (
                         <div className="p-10 text-center text-slate-500">Loading assignees...</div>
                     ) : (assignees || []).length === 0 ? (
@@ -2653,8 +2661,8 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
                     ) : (
                         <div className="flex flex-col w-full">
                             <table className="w-full text-left border-collapse table-fixed">
-                                <thead>
-                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm">
+                                    <tr className="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800">
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[12%]' : 'w-[15%]'}`}>S.No</th>
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[48%]' : 'w-[55%]'}`}>Assignee Name</th>
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[25%]' : 'w-[30%]'}`}>Support Type</th>
@@ -2776,15 +2784,12 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Support Type</label>
-                                <select
-                                    className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-                                    value={supportType}
-                                    onChange={e => setSupportType(e.target.value)}
-                                >
-                                    <option value="IT Support">IT Support</option>
-                                    <option value="Admin Support">Admin Support</option>
-                                    <option value="IT Support,Admin Support">Both (IT & Admin Support)</option>
-                                </select>
+                                <MultiSelectFormDropdown
+                                    label="Support Type"
+                                    options={['IT Support', 'Admin Support', 'Courier']}
+                                    selected={supportType}
+                                    onChange={toggleSupportType}
+                                />
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button
@@ -2944,7 +2949,7 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
 
             {/* List */}
             {isExpanded && (
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-hidden h-fit">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-y-auto overflow-x-auto custom-scrollbar max-h-[500px]">
                     {assetTypesLoading ? (
                         <div className="p-10 text-center text-slate-500">Loading asset types...</div>
                     ) : (assetTypes || []).length === 0 ? (
@@ -2954,8 +2959,8 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
                     ) : (
                         <div className="flex flex-col w-full">
                             <table className="w-full text-left border-collapse table-fixed">
-                                <thead>
-                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm">
+                                    <tr className="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800">
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[10%]' : 'w-[12%]'}`}>S.No</th>
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[40%]' : 'w-[45%]'}`}>Type Name</th>
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[20%]' : 'w-[25%]'}`}>Group</th>
@@ -3177,6 +3182,14 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
     const [error, setError] = useState('');
     const [categoryToDelete, setCategoryToDelete] = useState(null);
 
+    const toggleSupportType = (type) => {
+        setSupportType(prev => {
+            const arr = prev ? String(prev).split(',').map(s => s.trim()).filter(Boolean) : [];
+            const next = arr.includes(type) ? arr.filter(t => t !== type) : [...arr, type];
+            return next.join(',');
+        });
+    };
+
     const handleAdd = async (e) => {
         e.preventDefault();
         setError('');
@@ -3195,7 +3208,7 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
             const payload = { 
                 name, 
                 support_type: supportType, 
-                subcategories: supportType === 'Petty Cash' ? subcategories : '' 
+                subcategories: String(supportType).includes('Petty Cash') ? subcategories : '' 
             };
             if (editingCategory) {
                 await api.put(`/api/categories/${editingCategory.id}`, payload);
@@ -3282,7 +3295,7 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
 
             {/* List */}
             {isExpanded && (
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-hidden h-fit">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-y-auto overflow-x-auto custom-scrollbar max-h-[500px]">
                     {categoriesLoading ? (
                         <div className="p-10 text-center text-slate-500">Loading categories...</div>
                     ) : (categories || []).length === 0 ? (
@@ -3292,8 +3305,8 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
                     ) : (
                         <div className="flex flex-col w-full">
                             <table className="w-full text-left border-collapse table-fixed">
-                                <thead>
-                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm">
+                                    <tr className="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800">
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[10%]' : 'w-[12%]'}`}>S.No</th>
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[28%]' : 'w-[32%]'}`}>Category Name</th>
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[32%]' : 'w-[36%]'}`}>Sub Category</th>
@@ -3421,17 +3434,14 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Support Type</label>
-                                <select
-                                    className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-                                    value={supportType}
-                                    onChange={e => setSupportType(e.target.value)}
-                                >
-                                    <option value="IT Support">IT Support</option>
-                                    <option value="Admin Support">Admin Support</option>
-                                    <option value="Petty Cash">Petty Cash</option>
-                                </select>
+                                <MultiSelectFormDropdown
+                                    label="Support Type"
+                                    options={['IT Support', 'Admin Support', 'Petty Cash', 'Courier']}
+                                    selected={supportType}
+                                    onChange={toggleSupportType}
+                                />
                             </div>
-                            {supportType === 'Petty Cash' && (
+                            {String(supportType).includes('Petty Cash') && (
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Sub Categories (comma-separated)</label>
                                     <input
@@ -3480,6 +3490,14 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [departmentToDelete, setDepartmentToDelete] = useState(null);
+
+    const toggleSupportType = (type) => {
+        setSupportType(prev => {
+            const arr = prev ? String(prev).split(',').map(s => s.trim()).filter(Boolean) : [];
+            const next = arr.includes(type) ? arr.filter(t => t !== type) : [...arr, type];
+            return next.join(',');
+        });
+    };
 
     const handleAdd = async (e) => {
         e.preventDefault();
@@ -3583,7 +3601,7 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
             </div>
 
             {isExpanded && (
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-hidden h-fit">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-y-auto overflow-x-auto custom-scrollbar max-h-[500px]">
                     {departmentsLoading ? (
                         <div className="p-10 text-center text-slate-500">Loading departments...</div>
                     ) : (departments || []).length === 0 ? (
@@ -3593,8 +3611,8 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
                     ) : (
                         <div className="flex flex-col w-full">
                             <table className="w-full text-left border-collapse table-fixed">
-                                <thead>
-                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm">
+                                    <tr className="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800">
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[12%]' : 'w-[15%]'}`}>S.No</th>
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[48%]' : 'w-[55%]'}`}>Department Name</th>
                                         <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[25%]' : 'w-[30%]'}`}>Support Type</th>
@@ -3690,15 +3708,12 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Support Type</label>
-                                <select
-                                    className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-                                    value={supportType}
-                                    onChange={e => setSupportType(e.target.value)}
-                                >
-                                    <option value="IT Support">IT Support</option>
-                                    <option value="Admin Support">Admin Support</option>
-                                    <option value="IT Support,Admin Support">Both (IT & Admin)</option>
-                                </select>
+                                <MultiSelectFormDropdown
+                                    label="Support Type"
+                                    options={['IT Support', 'Admin Support', 'Courier']}
+                                    selected={supportType}
+                                    onChange={toggleSupportType}
+                                />
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button type="button" onClick={handleCloseModal} className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancel</button>

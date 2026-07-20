@@ -2428,8 +2428,15 @@ def api_courier_lookups():
             
             branches = [{"id": b.id, "name": b.name, "code": b.code} for b in courier_app_pkg.models.Branch.query.filter_by(is_active=True).all()]
             
+            from database import get_departments
+            # Fetch departments that have "Courier" support type (or all if you prefer, but Courier is what they map it to)
+            courier_departments = [d['name'] for d in get_departments("Courier")]
+            # Fallback to all departments if none have Courier support type yet, so the dropdown isn't empty
+            if not courier_departments:
+                courier_departments = [d['name'] for d in get_departments()]
+            
             return jsonify({
-                "departments": _lookup('department'),
+                "departments": courier_departments,
                 "supplier_types": _lookup('supplier_type'),
                 "package_types": _lookup('package_type'),
                 "courier_names": _lookup('courier_name'),
