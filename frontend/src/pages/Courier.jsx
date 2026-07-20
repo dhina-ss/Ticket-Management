@@ -823,7 +823,13 @@ const Courier = () => {
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Branch *</label>
 									<SelectDropdown
 										label="Select Branch"
-										options={lookups.branches.map(b => ({ label: b.name, value: b.id }))}
+										options={[
+											{ label: 'Cotton Concepts HO_ Coimbatore', value: 'Cotton Concepts HO_ Coimbatore' },
+											{ label: 'Doctor Towels HO', value: 'Doctor Towels HO' },
+											{ label: 'Cotton Concepts_ Vengamedu', value: 'Cotton Concepts_ Vengamedu' },
+											{ label: 'Cotton Concepts_ Karur', value: 'Cotton Concepts_ Karur' },
+											{ label: 'Doctor Towels_ Karur', value: 'Doctor Towels_ Karur' }
+										]}
 										value={formData.branch_id}
 										onChange={val => setFormData(prev => ({ ...prev, branch_id: val }))}
 									/>
@@ -1046,7 +1052,10 @@ const Courier = () => {
 											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Payment Mode</label>
 											<SelectDropdown
 												label="Payment Mode"
-												options={lookups.payment_modes.map(pm => ({ label: pm, value: pm }))}
+												options={[
+													{ label: 'Net Banking', value: 'Net Banking' },
+													{ label: 'Cash', value: 'Cash' }
+												]}
 												value={formData.payment_mode}
 												onChange={val => setFormData(prev => ({ ...prev, payment_mode: val }))}
 											/>
