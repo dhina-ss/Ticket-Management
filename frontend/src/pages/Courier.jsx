@@ -302,9 +302,9 @@ const Courier = () => {
 			box_measurement: '',
 			chargeable_weight: '',
 			courier_cost: 0,
-			payment_mode: lookups.payment_modes[0] || '',
+			payment_mode: '',
 			remarks: '',
-			branch_id: lookups.branches[0]?.id || '',
+			branch_id: '',
 			item: '',
 			ref_type: 'PI'
 		});
@@ -798,7 +798,7 @@ const Courier = () => {
 							</h3>
 							<button
 								onClick={() => setShowModal(false)}
-								className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 border-0 bg-transparent cursor-pointer flex"
+								className=" w-8 h-8 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 border-0 bg-slate-100 dark:bg-slate-800 cursor-pointer flex items-center justify-center"
 							>
 								<span className="material-symbols-outlined text-xl">close</span>
 							</button>
