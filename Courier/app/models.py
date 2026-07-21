@@ -120,6 +120,7 @@ class Courier(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    creator_email = db.Column(db.String(150))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     date = db.Column(db.Date, nullable=False)

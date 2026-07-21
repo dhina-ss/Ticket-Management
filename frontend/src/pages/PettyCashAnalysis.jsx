@@ -113,7 +113,7 @@ const PettyCashAnalysis = () => {
 
   const monthlySummaryData = Array.from(monthlySummaryMap.values())
     .sort((a, b) => a.timestamp - b.timestamp)
-    .slice(-6);
+    .slice(-3);
 
   // Process Top 5 Categories Current Month
   const currentMonthStr = format(new Date(), 'yyyy-MM');
@@ -170,11 +170,63 @@ const PettyCashAnalysis = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Monthly Financial Summary */}
-            <div className="lg:col-span-2 bg-white dark:bg-[#1C212B] rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
+            {/* Monthly Financial Summary Table */}
+            <div className="bg-white dark:bg-[#1C212B] rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-6 flex items-center gap-2">
+                <span className="material-symbols-outlined text-indigo-500">table_view</span>
+                Monthly Financial Summary
+              </h2>
+              <div className="flex-1 overflow-x-auto flex items-center">
+                <table className="w-full text-sm text-left text-slate-700 dark:text-slate-300 border-collapse border border-slate-200 dark:border-slate-700 shadow-sm">
+                  <thead className="bg-[#D9E1F2] dark:bg-blue-900/30">
+                    <tr>
+                      <th className="border border-slate-300 dark:border-slate-700 p-3 font-bold text-black dark:text-white text-center">Particulars</th>
+                      {monthlySummaryData.map((data, idx) => (
+                        <th key={idx} className="border border-slate-300 dark:border-slate-700 p-3 font-bold text-black dark:text-white text-center">{data.name.split(' ')[0]}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-slate-300 dark:border-slate-700 p-3 text-center text-black dark:text-slate-200">Opening balance</td>
+                      {monthlySummaryData.map((data, idx) => (
+                        <td key={idx} className="border border-slate-300 dark:border-slate-700 p-3 text-center text-black dark:text-slate-200">{data['Opening Balance'].toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 dark:border-slate-700 p-3 font-bold text-black dark:text-white text-center">Cash withdraw</td>
+                      {monthlySummaryData.map((data, idx) => (
+                        <td key={idx} className="border border-slate-300 dark:border-slate-700 p-3 font-bold text-black dark:text-white text-center">{data['Added Cash'].toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 dark:border-slate-700 p-3 text-center text-black dark:text-slate-200">Total</td>
+                      {monthlySummaryData.map((data, idx) => (
+                        <td key={idx} className="border border-slate-300 dark:border-slate-700 p-3 text-center text-black dark:text-slate-200">{(data['Opening Balance'] + data['Added Cash']).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="border border-slate-300 dark:border-slate-700 p-3 font-bold text-black dark:text-white text-center">Expenses amount</td>
+                      {monthlySummaryData.map((data, idx) => (
+                        <td key={idx} className="border border-slate-300 dark:border-slate-700 p-3 font-bold text-black dark:text-white text-center">{data['Total Expense'].toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                      ))}
+                    </tr>
+                    <tr className="bg-[#FFE699] dark:bg-amber-900/40">
+                      <td className="border border-slate-300 dark:border-slate-700 p-3 font-bold text-black dark:text-white text-center">Balance</td>
+                      {monthlySummaryData.map((data, idx) => (
+                        <td key={idx} className="border border-slate-300 dark:border-slate-700 p-3 font-bold text-black dark:text-white text-center">{data['Closing Balance'].toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Monthly Financial Summary Chart */}
+            <div className="bg-white dark:bg-[#1C212B] rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-6 flex items-center gap-2">
                 <span className="material-symbols-outlined text-indigo-500">account_balance</span>
-                Monthly Financial Summary
+                Monthly Financial Chart
               </h2>
               <div className="h-[400px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -182,7 +234,7 @@ const PettyCashAnalysis = () => {
                     <CartesianGrid strokeDasharray="3 3" opacity={0.2} vertical={false} />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#888' }} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#888' }} tickFormatter={(value) => `₹${value}`} />
-                    <RechartsTooltip cursor={{ fill: 'rgba(0,0,0,0.05)' }} formatter={(value) => formatCurrency(value)} />
+                    <RechartsTooltip cursor={{ fill: 'rgba(0,0,0,0.05)' }} formatter={(value) => formatCurrency(value)} contentStyle={{ fontSize: '12px', padding: '8px' }} itemStyle={{ fontSize: '12px' }} labelStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
                     <Legend wrapperStyle={{ fontSize: '12px' }} />
                     <Bar dataKey="Opening Balance" fill="#8884d8" radius={[4, 4, 0, 0]} name="Opening Balance" />
                     <Bar dataKey="Added Cash" fill="#82ca9d" radius={[4, 4, 0, 0]} name="Added Cash" />

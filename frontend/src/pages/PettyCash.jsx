@@ -155,6 +155,15 @@ const PettyCash = () => {
 	const [loadingHistory, setLoadingHistory] = useState(false);
 	const [selectedExpense, setSelectedExpense] = useState(null);
 	const [editingExpense, setEditingExpense] = useState(null);
+	const [editingCash, setEditingCash] = useState(null);
+
+	const handleOpenEditCash = (exp) => {
+		setEditingCash(exp);
+		setAddCashAmount(exp.amount?.toString() || '');
+		setAddCashDate(exp.date || new Date().toISOString().split('T')[0]);
+		setAddCashDescription(exp.description || '');
+		setShowAddCashModal(true);
+	};
 	const [successModal, setSuccessModal] = useState({ show: false, type: '', id: '' });
 
 	const fetchCreditHistory = async () => {
@@ -429,7 +438,7 @@ const PettyCash = () => {
 			return;
 		}
 
-		const isConfirmed = window.confirm(`Are you sure you want to add ₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })} to the petty cash ledger?`);
+		const isConfirmed = window.confirm(`Are you sure you want to save this cash addition of ₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}?`);
 		if (!isConfirmed) return;
 
 		try {
@@ -439,14 +448,23 @@ const PettyCash = () => {
 				description: addCashDescription,
 				user_name: user?.name || user?.email || 'admin'
 			};
-			const res = await api.post('/api/petty-cash/ledger/add-cash', payload);
+			
+			let res;
+			if (editingCash) {
+				res = await api.put(`/api/petty-cash/ledger/add-cash/${editingCash.id}`, payload);
+			} else {
+				res = await api.post('/api/petty-cash/ledger/add-cash', payload);
+			}
+
 			if (res.status === 200) {
 				fetchDashboard();
+				fetchExpenses();
 				setShowAddCashModal(false);
 				setAddCashAmount('');
 				setAddCashDate(new Date().toISOString().split('T')[0]);
 				setAddCashDescription('');
-				setSuccessModal({ show: true, type: 'Add', id: `Cash Addition of ₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` });
+				setEditingCash(null);
+				setSuccessModal({ show: true, type: editingCash ? 'Update' : 'Add', id: `Cash Addition of ₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` });
 			}
 		} catch (err) {
 			console.error('Error adding cash:', err);
@@ -616,7 +634,7 @@ const PettyCash = () => {
 					</button>
 					{isManager && (
 						<button
-							onClick={() => setShowAddCashModal(true)}
+							onClick={() => { setEditingCash(null); setAddCashAmount(''); setAddCashDescription(''); setAddCashDate(new Date().toISOString().split('T')[0]); setShowAddCashModal(true); }}
 							className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 font-bold rounded-xl transition-all border border-emerald-500/20 cursor-pointer text-sm"
 						>
 							<span className="material-symbols-outlined text-lg">account_balance</span>
@@ -1006,6 +1024,28 @@ const PettyCash = () => {
 												<td className="px-4 py-2 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : (exp.approved_by || '-')}</td>
 												{hasActionPermission && (
 													<td className="px-4 py-2 text-right">
+														{exp.type === 'credit' && (hasEditPermission || hasDeletePermission) && (
+															<div className="flex items-center justify-end gap-2">
+																{hasEditPermission && (
+																	<button
+																		onClick={(e) => { e.stopPropagation(); handleOpenEditCash(exp); }}
+																		className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
+																		title="Edit Added Cash"
+																	>
+																		<span className="material-symbols-outlined text-lg">edit</span>
+																	</button>
+																)}
+																{hasDeletePermission && (
+																	<button
+																		disabled
+																		className="h-9 w-9 flex items-center justify-center p-1 text-slate-300 dark:text-slate-600 rounded-lg cursor-not-allowed border-0 bg-transparent"
+																		title="Cannot delete added cash"
+																	>
+																		<span className="material-symbols-outlined text-lg">delete</span>
+																	</button>
+																)}
+															</div>
+														)}
 														{exp.type !== 'credit' && (
 															<div className="flex items-center justify-end gap-2">
 																{isManager && exp.status === 'pending' && (
@@ -1399,7 +1439,7 @@ const PettyCash = () => {
 							<div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
 								<button
 									type="button"
-									onClick={() => setShowAddCashModal(false)}
+									onClick={() => { setShowAddCashModal(false); setEditingCash(null); }}
 									className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-350 font-bold rounded-xl cursor-pointer border-0"
 								>
 									Cancel

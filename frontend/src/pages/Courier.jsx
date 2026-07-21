@@ -224,7 +224,8 @@ const Courier = () => {
 			});
 			const res = await api.get(`/api/courier/entries?${params.toString()}`);
 			if (res.status === 200) {
-				setEntries(res.data);
+				const filtered = isAdmin ? res.data : res.data.filter(e => e.creator_email === user?.email);
+				setEntries(filtered);
 			}
 		} catch (err) {
 			console.error('Error fetching courier entries:', err);
@@ -241,8 +242,9 @@ const Courier = () => {
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		try {
+			const payload = { ...formData, creator_email: user?.email || '' };
 			if (editingEntry) {
-				const res = await api.put(`/api/courier/entries/${editingEntry.id}`, formData);
+				const res = await api.put(`/api/courier/entries/${editingEntry.id}`, payload);
 				if (res.status === 200) {
 					fetchEntries();
 					setShowModal(false);
@@ -250,7 +252,7 @@ const Courier = () => {
 					setSuccessModal({ show: true, type: 'Update', id: 'Courier Entry' });
 				}
 			} else {
-				const res = await api.post('/api/courier/entries', formData);
+				const res = await api.post('/api/courier/entries', payload);
 				if (res.status === 201) {
 					fetchEntries();
 					setShowModal(false);
@@ -658,25 +660,50 @@ const Courier = () => {
 							<div className="overflow-auto flex-1 custom-scrollbar">
 								<table className="w-full text-left border-collapse text-sm">
 									<thead className="sticky top-0 z-10 bg-[#eceef0] dark:bg-slate-800 shadow-sm">
-										<tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-semibold">
+										<tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-semibold whitespace-nowrap">
 											<th className="p-4 w-16">#</th>
 											<th className="p-4">Date</th>
-											<th className="p-4">Type</th>
 											<th className="p-4">Branch</th>
+											<th className="p-4">Type</th>
+											<th className="p-4">Department</th>
 											<th className="p-4">From Name</th>
+											<th className="p-4">From Loc</th>
 											<th className="p-4">To Name</th>
-											<th className="p-4">To Location</th>
-											<th className="p-4">Courier / AWB</th>
-											<th className="p-4">Cost (INR)</th>
-											<th className="p-4 font-semibold">Remarks</th>
+											<th className="p-4">To Loc</th>
+											<th className="p-4">Item</th>
+											<th className="p-4">Ref Type</th>
+											<th className="p-4">Supplier / Buyer</th>
+											<th className="p-4">Courier Operator</th>
+											<th className="p-4">Tracking Number</th>
+											{isAdmin && (
+												<>
+													<th className="p-4">To Office</th>
+													<th className="p-4">Product Desc</th>
+													<th className="p-4">Package Type</th>
+													<th className="p-4">No. of Pkgs</th>
+													<th className="p-4">Order Ref</th>
+													<th className="p-4">Budgeted</th>
+													<th className="p-4">Weight (Kg)</th>
+													<th className="p-4">Box Measurement</th>
+													<th className="p-4">Chargeable Wt</th>
+													<th className="p-4">Cost (INR)</th>
+													<th className="p-4">Payment Mode</th>
+													<th className="p-4">Remarks</th>
+												</>
+											)}
 											{hasEditPermission && <th className="p-4 text-right font-semibold">Actions</th>}
 										</tr>
 									</thead>
 									<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
 										{entries.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((entry, index) => (
-											<tr key={entry.id} onClick={() => handleRowClick(entry)} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20 transition-colors cursor-pointer">
+											<tr key={entry.id} onClick={() => handleRowClick(entry)} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20 transition-colors cursor-pointer whitespace-nowrap">
 												<td className="px-4 py-2 font-medium text-slate-500">{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
 												<td className="px-4 py-2 font-medium">{entry.date}</td>
+												<td className="px-4 py-2">
+													<div className="font-semibold text-slate-700 dark:text-slate-300">
+														{lookups.branches?.find(b => b.id === entry.branch_id)?.name || entry.branch_name || '-'}
+													</div>
+												</td>
 												<td className="px-4 py-2">
 													<span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${entry.transaction_type === 'Dispatch'
 															? 'bg-blue-550/10 text-blue-600'
@@ -685,32 +712,32 @@ const Courier = () => {
 														{entry.transaction_type}
 													</span>
 												</td>
-												<td className="px-4 py-2">
-													<div className="font-semibold text-slate-700 dark:text-slate-300">
-														{lookups.branches?.find(b => b.id === entry.branch_id)?.name || entry.branch_name || '-'}
-													</div>
-												</td>
-												<td className="px-4 py-2">
-													<div>
-														<div className="font-semibold text-slate-900 dark:text-white">{entry.sender}</div>
-														<div className="text-[11px] text-slate-400">{entry.department}</div>
-													</div>
-												</td>
-												<td className="px-4 py-2">
-													<div>
-														<div className="font-semibold text-slate-900 dark:text-white">{entry.receiver}</div>
-														<div className="text-[11px] text-slate-400">{entry.receiver_office}</div>
-													</div>
-												</td>
-												<td className="px-4 py-2">{entry.destination}</td>
-												<td className="px-4 py-2">
-													<div>
-														<div className="font-semibold text-slate-900 dark:text-white">{entry.courier_name}</div>
-														<div className="text-[11px] text-slate-400 font-mono">{entry.awb_no || '-'}</div>
-													</div>
-												</td>
-												<td className="px-4 py-2 font-bold text-pink-600 dark:text-pink-400">₹{(entry.courier_cost || 0).toFixed(2)}</td>
-												<td className="px-4 py-2 max-w-[200px] truncate" title={entry.remarks}>{entry.remarks || '-'}</td>
+												<td className="px-4 py-2">{entry.department || '-'}</td>
+												<td className="px-4 py-2 font-semibold text-slate-900 dark:text-white">{entry.sender || '-'}</td>
+												<td className="px-4 py-2">{entry.sending_from || '-'}</td>
+												<td className="px-4 py-2 font-semibold text-slate-900 dark:text-white">{entry.receiver || '-'}</td>
+												<td className="px-4 py-2">{entry.destination || '-'}</td>
+												<td className="px-4 py-2">{entry.item || '-'}</td>
+												<td className="px-4 py-2">{entry.ref_type || '-'}</td>
+												<td className="px-4 py-2">{entry.supplier_buyer_type ? `${entry.supplier_buyer_type}: ${entry.supplier_buyer_name || ''}` : '-'}</td>
+												<td className="px-4 py-2 font-semibold text-slate-900 dark:text-white">{entry.courier_name || '-'}</td>
+												<td className="px-4 py-2 font-mono">{entry.awb_no || '-'}</td>
+												{isAdmin && (
+													<>
+														<td className="px-4 py-2">{entry.receiver_office || '-'}</td>
+														<td className="px-4 py-2">{entry.product_description || '-'}</td>
+														<td className="px-4 py-2">{entry.package_type || '-'}</td>
+														<td className="px-4 py-2">{entry.num_packages || '-'}</td>
+														<td className="px-4 py-2">{entry.order_reference || '-'}</td>
+														<td className="px-4 py-2">{entry.budgeted || '-'}</td>
+														<td className="px-4 py-2">{entry.weight_kg || '-'}</td>
+														<td className="px-4 py-2">{entry.box_measurement || '-'}</td>
+														<td className="px-4 py-2">{entry.chargeable_weight || '-'}</td>
+														<td className="px-4 py-2 font-bold text-pink-600 dark:text-pink-400">₹{(entry.courier_cost || 0).toFixed(2)}</td>
+														<td className="px-4 py-2">{entry.payment_mode || '-'}</td>
+														<td className="px-4 py-2 max-w-[200px] truncate" title={entry.remarks}>{entry.remarks || '-'}</td>
+													</>
+												)}
 												{hasEditPermission && (
 													<td className="px-4 py-2 text-right">
 														<div className="flex items-center justify-end gap-2">
