@@ -997,7 +997,12 @@ const Courier = () => {
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Courier Operator</label>
 									<SelectDropdown
 										label="Courier Operator"
-										options={lookups.courier_names.map(c => ({ label: c, value: c }))}
+										options={[
+											{ label: 'DTDC Courier', value: 'DTDC Courier' },
+											{ label: 'RK Courier', value: 'RK Courier' },
+											{ label: 'NEW Logistics', value: 'NEW Logistics' },
+											{ label: 'Air Cargo', value: 'Air Cargo' }
+										]}
 										value={formData.courier_name}
 										onChange={val => setFormData(prev => ({ ...prev, courier_name: val }))}
 										disabled={!isAdmin}
