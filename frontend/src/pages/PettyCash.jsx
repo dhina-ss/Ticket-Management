@@ -156,6 +156,7 @@ const PettyCash = () => {
 	const [selectedExpense, setSelectedExpense] = useState(null);
 	const [editingExpense, setEditingExpense] = useState(null);
 	const [editingCash, setEditingCash] = useState(null);
+	const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null, type: '' });
 
 	const handleOpenEditCash = (exp) => {
 		setEditingCash(exp);
@@ -511,16 +512,31 @@ const PettyCash = () => {
 		setIsDetailsModalOpen(true);
 	};
 
-	const handleDelete = async (id) => {
-		if (!window.confirm('Are you sure you want to delete this expense?')) return;
+	const handleDelete = (id) => {
+		setDeleteConfirm({ show: true, id, type: 'expense' });
+	};
+
+	const handleDeleteCash = (id) => {
+		setDeleteConfirm({ show: true, id, type: 'cash' });
+	};
+
+	const executeDelete = async () => {
+		const { id, type } = deleteConfirm;
+		if (!id) return;
 		try {
-			const res = await api.delete(`/api/petty-cash/expenses/${id}`);
+			let res;
+			if (type === 'cash') {
+				res = await api.delete(`/api/petty-cash/ledger/add-cash/${id}`);
+			} else {
+				res = await api.delete(`/api/petty-cash/expenses/${id}`);
+			}
 			if (res.status === 200) {
 				fetchDashboard();
 				fetchExpenses();
+				setDeleteConfirm({ show: false, id: null, type: '' });
 			}
 		} catch (err) {
-			console.error('Error deleting expense:', err);
+			console.error(`Error deleting ${type}:`, err);
 		}
 	};
 
@@ -599,6 +615,9 @@ const PettyCash = () => {
 
 	const pageDebitTotal = pagedExpenses.reduce((sum, exp) => exp.type !== 'credit' ? sum + parseFloat(exp.amount || 0) : sum, 0);
 	const pageCreditTotal = pagedExpenses.reduce((sum, exp) => exp.type === 'credit' ? sum + parseFloat(exp.amount || 0) : sum, 0);
+
+	const overallDebitTotal = filteredExpenses.reduce((sum, exp) => exp.type !== 'credit' ? sum + parseFloat(exp.amount || 0) : sum, 0);
+	const overallCreditTotal = filteredExpenses.reduce((sum, exp) => exp.type === 'credit' ? sum + parseFloat(exp.amount || 0) : sum, 0);
 
 	return (
 		<div className="font-display bg-background-light dark:bg-[#181D27] text-slate-900 dark:text-[#f0f0f2] min-h-screen flex flex-col">
@@ -1037,9 +1056,9 @@ const PettyCash = () => {
 																)}
 																{hasDeletePermission && (
 																	<button
-																		disabled
-																		className="h-9 w-9 flex items-center justify-center p-1 text-slate-300 dark:text-slate-600 rounded-lg cursor-not-allowed border-0 bg-transparent"
-																		title="Cannot delete added cash"
+																		onClick={(e) => { e.stopPropagation(); handleDeleteCash(exp.id); }}
+																		className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
+																		title="Delete Added Cash"
 																	>
 																		<span className="material-symbols-outlined text-lg">delete</span>
 																	</button>
@@ -1088,11 +1107,18 @@ const PettyCash = () => {
 											</tr>
 										))}
 									</tbody>
-									<tfoot className="bg-slate-50 dark:bg-slate-800/80 sticky bottom-0 z-10 border-t-2 border-slate-200 dark:border-slate-700">
-										<tr className="font-bold text-slate-800 dark:text-slate-200">
+									<tfoot className="bg-slate-100 dark:bg-[#151921] sticky bottom-0 z-10 border-t-2 border-slate-200 dark:border-slate-700">
+										<tr className="font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-[#151921] border-t border-slate-200 dark:border-slate-700">
 											<td colSpan="7" className="p-4 text-right uppercase tracking-wider text-xs text-slate-500 dark:text-slate-400">Page Total:</td>
 											<td className="p-4 text-[#ec1d22] text-right">{pageDebitTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
 											<td className="p-4 text-emerald-600 dark:text-emerald-400 text-right">{pageCreditTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+											<td className="p-4"></td>
+											{hasActionPermission && <td className="p-4"></td>}
+										</tr>
+										<tr className="font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-[#151921]">
+											<td colSpan="7" className="p-4 text-right uppercase tracking-wider text-xs text-slate-500 dark:text-slate-400">Overall Total:</td>
+											<td className="p-4 text-[#ec1d22] text-right">{overallDebitTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+											<td className="p-4 text-emerald-600 dark:text-emerald-400 text-right">{overallCreditTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
 											<td className="p-4"></td>
 											{hasActionPermission && <td className="p-4"></td>}
 										</tr>
@@ -1669,6 +1695,35 @@ const PettyCash = () => {
 								</button>
 							</div>
 						</form>
+					</div>
+				</div>
+			)}
+
+			{/* DELETE CONFIRMATION MODAL */}
+			{deleteConfirm.show && (
+				<div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setDeleteConfirm({ show: false, id: null, type: '' })}>
+					<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200 flex flex-col items-center" onClick={e => e.stopPropagation()}>
+						<div className="h-16 w-16 rounded-full bg-red-100 dark:bg-red-950/30 text-red-500 flex items-center justify-center mb-4 border border-red-200 shadow-md">
+							<span className="material-symbols-outlined text-[36px]">delete</span>
+						</div>
+						<h3 className="text-lg font-extrabold text-slate-900 dark:text-white font-display">Confirm Deletion</h3>
+						<p className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+							Are you sure you want to delete this {deleteConfirm.type === 'cash' ? 'added cash entry' : 'expense'}? This action cannot be undone.
+						</p>
+						<div className="flex w-full gap-3 mt-6">
+							<button
+								onClick={() => setDeleteConfirm({ show: false, id: null, type: '' })}
+								className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all cursor-pointer text-sm border-0"
+							>
+								Cancel
+							</button>
+							<button
+								onClick={executeDelete}
+								className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-500/20 active:scale-[0.98] cursor-pointer text-sm border-0"
+							>
+								Delete
+							</button>
+						</div>
 					</div>
 				</div>
 			)}

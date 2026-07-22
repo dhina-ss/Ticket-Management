@@ -3077,6 +3077,34 @@ def api_petty_cash_update_add_cash(eid):
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/petty-cash/ledger/add-cash/<int:eid>', methods=['DELETE'])
+def api_petty_cash_delete_add_cash(eid):
+    try:
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT amount, date FROM cash_add_history WHERE id=%s", (eid,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Not found"}), 404
+            
+            old_amount = float(row[0])
+            old_date = row[1].isoformat() if hasattr(row[1], 'isoformat') else str(row[1])
+            
+            # Delete from history record
+            cur.execute("DELETE FROM cash_add_history WHERE id=%s", (eid,))
+            
+            # Update the day_ledger
+            cur.execute("UPDATE day_ledger SET added_cash = COALESCE(added_cash, 0) - %s, closing_balance = CASE WHEN is_closed=TRUE THEN COALESCE(closing_balance, 0) - %s ELSE closing_balance END WHERE date=%s", (old_amount, old_amount, old_date))
+            
+            conn.commit()
+        conn.close()
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/petty-cash/credit-history', methods=['GET'])
 def api_petty_cash_credit_history():
     try:
