@@ -144,7 +144,6 @@ const PettyCash = () => {
 
 	// Modals
 	const [showAddModal, setShowAddModal] = useState(false);
-	const [showCloseModal, setShowCloseModal] = useState(false);
 	const [showAddCashModal, setShowAddCashModal] = useState(false);
 	const [addCashAmount, setAddCashAmount] = useState('');
 	const [addCashDate, setAddCashDate] = useState(new Date().toISOString().split('T')[0]);
@@ -325,9 +324,7 @@ const PettyCash = () => {
 		purpose: 'Admin'
 	});
 
-	const [closeForm, setCloseForm] = useState({
-		notes: ''
-	});
+
 
 	// Load Dashboard Data
 	const fetchDashboard = async () => {
@@ -379,9 +376,17 @@ const PettyCash = () => {
 		}));
 	};
 
+	const maxAvailableBalance = (dashboard.current_balance || 0) + (editingExpense ? (editingExpense.amount || 0) : 0);
+	const enteredExpenseAmount = parseFloat(expenseForm.amount || 0);
+	const isAmountExceeded = enteredExpenseAmount > maxAvailableBalance;
+
 	// Submit Expense
 	const handleAddExpense = async (e) => {
 		e.preventDefault();
+		if (isAmountExceeded) {
+			alert('Expense amount exceeds the current available balance.');
+			return;
+		}
 		try {
 			const payload = {
 				...expenseForm,
@@ -405,27 +410,6 @@ const PettyCash = () => {
 		} catch (err) {
 			console.error('Error saving expense:', err);
 			alert('Error saving expense entry.');
-		}
-	};
-
-	// Submit EOD Close
-	const handleCloseLedger = async (e) => {
-		e.preventDefault();
-		try {
-			const payload = {
-				notes: closeForm.notes,
-				user_name: user?.name || user?.email || 'admin'
-			};
-			const res = await api.post('/api/petty-cash/ledger/close', payload);
-			if (res.status === 200) {
-				fetchDashboard();
-				fetchExpenses();
-				setShowCloseModal(false);
-				setCloseForm({ notes: '' });
-			}
-		} catch (err) {
-			console.error('Error closing EOD ledger:', err);
-			alert('Error closing ledger.');
 		}
 	};
 
@@ -660,15 +644,7 @@ const PettyCash = () => {
 							Add Cash
 						</button>
 					)}
-					{isManager && !dashboard.ledger.is_closed && (
-						<button
-							onClick={() => setShowCloseModal(true)}
-							className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/10 hover:bg-amber-600/20 text-amber-600 dark:text-amber-400 font-bold rounded-xl transition-all border border-amber-500/20 cursor-pointer text-sm"
-						>
-							<span className="material-symbols-outlined text-lg">lock</span>
-							Close Day (EOD)
-						</button>
-					)}
+
 					{hasEditPermission && (
 					<button
 						onClick={handleOpenAdd}
@@ -746,16 +722,7 @@ const PettyCash = () => {
 
 			{/* Main Content Area */}
 			<div className="flex-1 flex flex-col px-20 py-6 space-y-6">
-				{dashboard.ledger.is_closed && (
-					<div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30 rounded-2xl p-4 text-sm text-amber-800 dark:text-amber-400 flex items-center gap-3">
-						<span className="material-symbols-outlined text-2xl">lock</span>
-						<div>
-							<span className="font-bold">Day Ledger Closed:</span> Today's petty cash ledger has been finalized and closed. No new expenses can be submitted or approved until the next daily opening.
-						</div>
-					</div>
-				)}
-
-				{/* Statistics section */}
+								{/* Statistics section */}
 				<div className="grid grid-cols-1 md:grid-cols-5 gap-6">
 					<div className="bg-white dark:bg-[#1C212B] rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
 						<div>
@@ -1215,8 +1182,16 @@ const PettyCash = () => {
 										value={expenseForm.amount}
 										onChange={e => setExpenseForm(prev => ({ ...prev, amount: e.target.value }))}
 										placeholder="0.00"
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 font-bold text-[#ec1d22]"
+										className={`w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl outline-none focus:outline-none focus:ring-0 font-bold ${
+											isAmountExceeded ? 'border-red-500 text-red-500 focus:border-red-500' : 'border-none text-[#ec1d22]'
+										}`}
 									/>
+									{isAmountExceeded && (
+										<p className="text-xs text-red-500 font-semibold mt-1.5 flex items-center gap-1">
+											<span className="material-symbols-outlined text-sm">error</span>
+											Expense amount cannot exceed current balance (₹{maxAvailableBalance.toLocaleString('en-IN', { maximumFractionDigits: 2 })})
+										</p>
+									)}
 								</div>
 							</div>
 
@@ -1332,7 +1307,12 @@ const PettyCash = () => {
 								</button>
 								<button
 									type="submit"
-									className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md cursor-pointer border-0"
+									disabled={isAmountExceeded}
+									className={`px-6 py-2.5 font-bold rounded-xl shadow-md border-0 transition-all ${
+										isAmountExceeded
+											? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60'
+											: 'bg-amber-600 hover:bg-amber-700 text-white cursor-pointer'
+									}`}
 								>
 									{editingExpense ? 'Save Changes' : 'Submit Expense'}
 								</button>
@@ -1341,68 +1321,6 @@ const PettyCash = () => {
 					</div>
 				</div>
 			)}
-
-			{/* EOD Close Modal */}
-			{showCloseModal && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto overscroll-contain">
-					<div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl p-6 md:p-8">
-						<div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-							<h3 className="text-xl font-bold text-slate-900 dark:text-white">Close EOD Ledger</h3>
-							<button
-								onClick={() => setShowCloseModal(false)}
-								className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 border-0 bg-transparent cursor-pointer flex"
-							>
-								<span className="material-symbols-outlined text-xl">close</span>
-							</button>
-						</div>
-
-						<form onSubmit={handleCloseLedger} className="space-y-4">
-							<div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2 text-sm">
-								<div className="flex justify-between">
-									<span className="text-slate-500">Opening Balance:</span>
-									<span className="font-semibold">₹{dashboard.ledger.opening_balance.toFixed(2)}</span>
-								</div>
-								<div className="flex justify-between">
-									<span className="text-slate-500">Today's Expenses:</span>
-									<span className="font-semibold text-[#ec1d22]">- ₹{dashboard.today_total.toFixed(2)}</span>
-								</div>
-								<div className="flex justify-between border-t border-slate-100 dark:border-slate-800 pt-2 font-bold">
-									<span>Net Ledger Balance:</span>
-									<span>₹{dashboard.current_balance.toFixed(2)}</span>
-								</div>
-							</div>
-
-
-
-							<div>
-								<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Closing Notes / Remarks</label>
-								<textarea
-									value={closeForm.notes}
-									onChange={e => setCloseForm(prev => ({ ...prev, notes: e.target.value }))}
-									placeholder="E.g. Ledger matches cash in drawer"
-									rows="3"
-									className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 resize-none"
-								></textarea>
-							</div>
-
-							<div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-								<button
-									type="button"
-									onClick={() => setShowCloseModal(false)}
-									className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-350 font-bold rounded-xl cursor-pointer border-0"
-								>
-									Cancel
-								</button>
-								<button
-									type="submit"
-									className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md cursor-pointer border-0 bg-amber-600"
-								>
-									Close Ledger
-								</button>
-							</div>
-						</form>
-					</div>
-				</div>)}
 
 			{/* Add Cash Modal */}
 			{showAddCashModal && (
