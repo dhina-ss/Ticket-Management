@@ -2639,33 +2639,41 @@ def api_courier_delete(entry_id):
 def rebuild_ledger_balances(conn):
     try:
         with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT date FROM pettycash WHERE status != 'rejected' UNION SELECT DISTINCT date FROM cash_add_history ORDER BY date ASC")
+            all_dates = [r[0] for r in cur.fetchall()]
+            
+            for d in all_dates:
+                cur.execute("SELECT id FROM day_ledger WHERE date=%s", (d,))
+                if not cur.fetchone():
+                    cur.execute("INSERT INTO day_ledger (date, opening_balance, added_cash, total_expenses, closing_balance, is_closed) VALUES (%s, 0, 0, 0, 0, FALSE)", (d,))
+
             cur.execute("SELECT id, date, added_cash, total_expenses FROM day_ledger ORDER BY date ASC")
             ledgers = cur.fetchall()
-            
+
             if not ledgers:
                 return
-                
+
             cur.execute("SELECT opening_balance FROM day_ledger ORDER BY date ASC LIMIT 1")
             first_ledger = cur.fetchone()
             current_open = float(first_ledger[0]) if first_ledger else 0.0
-            
+
             for row in ledgers:
                 lid = row[0]
                 ldate = row[1]
-                
+
                 cur.execute("SELECT SUM(expense_amount) FROM pettycash WHERE date=%s AND status != 'rejected'", (ldate,))
                 exp_sum = cur.fetchone()[0]
                 texp = float(exp_sum) if exp_sum else 0.0
-                
+
                 cur.execute("SELECT SUM(amount) FROM cash_add_history WHERE date=%s", (ldate,))
                 cash_sum = cur.fetchone()[0]
                 tadd = float(cash_sum) if cash_sum else 0.0
-                
+
                 closing = current_open + tadd - texp
-                
+
                 cur.execute("UPDATE day_ledger SET opening_balance=%s, added_cash=%s, total_expenses=%s, closing_balance=%s WHERE id=%s",
                             (current_open, tadd, texp, closing, lid))
-                
+
                 current_open = closing
     except Exception as e:
         import traceback
@@ -2746,8 +2754,7 @@ def api_petty_cash_dashboard():
             cur.execute("SELECT opening_balance FROM day_ledger WHERE date >= %s ORDER BY date ASC LIMIT 1", (month_start,))
             month_first_ledger = cur.fetchone()
             month_opening = float(month_first_ledger[0]) if month_first_ledger else 0.0
-            
-            current_balance = month_opening + month_credit - month_total
+            current_balance = float(month_opening) + float(month_credit) - float(month_total)
                 
             ledger_info = {
                 "opening_balance": opening,
@@ -2914,6 +2921,7 @@ def api_petty_cash_add():
                 data.get('receiver_name'),
                 data.get('verified_by')
             ))
+            rebuild_ledger_balances(conn)
             conn.commit()
         conn.close()
         return jsonify({"success": True}), 201
@@ -2929,6 +2937,7 @@ def api_petty_cash_approve(eid):
         conn = _get_conn()
         with conn.cursor() as cur:
             cur.execute("UPDATE pettycash SET status='approved', approved_by=%s, approved_at=NOW() WHERE id=%s", (user_name, eid))
+            rebuild_ledger_balances(conn)
             conn.commit()
         conn.close()
         return jsonify({"success": True}), 200
@@ -2945,6 +2954,7 @@ def api_petty_cash_reject(eid):
         conn = _get_conn()
         with conn.cursor() as cur:
             cur.execute("UPDATE pettycash SET status='rejected', manager_notes=%s, approved_by=%s, approved_at=NOW() WHERE id=%s", (notes, user_name, eid))
+            rebuild_ledger_balances(conn)
             conn.commit()
         conn.close()
         return jsonify({"success": True}), 200
@@ -2971,6 +2981,7 @@ def api_petty_cash_update(eid):
                 data.get('sub_remarks'), amount_val, data.get('description'),
                 data.get('submitted_by'), data.get('approved_by'), data.get('receiver_name'), data.get('verified_by'), eid
             ))
+            rebuild_ledger_balances(conn)
             conn.commit()
         conn.close()
         return jsonify({"success": True}), 200
@@ -2984,6 +2995,7 @@ def api_petty_cash_delete(eid):
         conn = _get_conn()
         with conn.cursor() as cur:
             cur.execute("DELETE FROM pettycash WHERE id=%s", (eid,))
+            rebuild_ledger_balances(conn)
             conn.commit()
         conn.close()
         return jsonify({"success": True}), 200
@@ -3060,6 +3072,7 @@ def api_petty_cash_add_cash():
             cur.execute("INSERT INTO cash_add_history (date, amount, user_name, description) VALUES (%s, %s, %s, %s)",
                         (today, new_cash, user_name, description))
             
+            rebuild_ledger_balances(conn)
             conn.commit()
         conn.close()
         return jsonify({"success": True}), 200
