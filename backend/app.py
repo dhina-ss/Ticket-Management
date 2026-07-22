@@ -699,12 +699,13 @@ def assets_route():
                 
                 # 1. Get prefix code based on category
                 category = data.get("category", "")
+                category_lower = category.lower().strip()
                 prefix = None
                 try:
                     from database import _get_conn
                     conn = _get_conn()
                     with conn.cursor() as cur:
-                        cur.execute("SELECT prefix FROM asset_types WHERE LOWER(name) = %s AND is_delete = FALSE LIMIT 1;", (category.lower().strip(),))
+                        cur.execute("SELECT prefix FROM asset_types WHERE LOWER(name) = %s AND is_delete = FALSE LIMIT 1;", (category_lower,))
                         row = cur.fetchone()
                         if row and row[0]:
                             prefix = row[0].upper()
@@ -721,7 +722,6 @@ def assets_route():
                         "printer": "PRN",
                         "server": "SRV",
                     }
-                    category_lower = category.lower().strip()
                     prefix = category_mapping.get(category_lower)
                     if not prefix:
                         prefix = (category.replace(" ", "")[:3].upper()) if len(category) >= 3 else "AST"
@@ -2635,6 +2635,42 @@ def api_courier_delete(entry_id):
 # ---------------------------------------------------------------------------
 # Petty Cash API Endpoints
 # ---------------------------------------------------------------------------
+
+def rebuild_ledger_balances(conn):
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, date, added_cash, total_expenses FROM day_ledger ORDER BY date ASC")
+            ledgers = cur.fetchall()
+            
+            if not ledgers:
+                return
+                
+            cur.execute("SELECT opening_balance FROM day_ledger ORDER BY date ASC LIMIT 1")
+            first_ledger = cur.fetchone()
+            current_open = float(first_ledger[0]) if first_ledger else 0.0
+            
+            for row in ledgers:
+                lid = row[0]
+                ldate = row[1]
+                
+                cur.execute("SELECT SUM(expense_amount) FROM pettycash WHERE date=%s AND status != 'rejected'", (ldate,))
+                exp_sum = cur.fetchone()[0]
+                texp = float(exp_sum) if exp_sum else 0.0
+                
+                cur.execute("SELECT SUM(amount) FROM cash_add_history WHERE date=%s", (ldate,))
+                cash_sum = cur.fetchone()[0]
+                tadd = float(cash_sum) if cash_sum else 0.0
+                
+                closing = current_open + tadd - texp
+                
+                cur.execute("UPDATE day_ledger SET opening_balance=%s, added_cash=%s, total_expenses=%s, closing_balance=%s WHERE id=%s",
+                            (current_open, tadd, texp, closing, lid))
+                
+                current_open = closing
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+
 
 @app.route('/api/petty-cash/dashboard', methods=['GET'])
 def api_petty_cash_dashboard():
