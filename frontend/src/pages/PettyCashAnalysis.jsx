@@ -85,8 +85,9 @@ const PettyCashAnalysis = () => {
 
   // Process Monthly Summary Data (Opening Balance, Added Cash, Total Expense, Closing Balance)
   const monthlySummaryMap = new Map();
+  
+  // 1. Initialize from Ledger Data for Opening Balance & Added Cash
   const sortedLedger = [...ledgerData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
   sortedLedger.forEach(curr => {
     if (!curr.date) return;
     const dateObj = new Date(curr.date);
@@ -97,23 +98,51 @@ const PettyCashAnalysis = () => {
       monthlySummaryMap.set(monthKey, {
         monthKey,
         name: monthLabel,
-        timestamp: dateObj.getTime(),
-        'Opening Balance': curr.opening_balance,
+        timestamp: new Date(dateObj.getFullYear(), dateObj.getMonth(), 1).getTime(),
+        'Opening Balance': curr.opening_balance || 0,
         'Added Cash': 0,
         'Total Expense': 0,
-        'Closing Balance': curr.closing_balance
+        'Closing Balance': 0
       });
     }
 
     const monthData = monthlySummaryMap.get(monthKey);
-    monthData['Added Cash'] += curr.added_cash;
-    monthData['Total Expense'] += curr.total_expenses;
-    monthData['Closing Balance'] = curr.closing_balance;
+    monthData['Added Cash'] += curr.added_cash || 0;
   });
 
-  const monthlySummaryData = Array.from(monthlySummaryMap.values())
-    .sort((a, b) => a.timestamp - b.timestamp)
-    .slice(-3);
+  // 2. Add Expenses for accurate real-time Total Expense
+  expenses.forEach(curr => {
+    if (curr.status === 'rejected' || curr.category === 'Added Cash' || curr.type === 'credit') return;
+    if (!curr.date) return;
+    const dateObj = new Date(curr.date);
+    const monthKey = format(dateObj, 'yyyy-MM');
+    const monthLabel = format(dateObj, 'MMM yyyy');
+
+    if (!monthlySummaryMap.has(monthKey)) {
+      monthlySummaryMap.set(monthKey, {
+        monthKey,
+        name: monthLabel,
+        timestamp: new Date(dateObj.getFullYear(), dateObj.getMonth(), 1).getTime(),
+        'Opening Balance': 0,
+        'Added Cash': 0,
+        'Total Expense': 0,
+        'Closing Balance': 0
+      });
+    }
+
+    const monthData = monthlySummaryMap.get(monthKey);
+    monthData['Total Expense'] += curr.amount || 0;
+  });
+
+  // 3. Sort and calculate Closing Balances dynamically
+  const monthlySummaryDataAll = Array.from(monthlySummaryMap.values())
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  for (let i = 0; i < monthlySummaryDataAll.length; i++) {
+    monthlySummaryDataAll[i]['Closing Balance'] = monthlySummaryDataAll[i]['Opening Balance'] + monthlySummaryDataAll[i]['Added Cash'] - monthlySummaryDataAll[i]['Total Expense'];
+  }
+
+  const monthlySummaryData = monthlySummaryDataAll.slice(-3);
 
   // Process Top 5 Categories Current Month
   const currentMonthStr = format(new Date(), 'yyyy-MM');

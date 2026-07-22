@@ -3029,74 +3029,61 @@ def api_petty_cash_add_cash():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/petty-cash/ledger/add-cash/<int:eid>', methods=['PUT'])
-def api_petty_cash_update_add_cash(eid):
+@app.route('/api/petty-cash/ledger/add-cash/<int:eid>', methods=['PUT', 'DELETE'])
+def api_petty_cash_modify_add_cash(eid):
     try:
-        from datetime import date as dt_date
-        data = request.json
-        new_cash = float(data.get('amount', 0))
-        user_name = data.get('user_name', 'admin')
-        description = data.get('description', '')
-        date_str = data.get('date') or dt_date.today().isoformat()
-        
         from database import _get_conn
         conn = _get_conn()
         with conn.cursor() as cur:
-            cur.execute("SELECT amount, date FROM cash_add_history WHERE id=%s", (eid,))
-            row = cur.fetchone()
-            if not row:
-                return jsonify({"error": "Not found"}), 404
-            
-            old_amount = float(row[0])
-            old_date = row[1].isoformat() if hasattr(row[1], 'isoformat') else str(row[1])
-            diff = new_cash - old_amount
-            
-            # Update the history record
-            cur.execute("UPDATE cash_add_history SET amount=%s, description=%s, date=%s WHERE id=%s", (new_cash, description, date_str, eid))
-            
-            # Update the day_ledger
-            if old_date == date_str:
-                cur.execute("UPDATE day_ledger SET added_cash = COALESCE(added_cash, 0) + %s, closing_balance = CASE WHEN is_closed=TRUE THEN COALESCE(closing_balance, 0) + %s ELSE closing_balance END WHERE date=%s", (diff, diff, date_str))
-            else:
-                cur.execute("UPDATE day_ledger SET added_cash = COALESCE(added_cash, 0) - %s, closing_balance = CASE WHEN is_closed=TRUE THEN COALESCE(closing_balance, 0) - %s ELSE closing_balance END WHERE date=%s", (old_amount, old_amount, old_date))
+            if request.method == 'PUT':
+                from datetime import date as dt_date
+                data = request.json
+                new_cash = float(data.get('amount', 0))
+                description = data.get('description', '')
+                date_str = data.get('date') or dt_date.today().isoformat()
                 
-                cur.execute("SELECT id FROM day_ledger WHERE date=%s", (date_str,))
-                if cur.fetchone():
-                    cur.execute("UPDATE day_ledger SET added_cash = COALESCE(added_cash, 0) + %s, closing_balance = CASE WHEN is_closed=TRUE THEN COALESCE(closing_balance, 0) + %s ELSE closing_balance END WHERE date=%s", (new_cash, new_cash, date_str))
+                cur.execute("SELECT amount, date FROM cash_add_history WHERE id=%s", (eid,))
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "Not found"}), 404
+                
+                old_amount = float(row[0])
+                old_date = row[1].isoformat() if hasattr(row[1], 'isoformat') else str(row[1])
+                diff = new_cash - old_amount
+                
+                # Update the history record
+                cur.execute("UPDATE cash_add_history SET amount=%s, description=%s, date=%s WHERE id=%s", (new_cash, description, date_str, eid))
+                
+                # Update the day_ledger
+                if old_date == date_str:
+                    cur.execute("UPDATE day_ledger SET added_cash = COALESCE(added_cash, 0) + %s, closing_balance = CASE WHEN is_closed=TRUE THEN COALESCE(closing_balance, 0) + %s ELSE closing_balance END WHERE date=%s", (diff, diff, date_str))
                 else:
-                    cur.execute("SELECT closing_balance FROM day_ledger WHERE date < %s AND is_closed=TRUE ORDER BY date DESC LIMIT 1", (date_str,))
-                    prev = cur.fetchone()
-                    opening = float(prev[0]) if prev else 0.0
-                    cur.execute("INSERT INTO day_ledger (date, opening_balance, added_cash, is_closed) VALUES (%s, %s, %s, FALSE)", (date_str, opening, new_cash))
+                    cur.execute("UPDATE day_ledger SET added_cash = COALESCE(added_cash, 0) - %s, closing_balance = CASE WHEN is_closed=TRUE THEN COALESCE(closing_balance, 0) - %s ELSE closing_balance END WHERE date=%s", (old_amount, old_amount, old_date))
+                    
+                    cur.execute("SELECT id FROM day_ledger WHERE date=%s", (date_str,))
+                    if cur.fetchone():
+                        cur.execute("UPDATE day_ledger SET added_cash = COALESCE(added_cash, 0) + %s, closing_balance = CASE WHEN is_closed=TRUE THEN COALESCE(closing_balance, 0) + %s ELSE closing_balance END WHERE date=%s", (new_cash, new_cash, date_str))
+                    else:
+                        cur.execute("SELECT closing_balance FROM day_ledger WHERE date < %s AND is_closed=TRUE ORDER BY date DESC LIMIT 1", (date_str,))
+                        prev = cur.fetchone()
+                        opening = float(prev[0]) if prev else 0.0
+                        cur.execute("INSERT INTO day_ledger (date, opening_balance, added_cash, is_closed) VALUES (%s, %s, %s, FALSE)", (date_str, opening, new_cash))
 
-            conn.commit()
-        conn.close()
-        return jsonify({"success": True}), 200
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+            elif request.method == 'DELETE':
+                cur.execute("SELECT amount, date FROM cash_add_history WHERE id=%s", (eid,))
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "Not found"}), 404
+                
+                old_amount = float(row[0])
+                old_date = row[1].isoformat() if hasattr(row[1], 'isoformat') else str(row[1])
+                
+                # Delete from history record
+                cur.execute("DELETE FROM cash_add_history WHERE id=%s", (eid,))
+                
+                # Update the day_ledger
+                cur.execute("UPDATE day_ledger SET added_cash = COALESCE(added_cash, 0) - %s, closing_balance = CASE WHEN is_closed=TRUE THEN COALESCE(closing_balance, 0) - %s ELSE closing_balance END WHERE date=%s", (old_amount, old_amount, old_date))
 
-@app.route('/api/petty-cash/ledger/add-cash/<int:eid>', methods=['DELETE'])
-def api_petty_cash_delete_add_cash(eid):
-    try:
-        from database import _get_conn
-        conn = _get_conn()
-        with conn.cursor() as cur:
-            cur.execute("SELECT amount, date FROM cash_add_history WHERE id=%s", (eid,))
-            row = cur.fetchone()
-            if not row:
-                return jsonify({"error": "Not found"}), 404
-            
-            old_amount = float(row[0])
-            old_date = row[1].isoformat() if hasattr(row[1], 'isoformat') else str(row[1])
-            
-            # Delete from history record
-            cur.execute("DELETE FROM cash_add_history WHERE id=%s", (eid,))
-            
-            # Update the day_ledger
-            cur.execute("UPDATE day_ledger SET added_cash = COALESCE(added_cash, 0) - %s, closing_balance = CASE WHEN is_closed=TRUE THEN COALESCE(closing_balance, 0) - %s ELSE closing_balance END WHERE date=%s", (old_amount, old_amount, old_date))
-            
             conn.commit()
         conn.close()
         return jsonify({"success": True}), 200

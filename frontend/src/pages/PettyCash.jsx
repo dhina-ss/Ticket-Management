@@ -1230,7 +1230,7 @@ const PettyCash = () => {
 									</div>
 									<SelectDropdown
 										label="Select Category"
-										options={dashboard.categories}
+										options={dashboard.categories.filter(c => c !== 'Added Cash')}
 										value={expenseForm.category}
 										onChange={handleCategoryChange}
 									/>
