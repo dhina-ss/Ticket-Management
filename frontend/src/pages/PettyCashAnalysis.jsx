@@ -11,12 +11,67 @@ import {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#d0ed57', '#a4de6c'];
 
+const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, variant = 'default', icon, widthClass = 'w-full', disabled = false }) => {
+	const [isOpen, setIsOpen] = React.useState(false);
+	const ref = React.useRef(null);
+	React.useEffect(() => {
+		const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false); };
+		document.addEventListener('mousedown', handler);
+		return () => document.removeEventListener('mousedown', handler);
+	}, []);
+	return (
+		<div className="relative" ref={ref}>
+			<div
+				onClick={() => !disabled && setIsOpen(o => !o)}
+				className={variant === 'filter'
+					? `flex items-center justify-between gap-2 px-3 py-2 bg-[#eceef0] dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700 outline-none focus:outline-none focus:ring-0 cursor-pointer ${widthClass} ${isOpen ? 'bg-white dark:bg-slate-900 shadow-sm' : ''} ${disabled ? 'opacity-50 cursor-not-allowed hover:bg-[#eceef0] dark:hover:bg-slate-800' : ''}`
+					: `flex items-center justify-between ${widthClass} px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer transition-all bg-white dark:bg-[#1C212B] font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/20' : ''} ${disabled ? 'opacity-50 cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800' : ''}`
+				}
+			>
+				<div className="flex items-center gap-2 truncate">
+					{icon && variant === 'filter' && <span className="material-symbols-outlined text-slate-400 text-lg">{icon}</span>}
+					<span className={variant === 'filter'
+						? `truncate max-w-[120px] font-medium ${!value ? 'text-slate-500 dark:text-slate-400' : 'text-primary'}`
+						: "text-slate-800 dark:text-slate-300 truncate"
+					}>
+						{(options.find(o => (o.value ?? o) === value) || {}).label || value || label}
+					</span>
+				</div>
+				<span className={`material-symbols-outlined text-slate-400 ${variant === 'filter' ? 'text-base' : 'text-[18px] shrink-0 ml-1'} transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
+			</div>
+			{isOpen && (
+				<div className={`absolute left-0 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
+					? 'bottom-full mb-1.5 origin-bottom'
+					: 'top-full mt-1.5 origin-top'
+					}`}>
+					<div className={`${maxHeight} overflow-y-auto custom-scrollbar px-1.5 py-0.5 space-y-0.5`}>
+						{options.map(opt => (
+							<div
+								key={opt.value ?? opt}
+								onClick={() => { onChange(opt.value ?? opt); setIsOpen(false); }}
+								className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium ${(opt.value ?? opt) === value
+									? 'bg-primary/10 text-primary'
+									: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+									}`}
+							>
+								{opt.label ?? opt}
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+		</div>
+	);
+};
+
 const PettyCashAnalysis = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [expenses, setExpenses] = useState([]);
   const [ledgerData, setLedgerData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -142,7 +197,12 @@ const PettyCashAnalysis = () => {
     monthlySummaryDataAll[i]['Closing Balance'] = monthlySummaryDataAll[i]['Opening Balance'] + monthlySummaryDataAll[i]['Added Cash'] - monthlySummaryDataAll[i]['Total Expense'];
   }
 
-  const monthlySummaryData = monthlySummaryDataAll.slice(-3);
+  let monthlySummaryData = monthlySummaryDataAll.slice(-4);
+  if (selectedYear && selectedMonth) {
+    const startTimestamp = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1).getTime();
+    const endTimestamp = new Date(parseInt(selectedYear), parseInt(selectedMonth) + 3, 1).getTime();
+    monthlySummaryData = monthlySummaryDataAll.filter(d => d.timestamp >= startTimestamp && d.timestamp < endTimestamp);
+  }
 
   // Process Top 5 Categories Current Month
   const currentMonthStr = format(new Date(), 'yyyy-MM');
@@ -159,6 +219,29 @@ const PettyCashAnalysis = () => {
     .slice(0, 5);
 
   const formatCurrency = (value) => `₹${value.toFixed(2)}`;
+
+  const currentYear = new Date().getFullYear();
+  const currentMonthIndex = new Date().getMonth();
+
+  const yearOptions = [
+    { value: '', label: 'Select Year' },
+    ...Array.from(new Set(monthlySummaryDataAll.map(d => new Date(d.timestamp).getFullYear())))
+      .sort((a,b) => b-a)
+      .map(y => ({ value: y.toString(), label: y.toString() }))
+  ];
+
+  const monthOptions = [
+    { value: '', label: 'Select Month' },
+    ...Array.from({length: 12}).map((_, i) => ({
+      value: (i+1).toString().padStart(2, '0'),
+      label: format(new Date(2000, i, 1), 'MMMM')
+    })).filter((opt, i) => {
+      if (selectedYear === currentYear.toString()) {
+        return i <= currentMonthIndex;
+      }
+      return true;
+    })
+  ];
 
   return (
     <div className="font-display bg-background-light dark:bg-[#181D27] text-slate-900 dark:text-[#f0f0f2] min-h-screen flex flex-col">
@@ -198,9 +281,41 @@ const PettyCashAnalysis = () => {
             <p className="text-sm text-slate-500">There are no approved or pending expenses to analyze.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Monthly Financial Summary Table */}
-            <div className="bg-white dark:bg-[#1C212B] rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+          <>
+            {/* Monthly Financial Filters */}
+            <div className="flex items-center gap-4 mb-2">
+              <div className="flex flex-col">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Year</label>
+                <SelectDropdown
+                  value={selectedYear}
+                  onChange={setSelectedYear}
+                  options={yearOptions}
+                  widthClass="w-32"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Month</label>
+                <SelectDropdown
+                  value={selectedMonth}
+                  onChange={setSelectedMonth}
+                  options={monthOptions}
+                  disabled={!selectedYear}
+                  widthClass="w-36"
+                />
+              </div>
+              {(selectedYear || selectedMonth) && (
+                <button
+                  onClick={() => { setSelectedYear(''); setSelectedMonth(''); }}
+                  className="mt-5 px-3 py-2 text-sm font-semibold text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition-all cursor-pointer"
+                >
+                  Clear Filter
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Monthly Financial Summary Table */}
+              <div className="bg-white dark:bg-[#1C212B] rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-6 flex items-center gap-2">
                 <span className="material-symbols-outlined text-indigo-500">table_view</span>
                 Monthly Financial Summary
@@ -372,6 +487,7 @@ const PettyCashAnalysis = () => {
               </div>
             </div>
           </div>
+          </>
         )}
       </div>
     </div>
