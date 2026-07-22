@@ -2691,7 +2691,7 @@ def api_petty_cash_dashboard():
             today_count = len(today_expenses)
             
             # month expenses
-            cur.execute("SELECT expense_amount FROM pettycash WHERE date >= %s AND status = 'approved'", (month_start,))
+            cur.execute("SELECT expense_amount FROM pettycash WHERE date >= %s AND status != 'rejected'", (month_start,))
             month_exps = cur.fetchall()
             month_total = sum(e[0] for e in month_exps if e[0])
             
@@ -2741,10 +2741,13 @@ def api_petty_cash_dashboard():
             today_added = float(today_ledger[0]) if today_ledger else 0.0
             today_closed = bool(today_ledger[2]) if today_ledger else False
             
-            if today_closed:
-                current_balance = float(today_ledger[1])
-            else:
-                current_balance = opening + today_added - float(today_total)
+            # User specifically requested the current balance to perfectly mirror the Analysis page's Monthly Financial Summary.
+            # Analysis Page logic: Month Opening Balance + Month Added Cash (month_credit) - Month Total Expenses (month_total)
+            cur.execute("SELECT opening_balance FROM day_ledger WHERE date >= %s ORDER BY date ASC LIMIT 1", (month_start,))
+            month_first_ledger = cur.fetchone()
+            month_opening = float(month_first_ledger[0]) if month_first_ledger else 0.0
+            
+            current_balance = month_opening + month_credit - month_total
                 
             ledger_info = {
                 "opening_balance": opening,
