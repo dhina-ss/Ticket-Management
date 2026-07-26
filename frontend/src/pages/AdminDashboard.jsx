@@ -174,7 +174,7 @@ const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onC
     );
 };
 
-const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error }) => {
+const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, disabled = false }) => {
     const [isOpen, setIsOpen] = useState(false);
     const ref = useRef(null);
     useEffect(() => {
@@ -183,10 +183,14 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
         return () => document.removeEventListener('mousedown', handler);
     }, []);
     return (
-        <div className="relative" ref={ref}>
+        <div className="relative w-full" ref={ref}>
             <div
-                onClick={() => setIsOpen(o => !o)}
-                className={`flex items-center justify-between w-full px-4 py-3 text-sm rounded-xl border cursor-pointer transition-all bg-slate-50 dark:bg-slate-800 font-medium ${error
+                onClick={() => !disabled && setIsOpen(o => !o)}
+                className={`flex items-center justify-between w-full px-4 py-3 text-sm rounded-xl border transition-all bg-slate-50 dark:bg-slate-800 font-medium ${
+                    disabled
+                        ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'
+                        : 'cursor-pointer'
+                } ${error
                     ? 'border-red-500 ring-2 ring-red-500/20'
                     : isOpen
                         ? 'ring-2 ring-primary border-primary'
@@ -196,7 +200,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
                 <span className="text-slate-800 dark:text-white truncate">{value || label}</span>
                 <span className={`material-symbols-outlined text-slate-400 text-[18px] transition-transform duration-200 shrink-0 ml-1 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
             </div>
-            {isOpen && (
+            {isOpen && !disabled && (
                 <div className={`absolute left-0 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
                     ? 'bottom-full mb-1.5 origin-bottom'
                     : 'top-full mt-1.5 origin-top'
@@ -207,7 +211,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
                                 key={opt.value ?? opt}
                                 onClick={() => { onChange(opt.value ?? opt); setIsOpen(false); }}
                                 className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium ${(opt.value ?? opt) === value
-                                    ? 'bg-primary/10 text-primary'
+                                    ? 'bg-primary/10 text-primary font-semibold'
                                     : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                                     }`}
                             >
@@ -3167,6 +3171,474 @@ const AssetTypesView = ({ assetTypes, setAssetTypes, assetTypesLoading, isExpand
     );
 };
 
+const PRESET_GIFS = [
+    {
+        name: 'Gatsby Toast',
+        url: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3Z0ZmlwMHM1OGxldW82azFqMmZvdHBmNDg5azlhOHc4bmthOWtyciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/g9582DNuQppxC/giphy.gif'
+    },
+    {
+        name: 'Confetti Party',
+        url: 'https://media.giphy.com/media/26tPplGWjN0xLybiU/giphy.gif'
+    },
+    {
+        name: 'Minion High Five',
+        url: 'https://media.giphy.com/media/11sBLVxNs7v6WA/giphy.gif'
+    },
+    {
+        name: 'Success Check',
+        url: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHY1Y2Nuc3ZvaTNocTZycXZwbnAycmsydnd2bWtzOHI4eHcxM3Y3ZCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/d21y4ZqEw735lD2/giphy.gif'
+    }
+];
+
+const SUPPORT_TYPES = ['IT Support', 'Admin Support'];
+
+const GifPickerModal = ({ value, onSelect, onClose, title }) => {
+    const [tab, setTab] = useState('preset'); // 'preset' | 'url'
+    const [urlInput, setUrlInput] = useState(value || '');
+    return (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-5">
+                    <h3 className="font-bold text-slate-800 dark:text-white text-lg">{title || 'Pick a GIF'}</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer">
+                        <span className="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <div className="flex gap-2 mb-5">
+                    <button onClick={() => setTab('preset')} className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${tab === 'preset' ? 'bg-primary text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+                        Preset GIFs
+                    </button>
+                    <button onClick={() => setTab('url')} className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${tab === 'url' ? 'bg-primary text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+                        Custom URL
+                    </button>
+                </div>
+
+                {tab === 'preset' && (
+                    <div className="grid grid-cols-2 gap-3">
+                        {PRESET_GIFS.map(p => (
+                            <button key={p.name} onClick={() => onSelect(p.url)} className={`p-2 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer hover:border-primary hover:ring-2 hover:ring-primary/20 ${value === p.url ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'}`}>
+                                <img src={p.url} alt={p.name} className="h-20 w-full object-cover rounded-lg" />
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{p.name}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {tab === 'url' && (
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">GIF URL</label>
+                            <input
+                                type="url"
+                                value={urlInput}
+                                onChange={e => setUrlInput(e.target.value)}
+                                placeholder="https://media.giphy.com/media/.../giphy.gif"
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all text-sm"
+                            />
+                        </div>
+                        {urlInput && (
+                            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                                <img src={urlInput} alt="Preview" className="w-full h-40 object-cover" onError={e => { e.target.style.display = 'none'; }} />
+                            </div>
+                        )}
+                        <button
+                            onClick={() => urlInput.trim() && onSelect(urlInput.trim())}
+                            disabled={!urlInput.trim()}
+                            className="w-full py-2.5 rounded-xl bg-primary text-white font-bold text-sm disabled:opacity-50 cursor-pointer hover:bg-primary/90 transition-all"
+                        >
+                            Use This URL
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const GifPreviewModal = ({ rule, onClose }) => {
+    if (!rule) return null;
+    const TicketCard = ({ compact = false }) => (
+        <div className={`bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 text-center overflow-hidden ${compact ? 'w-full' : 'w-full'}`}>
+            {rule.gif_url && (
+                <div className="overflow-hidden bg-slate-900/5 dark:bg-slate-950 p-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-center">
+                    <img
+                        src={rule.gif_url}
+                        alt="GIF"
+                        className={`w-full object-contain mx-auto rounded-lg ${compact ? 'h-32 max-h-36' : 'h-52 max-h-60'}`}
+                        onError={e => { e.target.style.display = 'none'; }}
+                    />
+                </div>
+            )}
+            <div className={compact ? 'p-3' : 'p-5'}>
+                <div className={`flex items-center justify-center rounded-full bg-green-50 dark:bg-green-900/20 mx-auto mb-2 ${compact ? 'w-8 h-8' : 'w-12 h-12'}`}>
+                    <span className={`material-symbols-outlined text-green-500 ${compact ? 'text-lg' : 'text-2xl'}`}>check_circle</span>
+                </div>
+                <h4 className={`font-bold text-slate-800 dark:text-white mb-1 ${compact ? 'text-[10px]' : 'text-sm'}`}>Ticket Successfully Created!</h4>
+                <p className={`text-slate-500 dark:text-slate-400 mb-3 ${compact ? 'text-[9px]' : 'text-xs'}`}>Our admin team will contact you shortly.</p>
+                <div className={`inline-block bg-slate-100 dark:bg-slate-800 rounded-lg font-mono font-bold text-primary ${compact ? 'px-2 py-0.5 text-[9px]' : 'px-4 py-1.5 text-xs'}`}>
+                    TICK-2026-8842
+                </div>
+                <p className={`text-slate-400 dark:text-slate-500 mt-2 ${compact ? 'text-[8px]' : 'text-[10px]'}`}>
+                    {rule.support_type}{rule.category ? ` · ${rule.category}` : ''}
+                </p>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+            <div
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 className="font-bold text-slate-800 dark:text-white text-lg">GIF Preview</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            {rule.support_type}{rule.category ? ` · ${rule.category}` : ' · All categories'}
+                        </p>
+                    </div>
+                    <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer">
+                        <span className="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Desktop Preview */}
+                    <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="material-symbols-outlined text-slate-500 dark:text-slate-400 text-xl">laptop_mac</span>
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Desktop / Laptop</span>
+                        </div>
+                        {/* Browser chrome mockup */}
+                        <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-lg">
+                            <div className="bg-slate-100 dark:bg-slate-800 px-3 py-2 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700">
+                                <div className="flex gap-1.5">
+                                    <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                                    <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                                    <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                                </div>
+                                <div className="flex-1 mx-2 bg-white dark:bg-slate-700 rounded-md px-3 py-0.5 text-[10px] text-slate-400 truncate">
+                                    ticketraise.company.com
+                                </div>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-slate-950 p-6 flex items-center justify-center min-h-[200px]">
+                                {/* Simulated modal overlay */}
+                                <div className="relative w-full max-w-xs">
+                                    <div className="absolute inset-0 -m-6 bg-black/30 rounded-b-xl"></div>
+                                    <div className="relative z-10">
+                                        <TicketCard />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Mobile Preview */}
+                    <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="material-symbols-outlined text-slate-500 dark:text-slate-400 text-xl">smartphone</span>
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Mobile</span>
+                        </div>
+                        {/* Phone mockup */}
+                        <div className="flex justify-center">
+                            <div className="relative w-48">
+                                {/* Phone shell */}
+                                <div className="bg-slate-800 dark:bg-slate-950 rounded-[2rem] p-2 shadow-2xl border-4 border-slate-700 dark:border-slate-800">
+                                    {/* Notch */}
+                                    <div className="flex justify-center mb-1">
+                                        <div className="w-16 h-4 bg-slate-900 dark:bg-black rounded-full"></div>
+                                    </div>
+                                    {/* Screen */}
+                                    <div className="bg-slate-50 dark:bg-slate-950 rounded-[1.5rem] overflow-hidden min-h-[320px] flex items-center justify-center p-3">
+                                        <div className="relative w-full">
+                                            <div className="absolute inset-0 -m-3 bg-black/30 rounded-[1.5rem]"></div>
+                                            <div className="relative z-10">
+                                                <TicketCard compact />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* Home indicator */}
+                                    <div className="flex justify-center mt-2">
+                                        <div className="w-12 h-1 bg-slate-600 dark:bg-slate-700 rounded-full"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+                    <button
+                        onClick={onClose}
+                        className="px-5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const TicketGifView = ({ isExpanded, onToggle, hasEditPermission, showToast, categories }) => {
+
+    const [settings, setSettings] = useState({
+        enabled: true,
+        display_on_submit: true,
+        display_on_resolve: true,
+        default_gif_url: PRESET_GIFS[0].url,
+        rules: []
+    });
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [previewRule, setPreviewRule] = useState(null); // ruleId for live preview
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            setLoading(true);
+            try {
+                const res = await api.get('/api/settings/ticket-gif');
+                if (res.data) {
+                    const data = res.data;
+                    setSettings({
+                        enabled: data.enabled ?? true,
+                        display_on_submit: data.display_on_submit ?? true,
+                        display_on_resolve: data.display_on_resolve ?? true,
+                        default_gif_url: data.default_gif_url || data.gif_url || PRESET_GIFS[0].url,
+                        rules: Array.isArray(data.rules) ? data.rules : []
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to fetch ticket gif settings:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchSettings();
+    }, []);
+
+    const addRule = () => {
+        const newRule = {
+            id: `rule_${Date.now()}`,
+            support_type: SUPPORT_TYPES[0],
+            category: '',
+            gif_url: PRESET_GIFS[0].url
+        };
+        setSettings(s => ({ ...s, rules: [...s.rules, newRule] }));
+    };
+
+    const updateRule = (id, field, value) => {
+        setSettings(s => ({
+            ...s,
+            rules: s.rules.map(r => r.id === id ? { ...r, [field]: value, ...(field === 'support_type' ? { category: '' } : {}) } : r)
+        }));
+    };
+
+    const removeRule = (id) => {
+        setSettings(s => ({ ...s, rules: s.rules.filter(r => r.id !== id) }));
+        if (previewRule === id) setPreviewRule(null);
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const payload = {
+                ...settings,
+                gif_url: settings.default_gif_url
+            };
+            const res = await api.post('/api/settings/ticket-gif', payload);
+            if (res.data?.settings) {
+                const d = res.data.settings;
+                setSettings({
+                    enabled: d.enabled ?? true,
+                    display_on_submit: d.display_on_submit ?? true,
+                    display_on_resolve: d.display_on_resolve ?? true,
+                    default_gif_url: d.default_gif_url || d.gif_url || PRESET_GIFS[0].url,
+                    rules: Array.isArray(d.rules) ? d.rules : []
+                });
+            }
+            if (showToast) showToast('Ticket GIF settings saved!');
+        } catch (err) {
+            console.error("Error saving ticket GIF settings:", err);
+            alert("Failed to save Ticket GIF settings.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Compute categories for a given support type
+    const getCategoriesForType = (supportType) => {
+        if (!categories || !supportType) return [];
+        return categories.filter(c => {
+            const types = (c.support_type || '').split(',').map(s => s.trim());
+            return types.includes(supportType);
+        });
+    };
+
+    // Determine preview GIF url
+    const getPreviewGifUrl = () => {
+        if (previewRule) {
+            const r = settings.rules.find(r => r.id === previewRule);
+            if (r?.gif_url) return r.gif_url;
+        }
+        return settings.default_gif_url;
+    };
+
+    return (
+        <div className="w-full shrink-0 px-20 py-8 border-b border-slate-200 dark:border-slate-800">
+            <div className="mb-4 flex items-end justify-between">
+                <div onClick={onToggle} className="cursor-pointer group select-none">
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
+                        Ticket GIF
+                        <span className="material-symbols-outlined text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">
+                            {isExpanded ? 'expand_less' : 'expand_more'}
+                        </span>
+                    </h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Assign celebration GIFs per support type and category.</p>
+                </div>
+            </div>
+
+            {isExpanded && (
+                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 p-8 shadow-sm space-y-8">
+                    {loading ? (
+                        <div className="py-12 text-center text-slate-500">Loading Ticket GIF settings...</div>
+                    ) : (
+                        <>
+
+                            {/* ── Rules layout ── */}
+                            <div className="space-y-6">
+
+                                    {/* Rules */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div>
+                                                <h3 className="text-sm font-bold text-slate-800 dark:text-white">Rules <span className="ml-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full font-bold">{settings.rules.length}</span></h3>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">Assign specific GIFs per support type and category. Rules are matched top to bottom.</p>
+                                            </div>
+                                            {hasEditPermission && (
+                                                <button
+                                                    onClick={addRule}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                                                >
+                                                    <span className="material-symbols-outlined text-base">add</span>
+                                                    Add Rule
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {settings.rules.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-10 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500">
+                                                <span className="material-symbols-outlined text-4xl mb-2 opacity-50">gif_box</span>
+                                                <p className="text-sm font-medium">No rules yet</p>
+                                                <p className="text-xs">Click "Add Rule" to assign GIFs per support type or category.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {settings.rules.map((rule, idx) => {
+                                                    const cats = getCategoriesForType(rule.support_type);
+                                                    const isSelected = previewRule?.id === rule.id;
+                                                    return (
+                                                        <div key={rule.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 overflow-hidden transition-all">
+                                                            <div className="flex items-start gap-3 p-4">
+                                                                {/* Index badge */}
+                                                                <span className="mt-1 flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">{idx + 1}</span>
+
+                                                                {/* Fields */}
+                                                                <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
+                                                                    <div>
+                                                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Support Type</label>
+                                                                        <select
+                                                                            value={rule.support_type}
+                                                                            onChange={e => updateRule(rule.id, 'support_type', e.target.value)}
+                                                                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-sm outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                                                                        >
+                                                                            {SUPPORT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                                                        </select>
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Category <span className="normal-case font-normal text-slate-400">(optional)</span></label>
+                                                                        <select
+                                                                            value={rule.category}
+                                                                            onChange={e => updateRule(rule.id, 'category', e.target.value)}
+                                                                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-sm outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                                                                        >
+                                                                            <option value="">All categories</option>
+                                                                            {cats.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                                                        </select>
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">GIF URL</label>
+                                                                        <input
+                                                                            type="url"
+                                                                            value={rule.gif_url}
+                                                                            onChange={e => updateRule(rule.id, 'gif_url', e.target.value)}
+                                                                            placeholder="https://media.giphy.com/..."
+                                                                            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-sm outline-none focus:ring-2 focus:ring-primary/40"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Actions */}
+                                                                <div className="flex flex-col gap-1 shrink-0">
+                                                                    <button
+                                                                        title="Preview"
+                                                                        onClick={() => setPreviewRule(isSelected ? null : rule)}
+                                                                        className={`p-1.5 rounded-lg transition-all cursor-pointer ${isSelected ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                                                    </button>
+                                                                    {hasEditPermission && (
+                                                                        <button
+                                                                            title="Delete rule"
+                                                                            onClick={() => removeRule(rule.id)}
+                                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all cursor-pointer"
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                {/* Save */}
+
+                                {hasEditPermission && (
+                                    <button
+                                        onClick={handleSave}
+                                        disabled={saving}
+                                        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold text-sm shadow-lg shadow-primary/25 transition-all disabled:opacity-50 cursor-pointer"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">save</span>
+                                        <span>{saving ? 'Saving...' : 'Save GIF Settings'}</span>
+                                    </button>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* GIF Preview Modal */}
+            {previewRule && (
+                <GifPreviewModal
+                    rule={previewRule}
+                    onClose={() => setPreviewRule(null)}
+                />
+            )}
+        </div>
+    );
+};
+
+
 const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpanded, onToggle, hasEditPermission }) => {
     const [showAddCategory, setShowAddCategory] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -5790,6 +6262,13 @@ const AdminDashboard = () => {
                             onToggle={() => setExpandedSettingsView(prev => prev === 'assetTypes' ? null : 'assetTypes')}
                             hasEditPermission={hasEditPermission}
                         />
+                        <TicketGifView
+                            isExpanded={expandedSettingsView === 'ticketGif'}
+                            onToggle={() => setExpandedSettingsView(prev => prev === 'ticketGif' ? null : 'ticketGif')}
+                            hasEditPermission={hasEditPermission}
+                            showToast={showToast}
+                            categories={categories}
+                        />
                     </div>
                 )}
 
@@ -6543,39 +7022,27 @@ const AdminDashboard = () => {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Status</label>
-                                                <div className="relative">
-                                                    <select
-                                                        value={updateStatus}
-                                                        onChange={(e) => setUpdateStatus(e.target.value)}
-                                                        disabled={['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit'))}
-                                                        className={`w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none transition-shadow ${['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit')) ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
-                                                    >
-                                                        <option value="Not Started">Not Started</option>
-                                                        <option value="In Progress">In Progress</option>
-                                                        <option value="Pending">Pending</option>
-                                                        <option value="Completed">Completed</option>
-
-                                                    </select>
-                                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
-                                                </div>
+                                                <SelectDropdown
+                                                    label="Status"
+                                                    options={['Not Started', 'In Progress', 'Pending', 'Completed']}
+                                                    value={updateStatus}
+                                                    onChange={(val) => setUpdateStatus(val)}
+                                                    disabled={['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit'))}
+                                                />
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <div className="relative flex-1">
-                                                    <select
+                                                <div className="flex-1">
+                                                    <SelectDropdown
+                                                        label="Assignee"
+                                                        options={Array.isArray(assignees)
+                                                            ? assignees
+                                                                .filter(a => !selectedTicket.supportType || a.support_type.includes(selectedTicket.supportType))
+                                                                .map(a => ({ value: a.name, label: a.name }))
+                                                            : []}
                                                         value={updateAssignee}
-                                                        onChange={(e) => setUpdateAssignee(e.target.value)}
+                                                        onChange={(val) => setUpdateAssignee(val)}
                                                         disabled={['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit'))}
-                                                        className={`w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none transition-shadow ${['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit')) ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
-                                                    >
-                                                        <option value="">Assignee</option>
-                                                        {Array.isArray(assignees) && assignees
-                                                            .filter(a => !selectedTicket.supportType || a.support_type.includes(selectedTicket.supportType))
-                                                            .map(a => (
-                                                                <option key={a.id} value={a.name}>{a.name}</option>
-                                                            ))
-                                                        }
-                                                    </select>
-                                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+                                                    />
                                                 </div>
                                                 {!(['Completed', 'Resolved'].includes(selectedTicket.status)) && (isSuperAdmin || isPowerUser || user?.name === selectedTicket.assignee || (user.access && user.access.includes('Edit'))) && (
                                                     <button

@@ -268,6 +268,9 @@ def init_db():
         # Run auto-cleanup once per restart
         delete_expired_attachments()
         
+        # Ensure app_settings table and columns exist
+        init_app_settings()
+
         print("DEBUG: admin_users table ready.")
     except Exception as e:
         print(f"DEBUG: init_db error: {e}")
@@ -2176,4 +2179,58 @@ def compare_and_log_changes(asset_id: str, old_dict: dict, new_dict: dict, field
         
         if old_str != new_str:
             log_asset_history(asset_id, label, old_str, new_str, changed_by)
+
+def init_app_settings():
+    """Create app_settings table if it doesn't exist and ensure all columns are present."""
+    try:
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS app_settings (
+                        key        TEXT PRIMARY KEY,
+                        value      TEXT NOT NULL,
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """)
+                cur.execute("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS key TEXT;")
+                cur.execute("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS value TEXT;")
+                cur.execute("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();")
+        conn.close()
+        print("DEBUG: app_settings table and columns verified.")
+    except Exception as e:
+        print(f"DEBUG: init_app_settings error: {e}")
+
+def get_app_setting(key: str, default: str = None) -> str:
+    try:
+        init_app_settings()
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM app_settings WHERE key = %s;", (key,))
+            row = cur.fetchone()
+        conn.close()
+        if row:
+            return row[0]
+        return default
+    except Exception as e:
+        print(f"DEBUG: get_app_setting error: {e}")
+        return default
+
+def set_app_setting(key: str, value: str) -> bool:
+    try:
+        init_app_settings()
+        conn = _get_conn()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO app_settings (key, value, updated_at) 
+                    VALUES (%s, %s, NOW())
+                    ON CONFLICT (key) 
+                    DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
+                """, (key, value))
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"DEBUG: set_app_setting error: {e}")
+        return False
 

@@ -4,6 +4,7 @@ import api from '../api';
 import logoImage from '../assets/logo.png';
 import logoDarkImage from '../assets/logo1.png';
 import { copyToClipboard } from '../utils/clipboard';
+import CustomSelect from './CustomSelect';
 
 const TicketForm = () => {
     const location = useLocation();
@@ -19,6 +20,8 @@ const TicketForm = () => {
     const [categoriesLoading, setCategoriesLoading] = useState(false);
     const [departments, setDepartments] = useState([]);
     const [departmentsLoading, setDepartmentsLoading] = useState(false);
+    const [gifSettings, setGifSettings] = useState(null);
+    const [submittedTicketInfo, setSubmittedTicketInfo] = useState(null);
 
     useEffect(() => {
         const fetchCategories = async () => {
@@ -43,8 +46,19 @@ const TicketForm = () => {
                 setDepartmentsLoading(false);
             }
         };
+        const fetchGifSettings = async () => {
+            try {
+                const response = await api.get('/api/settings/ticket-gif');
+                if (response.data) {
+                    setGifSettings(response.data);
+                }
+            } catch (err) {
+                console.error("Failed to fetch GIF settings:", err);
+            }
+        };
         fetchCategories();
         fetchDepartments();
+        fetchGifSettings();
     }, []);
 
     // Lock body scrolling when the branch popup is open
@@ -118,6 +132,10 @@ const TicketForm = () => {
             const response = await api.post('/api/submit', submissionData);
 
             if (response.status === 200) {
+                setSubmittedTicketInfo({
+                    supportType: formData.supportType,
+                    category: formData.category
+                });
                 setStatus('success');
                 setTicketId(response.data.ticket_id);
                 // We keep the branch selected for the next ticket if they want to raise another? 
@@ -150,9 +168,37 @@ const TicketForm = () => {
         }
     };
 
+    const activeGifUrl = (() => {
+        if (!gifSettings || gifSettings.enabled === false) return null;
+        if (gifSettings.display_on_submit === false) return null;
+
+        const supportType = submittedTicketInfo?.supportType || formData.supportType;
+        const category = submittedTicketInfo?.category || formData.category;
+
+        if (Array.isArray(gifSettings.rules) && gifSettings.rules.length > 0) {
+            for (const rule of gifSettings.rules) {
+                if (!rule || !rule.gif_url) continue;
+
+                const ruleSupport = (rule.support_type || '').trim().toLowerCase();
+                const targetSupport = (supportType || '').trim().toLowerCase();
+                const matchSupport = !ruleSupport || ruleSupport === targetSupport;
+
+                const ruleCat = (rule.category || '').trim().toLowerCase();
+                const targetCat = (category || '').trim().toLowerCase();
+                const matchCat = !ruleCat || ruleCat === 'all categories' || ruleCat === targetCat;
+
+                if (matchSupport && matchCat) {
+                    return rule.gif_url;
+                }
+            }
+        }
+
+        return gifSettings.default_gif_url || gifSettings.gif_url || null;
+    })();
+
     return (
         <div className="bg-white dark:bg-slate-900 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-            <div className="p-8 space-y-6">
+            <div className="p-8 sm:p-10 md:p-12 space-y-6">
                 {/* ── Branch Selection Popup ── */}
                 {showBranchPopup && status !== 'success' && (
                     <div className="fixed top-0 left-0 w-full h-[100dvh] z-[70] flex items-center justify-center bg-black/60 backdrop-blur-md overflow-hidden">
@@ -166,43 +212,31 @@ const TicketForm = () => {
                             <div className="space-y-6">
                                 <div className="space-y-2">
                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Support Type <span className="text-red-500">*</span></label>
-                                    <div className="relative">
-                                        <select
-                                            className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary transition-all appearance-none cursor-pointer pr-10"
-                                            value={formData.supportType}
-                                            onChange={(e) => setFormData({ ...formData, supportType: e.target.value, category: '', subCategory: '', mode: '' })}
-                                            required
-                                        >
-                                            <option value="">Select support type</option>
-                                            <option value="IT Support">IT Support</option>
-                                            <option value="Admin Support">Admin Support</option>
-                                        </select>
-                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-500">
-                                            <span className="material-symbols-outlined">expand_more</span>
-                                        </div>
-                                    </div>
+                                    <CustomSelect
+                                        placeholder="Select support type"
+                                        options={[
+                                            { value: 'IT Support', label: 'IT Support' },
+                                            { value: 'Admin Support', label: 'Admin Support' }
+                                        ]}
+                                        value={formData.supportType}
+                                        onChange={(val) => setFormData(prev => ({ ...prev, supportType: val, category: '', subCategory: '', mode: '', department: '' }))}
+                                    />
                                 </div>
 
                                 <div className="space-y-2">
                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Branch <span className="text-red-500">*</span></label>
-                                    <div className="relative">
-                                        <select
-                                            className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary transition-all appearance-none cursor-pointer pr-10"
-                                            value={formData.branch}
-                                            onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
-                                            required
-                                        >
-                                            <option value="">Select a branch</option>
-                                            <option value="Cotton Concepts HO_ Coimbatore">Cotton Concepts HO, Coimbatore</option>
-                                            <option value="Doctor Towels HO">Doctor Towels HO</option>
-                                            <option value="Cotton Concepts_ Vengamedu">Cotton Concepts, Vengamedu</option>
-                                            <option value="Cotton Concepts_ Karur">Cotton Concepts, Karur Factory</option>
-                                            <option value="Doctor Towels_ Karur">Doctor Towels, Karur</option>
-                                        </select>
-                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-500">
-                                            <span className="material-symbols-outlined">expand_more</span>
-                                        </div>
-                                    </div>
+                                    <CustomSelect
+                                        placeholder="Select a branch"
+                                        options={[
+                                            { value: 'Cotton Concepts HO_ Coimbatore', label: 'Cotton Concepts HO, Coimbatore' },
+                                            { value: 'Doctor Towels HO', label: 'Doctor Towels HO' },
+                                            { value: 'Cotton Concepts_ Vengamedu', label: 'Cotton Concepts, Vengamedu' },
+                                            { value: 'Cotton Concepts_ Karur', label: 'Cotton Concepts, Karur Factory' },
+                                            { value: 'Doctor Towels_ Karur', label: 'Doctor Towels, Karur' }
+                                        ]}
+                                        value={formData.branch}
+                                        onChange={(val) => setFormData(prev => ({ ...prev, branch: val }))}
+                                    />
                                 </div>
 
                                 <button
@@ -248,12 +282,23 @@ const TicketForm = () => {
 
                 {/* ── Success Modal Overlay ── */}
                 {status === 'success' && ticketId && (
-                    <div className="fixed top-0 left-0 w-full h-[100dvh] z-50 flex items-center justify-center bg-black/50 backdrop-blur-md">
-                        <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md mx-4 p-8 text-center text-slate-800 dark:text-white">
-                            {/* Icon */}
-                            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-50 dark:bg-green-900/20 mx-auto mb-4">
-                                <span className="material-icons text-green-500" style={{ fontSize: '32px' }}>check_circle</span>
-                            </div>
+                    <div className="fixed top-0 left-0 w-full h-[100dvh] z-50 flex items-center justify-center bg-black/50 backdrop-blur-md p-4">
+                        <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md p-8 text-center text-slate-800 dark:text-white overflow-hidden">
+                            {/* Top Celebration GIF or Check Icon */}
+                            {activeGifUrl ? (
+                                <div className="-mx-8 -mt-8 mb-6 overflow-hidden rounded-t-2xl max-h-64 border-b border-slate-100 dark:border-slate-800 bg-slate-900/5 dark:bg-slate-950 flex items-center justify-center p-2">
+                                    <img
+                                        src={activeGifUrl}
+                                        alt="Celebration GIF"
+                                        className="w-full h-auto max-h-60 object-contain mx-auto rounded-lg"
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-50 dark:bg-green-900/20 mx-auto mb-4">
+                                    <span className="material-icons text-green-500" style={{ fontSize: '32px' }}>check_circle</span>
+                                </div>
+                            )}
 
                             <h3 className="text-xl font-bold mb-2">Ticket Successfully Created!</h3>
                             <p className="text-slate-500 dark:text-slate-400 mb-7">Our admin team will contact you shortly.</p>
@@ -353,84 +398,61 @@ const TicketForm = () => {
                         {/* Department */}
                         <div className="space-y-2">
                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="department">Department <span className="text-red-500">*</span></label>
-                            <select
-                                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                                id="department"
-                                name="department"
-                                required
-                                value={formData.department}
-                                onChange={handleChange}
-                                disabled={departmentsLoading || !formData.supportType}
-                            >
-                                <option value="">{departmentsLoading ? 'Loading Departments...' : 'Select a department'}</option>
-                                {departments
+                            <CustomSelect
+                                placeholder={departmentsLoading ? 'Loading Departments...' : 'Select a department'}
+                                options={departments
                                     .filter(d => d.support_type.includes(formData.supportType))
-                                    .map(d => (
-                                        <option key={d.id} value={d.name}>{d.name}</option>
-                                    ))}
-                            </select>
+                                    .map(d => ({ value: d.name, label: d.name }))}
+                                value={formData.department}
+                                onChange={(val) => handleChange({ target: { name: 'department', value: val } })}
+                                disabled={departmentsLoading || !formData.supportType}
+                            />
                         </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Issue Category */}
                         <div className="space-y-2">
                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="category">Category <span className="text-red-500">*</span></label>
-                            <select
-                                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                                id="category"
-                                name="category"
-                                required
-                                value={formData.category}
-                                onChange={handleChange}
-                                disabled={categoriesLoading || !formData.supportType}
-                            >
-                                <option value="">{categoriesLoading ? 'Loading Categories...' : 'Select a category'}</option>
-                                {categories
+                            <CustomSelect
+                                placeholder={categoriesLoading ? 'Loading Categories...' : 'Select a category'}
+                                options={categories
                                     .filter(c => c.support_type.includes(formData.supportType))
-                                    .map(c => (
-                                        <option key={c.id} value={c.name}>{c.name}</option>
-                                    ))}
-                            </select>
+                                    .map(c => ({ value: c.name, label: c.name }))}
+                                value={formData.category}
+                                onChange={(val) => handleChange({ target: { name: 'category', value: val } })}
+                                disabled={categoriesLoading || !formData.supportType}
+                            />
                         </div>
                         {/* Sub Category - Material Request Only */}
                         {formData.category === 'Material request' && (
                             <div className="space-y-2">
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="subCategory">Sub Category <span className="text-red-500">*</span></label>
-                                <select
-                                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                                    id="subCategory"
-                                    name="subCategory"
-                                    required
+                                <CustomSelect
+                                    placeholder="Select type"
+                                    options={[
+                                        'New request',
+                                        'Replacement',
+                                        'Broken/Lost',
+                                        'Temporary request'
+                                    ]}
                                     value={formData.subCategory}
-                                    onChange={handleChange}
-                                >
-                                    <option value="">Select type</option>
-                                    <option value="New request">New request</option>
-                                    <option value="Replacement">Replacement</option>
-                                    <option value="Broken/Lost">Broken/Lost</option>
-                                    <option value="Temporary request">Temporary request</option>
-                                </select>
+                                    onChange={(val) => handleChange({ target: { name: 'subCategory', value: val } })}
+                                />
                             </div>
                         )}
                         {/* Mode — hidden for Material Request */}
                         {formData.category !== 'Material request' && (
                             <div className="space-y-2">
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="mode">Mode <span className="text-red-500">*</span></label>
-                                <select
-                                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                                    id="mode"
-                                    name="mode"
-                                    required
+                                <CustomSelect
+                                    placeholder="Select mode"
+                                    options={[
+                                        ...(formData.category !== 'Printer issues' ? [{ value: 'Remote', label: 'Remote Support' }] : []),
+                                        { value: 'User End Support', label: 'User End Support' }
+                                    ]}
                                     value={formData.mode}
-                                    onChange={handleChange}
-                                >
-                                    <option value="">Select mode</option>
-                                    {formData.category !== 'Printer issues' && (
-                                        <option value="Remote">Remote Support</option>
-                                    )}
-                                    <option value="User End Support">User End Support</option>
-                                </select>
-
+                                    onChange={(val) => handleChange({ target: { name: 'mode', value: val } })}
+                                />
                             </div>
                         )}
                     </div>

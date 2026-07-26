@@ -979,12 +979,12 @@ const PettyCash = () => {
 											<th className="p-4">Date</th>
 											<th className="p-4">Category</th>
 											<th className="p-4">Purpose</th>
-											<th className="p-4">Receiver</th>
-											<th className="p-4">Verified By</th>
 											<th className="p-4">Description</th>
 											<th className="p-4 font-semibold text-red-600 dark:text-red-400 text-right">Debit (₹)</th>
 											<th className="p-4 font-semibold text-emerald-600 dark:text-emerald-400 text-right">Credit (₹)</th>
+											<th className="p-4">Verified By</th>
 											<th className="p-4">Approved By</th>
+											<th className="p-4">Receiver</th>
 											{hasActionPermission && <th className="p-4 text-right font-semibold">Actions</th>}
 										</tr>
 									</thead>
@@ -1002,12 +1002,12 @@ const PettyCash = () => {
 													</div>
 												</td>
 												<td className="px-4 py-2 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : exp.submitted_by}</td>
-												<td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.type === 'credit' ? '-' : (exp.receiver_name || '-')}</td>
-												<td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.type === 'credit' ? '-' : (exp.verified_by || '-')}</td>
 												<td className="px-4 py-2 max-w-[200px] truncate" title={exp.description}>{exp.description}</td>
 												<td className="px-4 py-2 font-bold text-[#ec1d22] text-right">{exp.type !== 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
 												<td className="px-4 py-2 font-bold text-emerald-600 dark:text-emerald-400 text-right">{exp.type === 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+												<td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.type === 'credit' ? '-' : (exp.verified_by || '-')}</td>
 												<td className="px-4 py-2 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : (exp.approved_by || '-')}</td>
+												<td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.type === 'credit' ? '-' : (exp.receiver_name || '-')}</td>
 												{hasActionPermission && (
 													<td className="px-4 py-2 text-right">
 														{exp.type === 'credit' && (hasEditPermission || hasDeletePermission) && (

@@ -24,6 +24,8 @@ from database import (
 
 import os
 import io
+import json
+import time
 import random
 import string
 import smtplib
@@ -31,6 +33,7 @@ import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import threading
+from database import get_app_setting, set_app_setting
 
 DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'dist'))
 app = Flask(__name__)
@@ -3204,12 +3207,72 @@ def api_petty_cash_ledger_all():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/petty-cash/reports/export', methods=['GET'])
-def api_petty_cash_export():
+
+DEFAULT_TICKET_GIF_SETTING = {
+    "enabled": True,
+    "display_on_submit": True,
+    "display_on_resolve": True,
+    "default_gif_url": "https://media.giphy.com/media/g9582DNuQppxC/giphy.gif",
+    "gif_url": "https://media.giphy.com/media/g9582DNuQppxC/giphy.gif",
+    "rules": []
+}
+
+@app.route('/api/settings/ticket-gif', methods=['GET'])
+def get_ticket_gif_setting_route():
     try:
-        return jsonify({"message": "Use frontend export for now"}), 200
+        raw = get_app_setting('ticket_gif')
+        if raw:
+            data = json.loads(raw)
+        else:
+            data = DEFAULT_TICKET_GIF_SETTING
+        return jsonify(data), 200
     except Exception as e:
+        return jsonify(DEFAULT_TICKET_GIF_SETTING), 200
+
+@app.route('/api/settings/ticket-gif', methods=['POST'])
+def save_ticket_gif_setting_route():
+    try:
+        gif_url = None
+        if 'gif_file' in request.files:
+            file = request.files['gif_file']
+            if file and file.filename != '':
+                uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads')
+                os.makedirs(uploads_dir, exist_ok=True)
+                ext = os.path.splitext(file.filename)[1] or '.gif'
+                filename = f"ticket_gif_{int(time.time())}{ext}"
+                filepath = os.path.join(uploads_dir, filename)
+                file.save(filepath)
+                gif_url = f"/uploads/{filename}"
+
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form.to_dict()
+            if 'enabled' in data:
+                data['enabled'] = str(data['enabled']).lower() in ['true', '1']
+            if 'display_on_submit' in data:
+                data['display_on_submit'] = str(data['display_on_submit']).lower() in ['true', '1']
+            if 'display_on_resolve' in data:
+                data['display_on_resolve'] = str(data['display_on_resolve']).lower() in ['true', '1']
+
+        if gif_url:
+            data['gif_url'] = gif_url
+
+        # Get existing setting or default
+        raw = get_app_setting('ticket_gif')
+        existing = json.loads(raw) if raw else DEFAULT_TICKET_GIF_SETTING
+        merged = {**existing, **data}
+        set_app_setting('ticket_gif', json.dumps(merged))
+        return jsonify({"message": "Ticket GIF settings updated successfully.", "settings": merged}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+@app.route('/uploads/<path:filename>')
+def serve_uploads(filename):
+    uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads')
+    return send_from_directory(uploads_dir, filename)
 
 
 if __name__ == '__main__':
