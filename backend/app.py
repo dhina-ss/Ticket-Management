@@ -2342,51 +2342,97 @@ try:
     courier_app = create_courier_app('development')
     # Initialize database tables
     with courier_app.app_context():
+        # 1. Create tables if they do not exist
         courier_app_pkg.db.create_all()
         
-        # Run user table column migrations (SQLite-safe)
+        # 2. Check table schema and ensure all required columns exist (PostgreSQL / SQLite safe)
         try:
             from sqlalchemy import text, inspect as sqla_inspect
             db_obj = courier_app_pkg.db
             inspector = sqla_inspect(db_obj.engine)
+            table_names = inspector.get_table_names()
 
-            if 'couriers' in inspector.get_table_names():
-                courier_existing = {c['name'] for c in inspector.get_columns('couriers')}
-                if 'creator_email' not in courier_existing:
-                    db_obj.session.execute(text("ALTER TABLE couriers ADD COLUMN creator_email VARCHAR(150);"))
-                    db_obj.session.commit()
-
-            if 'users' in inspector.get_table_names():
-                existing = {c['name'] for c in inspector.get_columns('users')}
-                new_cols = [
-                    ("perm_view_cost",    "BOOLEAN DEFAULT 0"),
-                    ("perm_view_reports", "BOOLEAN DEFAULT 1"),
-                    ("perm_view_entries", "BOOLEAN DEFAULT 1"),
-                    ("perm_add",          "BOOLEAN DEFAULT 1"),
-                    ("perm_edit",         "BOOLEAN DEFAULT 0"),
-                    ("perm_delete",       "BOOLEAN DEFAULT 0"),
-                ]
-                with db_obj.engine.connect() as conn:
-                    for col, typedef in new_cols:
-                        if col not in existing:
-                            conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {typedef}"))
-                    conn.commit()
-            if 'couriers' in inspector.get_table_names():
+            if 'couriers' in table_names:
                 existing_couriers = {c['name'] for c in inspector.get_columns('couriers')}
-                new_couriers_cols = [
-                    ("item",     "VARCHAR(100)"),
-                    ("ref_type", "VARCHAR(50)"),
+                required_couriers_cols = [
+                    ("branch_id",            "INTEGER"),
+                    ("created_by",           "INTEGER"),
+                    ("creator_email",        "VARCHAR(150)"),
+                    ("created_at",           "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                    ("date",                 "DATE"),
+                    ("transaction_type",     "VARCHAR(20) DEFAULT 'Dispatch'"),
+                    ("sender",               "VARCHAR(100)"),
+                    ("department",           "VARCHAR(50)"),
+                    ("sending_from",         "VARCHAR(100)"),
+                    ("receiver",             "VARCHAR(100)"),
+                    ("receiver_office",      "VARCHAR(100)"),
+                    ("supplier_buyer_type",  "VARCHAR(50)"),
+                    ("supplier_buyer_name",  "VARCHAR(150)"),
+                    ("destination",          "VARCHAR(100)"),
+                    ("product_description",  "VARCHAR(200)"),
+                    ("package_type",         "VARCHAR(50)"),
+                    ("num_packages",         "INTEGER DEFAULT 1"),
+                    ("order_related",        "VARCHAR(5) DEFAULT 'NO'"),
+                    ("order_reference",      "VARCHAR(200)"),
+                    ("budgeted",             "VARCHAR(20) DEFAULT 'Non Budgeted'"),
+                    ("courier_name",         "VARCHAR(50)"),
+                    ("awb_no",               "VARCHAR(100)"),
+                    ("weight_kg",            "FLOAT"),
+                    ("box_measurement",      "VARCHAR(100)"),
+                    ("chargeable_weight",    "FLOAT"),
+                    ("courier_cost",         "FLOAT DEFAULT 0"),
+                    ("payment_mode",         "VARCHAR(50)"),
+                    ("remarks",              "TEXT"),
+                    ("item",                 "VARCHAR(100)"),
+                    ("ref_type",             "VARCHAR(50)"),
                 ]
                 with db_obj.engine.connect() as conn:
-                    for col, typedef in new_couriers_cols:
+                    for col, typedef in required_couriers_cols:
                         if col not in existing_couriers:
-                            conn.execute(text(f"ALTER TABLE couriers ADD COLUMN {col} {typedef}"))
+                            try:
+                                conn.execute(text(f"ALTER TABLE couriers ADD COLUMN {col} {typedef}"))
+                            except Exception as e_col:
+                                print(f"Warning: Failed to add column {col} to couriers: {e_col}")
+                    conn.commit()
+
+            if 'users' in table_names:
+                existing_users = {c['name'] for c in inspector.get_columns('users')}
+                new_users_cols = [
+                    ("perm_view_cost",    "BOOLEAN DEFAULT FALSE"),
+                    ("perm_view_reports", "BOOLEAN DEFAULT TRUE"),
+                    ("perm_view_entries", "BOOLEAN DEFAULT TRUE"),
+                    ("perm_add",          "BOOLEAN DEFAULT TRUE"),
+                    ("perm_edit",         "BOOLEAN DEFAULT FALSE"),
+                    ("perm_delete",       "BOOLEAN DEFAULT FALSE"),
+                ]
+                with db_obj.engine.connect() as conn:
+                    for col, typedef in new_users_cols:
+                        if col not in existing_users:
+                            try:
+                                conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {typedef}"))
+                            except Exception as e_col:
+                                print(f"Warning: Failed to add column {col} to users: {e_col}")
                     conn.commit()
         except Exception as ex_mig:
             print(f"DEBUG: Courier schema migration error: {ex_mig}")
             
-        # Seed lookups (skip if already exist)
+        # Seed default branches and lookups (skip if already exist)
         try:
+            Branch = courier_app_pkg.models.Branch
+            if Branch.query.count() == 0:
+                default_branches = [
+                    ('Cotton Concepts HO_ Coimbatore', 'CCCD-HO', 'Coimbatore', 'CCCD'),
+                    ('Doctor Towels HO',  'DST-HO',  'Coimbatore', 'DST'),
+                    ('Cotton Concepts_ Vengamedu',     'CC-VNG',  'Karur',       'CCCD'),
+                    ('Cotton Concepts_ Karur',         'CC-KRR',  'Karur',       'CCCD'),
+                    ('Doctor Towels_ Karur',           'DST-KRR',  'Karur',       'DST'),
+                ]
+                for name, code, loc, company in default_branches:
+                    b = Branch(name=name, code=code, location=loc, company=company)
+                    db_obj.session.add(b)
+                db_obj.session.commit()
+                print("DEBUG: Courier seeded default branches")
+
             LookupItem = courier_app_pkg.models.LookupItem
             DEPARTMENTS = ['Merch', 'Marketing', 'PD', 'Factory Merch', 'Docs',
                            'Accounts', 'Admin', 'DST', 'IT', 'Design', 'BIU']
@@ -2541,46 +2587,89 @@ def api_courier_entries():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def _safe_float(val, default=None):
+    if val is None or val == '':
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+def _safe_int(val, default=1):
+    if val is None or val == '':
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+def _resolve_branch_id(branch_val, default=1):
+    try:
+        Branch = courier_app_pkg.models.Branch
+        if branch_val:
+            if isinstance(branch_val, int):
+                b = Branch.query.get(branch_val)
+                if b:
+                    return b.id
+            elif isinstance(branch_val, str):
+                if branch_val.isdigit():
+                    b = Branch.query.get(int(branch_val))
+                    if b:
+                        return b.id
+                b = Branch.query.filter_by(name=branch_val.strip()).first()
+                if b:
+                    return b.id
+        
+        first_b = Branch.query.first()
+        if first_b:
+            return first_b.id
+    except Exception:
+        pass
+    return default
+
 @app.route('/api/courier/entries', methods=['POST'])
 def api_courier_create():
     try:
         from datetime import date
         data = request.json or {}
         with courier_app.app_context():
+            branch_id = _resolve_branch_id(data.get('branch_id'), 1)
             c = courier_app_pkg.models.Courier(
-                branch_id=data.get('branch_id') or 1,
+                branch_id=branch_id,
                 date=date.fromisoformat(data['date']) if data.get('date') else date.today(),
                 transaction_type=data.get('transaction_type', 'Dispatch'),
-                sender=data.get('sender', '').strip(),
-                department=data.get('department', '').strip(),
-                sending_from=data.get('sending_from', '').strip(),
-                receiver=data.get('receiver', '').strip(),
-                receiver_office=data.get('receiver_office', '').strip(),
-                supplier_buyer_type=data.get('supplier_buyer_type', '').strip(),
-                supplier_buyer_name=data.get('supplier_buyer_name', '').strip(),
-                destination=data.get('destination', '').strip(),
-                product_description=data.get('product_description', '').strip(),
-                package_type=data.get('package_type', '').strip(),
-                num_packages=int(data.get('num_packages', 1) or 1),
+                sender=(data.get('sender') or '').strip(),
+                department=(data.get('department') or '').strip(),
+                sending_from=(data.get('sending_from') or '').strip(),
+                receiver=(data.get('receiver') or '').strip(),
+                receiver_office=(data.get('receiver_office') or '').strip(),
+                supplier_buyer_type=(data.get('supplier_buyer_type') or '').strip(),
+                supplier_buyer_name=(data.get('supplier_buyer_name') or '').strip(),
+                destination=(data.get('destination') or '').strip(),
+                product_description=(data.get('product_description') or '').strip(),
+                package_type=(data.get('package_type') or '').strip(),
+                num_packages=_safe_int(data.get('num_packages'), 1),
                 order_related=data.get('order_related', 'NO'),
-                order_reference=data.get('order_reference', '').strip(),
+                order_reference=(data.get('order_reference') or '').strip(),
                 budgeted=data.get('budgeted', 'Non Budgeted'),
-                courier_name=data.get('courier_name', '').strip(),
-                awb_no=data.get('awb_no', '').strip(),
-                weight_kg=float(data['weight_kg']) if data.get('weight_kg') else None,
-                box_measurement=data.get('box_measurement', '').strip(),
-                chargeable_weight=float(data['chargeable_weight']) if data.get('chargeable_weight') else None,
-                courier_cost=float(data.get('courier_cost', 0) or 0),
-                payment_mode=data.get('payment_mode', '').strip(),
-                remarks=data.get('remarks', '').strip(),
-                item=data.get('item', '').strip(),
-                ref_type=data.get('ref_type', '').strip(),
-                creator_email=data.get('creator_email', '').strip()
+                courier_name=(data.get('courier_name') or '').strip(),
+                awb_no=(data.get('awb_no') or '').strip(),
+                weight_kg=_safe_float(data.get('weight_kg'), None),
+                box_measurement=(data.get('box_measurement') or '').strip(),
+                chargeable_weight=_safe_float(data.get('chargeable_weight'), None),
+                courier_cost=_safe_float(data.get('courier_cost'), 0.0) or 0.0,
+                payment_mode=(data.get('payment_mode') or '').strip(),
+                remarks=(data.get('remarks') or '').strip(),
+                item=(data.get('item') or '').strip(),
+                ref_type=(data.get('ref_type') or '').strip(),
+                creator_email=(data.get('creator_email') or '').strip()
             )
             courier_app_pkg.db.session.add(c)
             courier_app_pkg.db.session.commit()
             return jsonify({"success": True, "id": c.id}), 201
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/courier/entries/<int:entry_id>', methods=['PUT'])
@@ -2590,38 +2679,50 @@ def api_courier_update(entry_id):
         data = request.json or {}
         with courier_app.app_context():
             c = courier_app_pkg.models.Courier.query.get_or_404(entry_id)
-            c.branch_id = data.get('branch_id', c.branch_id)
+            if 'branch_id' in data and data['branch_id']:
+                c.branch_id = _resolve_branch_id(data['branch_id'], c.branch_id)
             if data.get('date'):
-                c.date = date.fromisoformat(data['date'])
+                try:
+                    c.date = date.fromisoformat(data['date'])
+                except Exception:
+                    pass
             c.transaction_type = data.get('transaction_type', c.transaction_type)
-            c.sender = data.get('sender', c.sender).strip()
-            c.department = data.get('department', c.department).strip()
-            c.sending_from = data.get('sending_from', c.sending_from).strip()
-            c.receiver = data.get('receiver', c.receiver).strip()
-            c.receiver_office = data.get('receiver_office', c.receiver_office).strip()
-            c.supplier_buyer_type = data.get('supplier_buyer_type', c.supplier_buyer_type).strip()
-            c.supplier_buyer_name = data.get('supplier_buyer_name', c.supplier_buyer_name).strip()
-            c.destination = data.get('destination', c.destination).strip()
-            c.product_description = data.get('product_description', c.product_description).strip()
-            c.package_type = data.get('package_type', c.package_type).strip()
-            c.num_packages = int(data.get('num_packages', c.num_packages) or 1)
+            c.sender = (data.get('sender') if 'sender' in data else (c.sender or '')).strip()
+            c.department = (data.get('department') if 'department' in data else (c.department or '')).strip()
+            c.sending_from = (data.get('sending_from') if 'sending_from' in data else (c.sending_from or '')).strip()
+            c.receiver = (data.get('receiver') if 'receiver' in data else (c.receiver or '')).strip()
+            c.receiver_office = (data.get('receiver_office') if 'receiver_office' in data else (c.receiver_office or '')).strip()
+            c.supplier_buyer_type = (data.get('supplier_buyer_type') if 'supplier_buyer_type' in data else (c.supplier_buyer_type or '')).strip()
+            c.supplier_buyer_name = (data.get('supplier_buyer_name') if 'supplier_buyer_name' in data else (c.supplier_buyer_name or '')).strip()
+            c.destination = (data.get('destination') if 'destination' in data else (c.destination or '')).strip()
+            c.product_description = (data.get('product_description') if 'product_description' in data else (c.product_description or '')).strip()
+            c.package_type = (data.get('package_type') if 'package_type' in data else (c.package_type or '')).strip()
+            if 'num_packages' in data:
+                c.num_packages = _safe_int(data.get('num_packages'), c.num_packages or 1)
             c.order_related = data.get('order_related', c.order_related)
-            c.order_reference = data.get('order_reference', c.order_reference).strip()
+            c.order_reference = (data.get('order_reference') if 'order_reference' in data else (c.order_reference or '')).strip()
             c.budgeted = data.get('budgeted', c.budgeted)
-            c.courier_name = data.get('courier_name', c.courier_name).strip()
-            c.awb_no = data.get('awb_no', c.awb_no).strip()
-            c.weight_kg = float(data['weight_kg']) if data.get('weight_kg') is not None else c.weight_kg
-            c.box_measurement = data.get('box_measurement', c.box_measurement).strip()
-            c.chargeable_weight = float(data['chargeable_weight']) if data.get('chargeable_weight') is not None else c.chargeable_weight
-            c.courier_cost = float(data.get('courier_cost', c.courier_cost) or 0)
-            c.payment_mode = data.get('payment_mode', c.payment_mode).strip()
-            c.remarks = data.get('remarks', c.remarks).strip()
-            c.item = data.get('item', c.item).strip()
-            c.ref_type = data.get('ref_type', c.ref_type).strip()
-            c.creator_email = data.get('creator_email', getattr(c, 'creator_email', '')).strip()
+            c.courier_name = (data.get('courier_name') if 'courier_name' in data else (c.courier_name or '')).strip()
+            c.awb_no = (data.get('awb_no') if 'awb_no' in data else (c.awb_no or '')).strip()
+            if 'weight_kg' in data:
+                c.weight_kg = _safe_float(data.get('weight_kg'), None)
+            c.box_measurement = (data.get('box_measurement') if 'box_measurement' in data else (c.box_measurement or '')).strip()
+            if 'chargeable_weight' in data:
+                c.chargeable_weight = _safe_float(data.get('chargeable_weight'), None)
+            if 'courier_cost' in data:
+                c.courier_cost = _safe_float(data.get('courier_cost'), 0.0) or 0.0
+            c.payment_mode = (data.get('payment_mode') if 'payment_mode' in data else (c.payment_mode or '')).strip()
+            c.remarks = (data.get('remarks') if 'remarks' in data else (c.remarks or '')).strip()
+            c.item = (data.get('item') if 'item' in data else (c.item or '')).strip()
+            c.ref_type = (data.get('ref_type') if 'ref_type' in data else (c.ref_type or '')).strip()
+            if 'creator_email' in data:
+                c.creator_email = (data.get('creator_email') or '').strip()
+
             courier_app_pkg.db.session.commit()
             return jsonify({"success": True}), 200
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/courier/entries/<int:entry_id>', methods=['DELETE'])

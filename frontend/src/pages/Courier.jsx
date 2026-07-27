@@ -163,6 +163,28 @@ const Courier = () => {
 	const [showModal, setShowModal] = useState(false);
 	const [editingEntry, setEditingEntry] = useState(null);
 	const [successModal, setSuccessModal] = useState({ show: false, type: '', id: '' });
+	const [deleteModal, setDeleteModal] = useState({ show: false, entry: null });
+
+	// Handle Delete Click (Open Modal)
+	const handleDeleteClick = (entry) => {
+		setDeleteModal({ show: true, entry });
+	};
+
+	// Confirm Delete Handler
+	const confirmDelete = async () => {
+		if (!deleteModal.entry) return;
+		try {
+			const res = await api.delete(`/api/courier/entries/${deleteModal.entry.id}`);
+			if (res.status === 200) {
+				fetchEntries();
+				setDeleteModal({ show: false, entry: null });
+				setSuccessModal({ show: true, type: 'Delete', id: 'Courier Entry' });
+			}
+		} catch (err) {
+			console.error('Error deleting courier entry:', err);
+			alert('Error deleting entry');
+		}
+	};
 
 	// Form State
 	const [formData, setFormData] = useState({
@@ -265,18 +287,7 @@ const Courier = () => {
 		}
 	};
 
-	// Handle Delete
-	const handleDelete = async (id) => {
-		if (!window.confirm('Are you sure you want to delete this entry?')) return;
-		try {
-			const res = await api.delete(`/api/courier/entries/${id}`);
-			if (res.status === 200) {
-				fetchEntries();
-			}
-		} catch (err) {
-			console.error('Error deleting courier entry:', err);
-		}
-	};
+
 
 	// Open Modal for Add
 	const handleOpenAdd = () => {
@@ -306,7 +317,7 @@ const Courier = () => {
 			courier_cost: 0,
 			payment_mode: '',
 			remarks: '',
-			branch_id: '',
+			branch_id: lookups.branches[0]?.id || 1,
 			item: '',
 			ref_type: 'PI'
 		});
@@ -340,13 +351,13 @@ const Courier = () => {
 			budgeted: entry.budgeted || 'Non Budgeted',
 			courier_name: entry.courier_name || '',
 			awb_no: entry.awb_no || '',
-			weight_kg: entry.weight_kg !== null ? entry.weight_kg : '',
+			weight_kg: entry.weight_kg !== null && entry.weight_kg !== undefined ? entry.weight_kg : '',
 			box_measurement: entry.box_measurement || '',
-			chargeable_weight: entry.chargeable_weight !== null ? entry.chargeable_weight : '',
+			chargeable_weight: entry.chargeable_weight !== null && entry.chargeable_weight !== undefined ? entry.chargeable_weight : '',
 			courier_cost: entry.courier_cost || 0,
 			payment_mode: entry.payment_mode || '',
 			remarks: entry.remarks || '',
-			branch_id: entry.branch_id || '',
+			branch_id: entry.branch_id || (lookups.branches[0]?.id || 1),
 			item: entry.item || '',
 			ref_type: entry.ref_type || 'PI'
 		});
@@ -740,7 +751,7 @@ const Courier = () => {
 												)}
 												{hasEditPermission && (
 													<td className="px-4 py-2 text-right">
-														<div className="flex items-center justify-end gap-2">
+														<div className="flex items-center justify-end gap-1">
 															<button
 																onClick={(e) => { e.stopPropagation(); handleOpenEdit(entry); }}
 																className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
@@ -748,7 +759,7 @@ const Courier = () => {
 																<span className="material-symbols-outlined text-lg">edit</span>
 															</button>
 															<button
-																onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }}
+																onClick={(e) => { e.stopPropagation(); handleDeleteClick(entry); }}
 																className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
 															>
 																<span className="material-symbols-outlined text-lg">delete</span>
@@ -835,7 +846,7 @@ const Courier = () => {
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 								{/* Date */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date *</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date <span className="text-red-500"> *</span></label>
 									<input
 										type="date"
 										required
@@ -847,16 +858,19 @@ const Courier = () => {
 
 								{/* Branch */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Branch *</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Branch <span className="text-red-500"> *</span></label>
 									<SelectDropdown
 										label="Select Branch"
-										options={[
-											{ label: 'Cotton Concepts HO_ Coimbatore', value: 'Cotton Concepts HO_ Coimbatore' },
-											{ label: 'Doctor Towels HO', value: 'Doctor Towels HO' },
-											{ label: 'Cotton Concepts_ Vengamedu', value: 'Cotton Concepts_ Vengamedu' },
-											{ label: 'Cotton Concepts_ Karur', value: 'Cotton Concepts_ Karur' },
-											{ label: 'Doctor Towels_ Karur', value: 'Doctor Towels_ Karur' }
-										]}
+										options={lookups.branches?.length > 0
+											? lookups.branches.map(b => ({ label: b.name, value: b.id }))
+											: [
+												{ label: 'Cotton Concepts HO_ Coimbatore', value: 1 },
+												{ label: 'Doctor Towels HO', value: 2 },
+												{ label: 'Cotton Concepts_ Vengamedu', value: 3 },
+												{ label: 'Cotton Concepts_ Karur', value: 4 },
+												{ label: 'Doctor Towels_ Karur', value: 5 }
+											]
+										}
 										value={formData.branch_id}
 										onChange={val => setFormData(prev => ({ ...prev, branch_id: val }))}
 									/>
@@ -866,7 +880,7 @@ const Courier = () => {
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 								{/* Transaction Type */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Transaction Type</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Transaction Type<span className="text-red-500"> *</span></label>
 									<SelectDropdown
 										label="Transaction Type"
 										options={[
@@ -881,7 +895,7 @@ const Courier = () => {
 
 								{/* Department */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department<span className="text-red-500"> *</span></label>
 									<SelectDropdown
 										label="Select Department"
 										options={lookups.departments.map(d => ({ label: d, value: d }))}
@@ -1024,12 +1038,15 @@ const Courier = () => {
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Courier Operator</label>
 									<SelectDropdown
 										label="Courier Operator"
-										options={[
-											{ label: 'DTDC Courier', value: 'DTDC Courier' },
-											{ label: 'RK Courier', value: 'RK Courier' },
-											{ label: 'NEW Logistics', value: 'NEW Logistics' },
-											{ label: 'Air Cargo', value: 'Air Cargo' }
-										]}
+										options={lookups.courier_names?.length > 0
+											? lookups.courier_names.map(c => ({ label: c, value: c }))
+											: [
+												{ label: 'DTDC Courier', value: 'DTDC Courier' },
+												{ label: 'RK Courier', value: 'RK Courier' },
+												{ label: 'NEW Logistics', value: 'NEW Logistics' },
+												{ label: 'Air Cargo', value: 'Air Cargo' }
+											]
+										}
 										value={formData.courier_name}
 										onChange={val => setFormData(prev => ({ ...prev, courier_name: val }))}
 										disabled={!isAdmin}
@@ -1070,10 +1087,7 @@ const Courier = () => {
 											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Budgeted status</label>
 											<SelectDropdown
 												label="Budgeted status"
-												options={[
-													{ label: 'Non Budgeted', value: 'Non Budgeted' },
-													{ label: 'Budgeted', value: 'Budgeted' }
-												]}
+												options={(lookups.budget_statuses?.length > 0 ? lookups.budget_statuses : ['Non Budgeted', 'Budgeted']).map(b => ({ label: b, value: b }))}
 												value={formData.budgeted}
 												onChange={val => setFormData(prev => ({ ...prev, budgeted: val }))}
 											/>
@@ -1084,10 +1098,7 @@ const Courier = () => {
 											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Payment Mode</label>
 											<SelectDropdown
 												label="Payment Mode"
-												options={[
-													{ label: 'Net Banking', value: 'Net Banking' },
-													{ label: 'Cash', value: 'Cash' }
-												]}
+												options={(lookups.payment_modes?.length > 0 ? lookups.payment_modes : ['Net Banking', 'Cash']).map(p => ({ label: p, value: p }))}
 												value={formData.payment_mode}
 												onChange={val => setFormData(prev => ({ ...prev, payment_mode: val }))}
 											/>
@@ -1100,10 +1111,7 @@ const Courier = () => {
 											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Package Type</label>
 											<SelectDropdown
 												label="Package Type"
-												options={[
-													{ label: 'Cover', value: 'Cover' },
-													{ label: 'Box', value: 'Box' }
-												]}
+												options={(lookups.package_types?.length > 0 ? lookups.package_types : ['Cover', 'Box']).map(p => ({ label: p, value: p }))}
 												value={formData.package_type}
 												onChange={val => setFormData(prev => ({ ...prev, package_type: val }))}
 											/>
@@ -1291,6 +1299,42 @@ const Courier = () => {
 					</div>
 				</div>
 			)}
+			{/* DELETE CONFIRMATION MODAL CARD */}
+			{deleteModal.show && (
+				<div
+					className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200"
+					onClick={() => setDeleteModal({ show: false, entry: null })}
+				>
+					<div
+						className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200 flex flex-col items-center"
+						onClick={e => e.stopPropagation()}
+					>
+						<div className="h-16 w-16 rounded-full bg-red-100 dark:bg-red-950/40 text-red-500 flex items-center justify-center mb-4 border border-red-200 dark:border-red-900/30 shadow-md">
+							<span className="material-symbols-outlined text-[34px]">delete_forever</span>
+						</div>
+						<h3 className="text-lg font-extrabold text-slate-900 dark:text-white font-display">Confirm Deletion</h3>
+						<p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+							Are you sure you want to delete courier record <strong className="text-slate-700 dark:text-slate-300 font-semibold">{deleteModal.entry?.awb_no ? `(AWB: ${deleteModal.entry.awb_no})` : ''}</strong>? This action cannot be undone.
+						</p>
+						<div className="mt-6 flex items-center gap-3 w-full">
+							<button
+								type="button"
+								onClick={() => setDeleteModal({ show: false, entry: null })}
+								className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all cursor-pointer text-sm border-0"
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								onClick={confirmDelete}
+								className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-500/20 active:scale-[0.98] cursor-pointer text-sm border-0"
+							>
+								Delete
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 			{/* SUCCESS MODAL CARD */}
 			{successModal.show && (
 				<div className="fixed inset-0 bg-slate-955/60 backdrop-blur-md z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setSuccessModal({ ...successModal, show: false })}>
@@ -1298,9 +1342,11 @@ const Courier = () => {
 						<div className="h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-500 flex items-center justify-center mb-4 border border-emerald-200 shadow-md">
 							<span className="material-symbols-outlined text-[36px]">check_circle</span>
 						</div>
-						<h3 className="text-lg font-extrabold text-slate-900 dark:text-white font-display">{successModal.type === 'Add' ? 'Added Successfully' : 'Update Successful'}</h3>
+						<h3 className="text-lg font-extrabold text-slate-900 dark:text-white font-display">
+							{successModal.type === 'Add' ? 'Added Successfully' : successModal.type === 'Delete' ? 'Deleted Successfully' : 'Update Successful'}
+						</h3>
 						<p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-							<strong className="text-slate-700 dark:text-slate-300 font-semibold">{successModal.id}</strong> has been {successModal.type === 'Add' ? 'added' : 'updated'} successfully.
+							<strong className="text-slate-700 dark:text-slate-300 font-semibold">{successModal.id}</strong> has been {successModal.type === 'Add' ? 'added' : successModal.type === 'Delete' ? 'deleted' : 'updated'} successfully.
 						</p>
 						<button
 							onClick={() => setSuccessModal({ ...successModal, show: false })}
