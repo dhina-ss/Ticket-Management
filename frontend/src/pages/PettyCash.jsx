@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
@@ -165,6 +166,7 @@ const PettyCash = () => {
 		setShowAddCashModal(true);
 	};
 	const [successModal, setSuccessModal] = useState({ show: false, type: '', id: '' });
+	const [showSavingLoader, setShowSavingLoader] = useState(false);
 
 	const fetchCreditHistory = async () => {
 		setLoadingHistory(true);
@@ -387,6 +389,12 @@ const PettyCash = () => {
 			alert('Expense amount exceeds the current available balance.');
 			return;
 		}
+		const isEditing = !!editingExpense;
+		const editingId = editingExpense?.id;
+		// Close the form modal and show loading popup immediately
+		handleCloseAddModal();
+		setShowSavingLoader(true);
+		const minDelay = new Promise(resolve => setTimeout(resolve, 3000));
 		try {
 			const payload = {
 				...expenseForm,
@@ -395,8 +403,8 @@ const PettyCash = () => {
 			};
 
 			let res;
-			if (editingExpense) {
-				res = await api.put(`/api/petty-cash/expenses/${editingExpense.id}`, payload);
+			if (isEditing) {
+				res = await api.put(`/api/petty-cash/expenses/${editingId}`, payload);
 			} else {
 				res = await api.post('/api/petty-cash/expenses', payload);
 			}
@@ -404,11 +412,15 @@ const PettyCash = () => {
 			if (res.status === 200 || res.status === 201) {
 				fetchDashboard();
 				fetchExpenses();
-				handleCloseAddModal();
-				setSuccessModal({ show: true, type: editingExpense ? 'Update' : 'Add', id: 'Expense Entry' });
+				// Wait for minimum 5 seconds before hiding loader and showing success
+				await minDelay;
+				setShowSavingLoader(false);
+				setSuccessModal({ show: true, type: isEditing ? 'Update' : 'Add', id: 'Expense Entry' });
 			}
 		} catch (err) {
 			console.error('Error saving expense:', err);
+			await minDelay;
+			setShowSavingLoader(false);
 			alert('Error saving expense entry.');
 		}
 	};
@@ -1163,7 +1175,7 @@ const PettyCash = () => {
 						<form onSubmit={handleAddExpense} className="space-y-4">
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date *</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date <span className="text-red-500">*</span></label>
 									<input
 										type="date"
 										required
@@ -1173,7 +1185,7 @@ const PettyCash = () => {
 									/>
 								</div>
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Amount (INR) *</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Amount (INR) <span className="text-red-500">*</span></label>
 									<input
 										type="number"
 										step="0.01"
@@ -1198,7 +1210,7 @@ const PettyCash = () => {
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 								<div>
 									<div className="flex justify-between items-center mb-2">
-										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Category *</label>
+										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Category <span className="text-red-500">*</span></label>
 										<button type="button" onClick={() => setShowAddCategory(true)} className="text-xs font-bold text-amber-600 hover:text-amber-700 transition-colors cursor-pointer bg-transparent border-none p-0 flex items-center gap-1">
 											<span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span> Add Category
 										</button>
@@ -1211,7 +1223,7 @@ const PettyCash = () => {
 									/>
 								</div>
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory *</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory <span className="text-red-500">*</span></label>
 									<SelectDropdown
 										label="Select Subcategory"
 										options={expenseForm.category ? dashboard.subcategories[expenseForm.category] || [] : []}
@@ -1228,7 +1240,7 @@ const PettyCash = () => {
 
 							{expenseForm.subcategory === 'Other' && (
 								<div className="mb-4">
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory Remarks *</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory Remarks</label>
 									<input
 										type="text"
 										required
@@ -1242,7 +1254,7 @@ const PettyCash = () => {
 
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Purpose *</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Purpose <span className="text-red-500">*</span></label>
 									<SelectDropdown
 										label="Select Purpose"
 										options={['Admin', 'Management']}
@@ -1286,7 +1298,7 @@ const PettyCash = () => {
 							</div>
 
 							<div>
-								<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Description / Purpose *</label>
+								<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Description <span className="text-red-500">*</span></label>
 								<textarea
 									required
 									value={expenseForm.description}
@@ -1642,6 +1654,22 @@ const PettyCash = () => {
 								Delete
 							</button>
 						</div>
+					</div>
+				</div>
+			)}
+
+			{/* SAVING LOADER POPUP */}
+			{showSavingLoader && (
+				<div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[300] flex items-center justify-center p-4 animate-in fade-in duration-200">
+					<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xs shadow-2xl p-8 flex flex-col items-center gap-2 animate-in zoom-in-95 duration-200">
+						<DotLottieReact
+							src="https://lottie.host/45715c14-7eeb-4328-9642-d1938ff9443e/CpjOiAmtyO.lottie"
+							loop
+							autoplay
+							style={{ width: 160, height: 160 }}
+						/>
+						<h3 className="text-base font-extrabold text-slate-900 dark:text-white mt-1">Saving Expense...</h3>
+						<p className="text-xs text-slate-500 dark:text-slate-400 text-center">Please wait while we process your entry.</p>
 					</div>
 				</div>
 			)}
