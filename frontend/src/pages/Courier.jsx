@@ -264,7 +264,10 @@ const Courier = () => {
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		try {
-			const payload = { ...formData, creator_email: user?.email || '' };
+			const payload = {
+				...formData,
+				creator_email: editingEntry ? (editingEntry.creator_email || user?.email || '') : (user?.email || '')
+			};
 			if (editingEntry) {
 				const res = await api.put(`/api/courier/entries/${editingEntry.id}`, payload);
 				if (res.status === 200) {
@@ -295,7 +298,7 @@ const Courier = () => {
 		setFormData({
 			date: new Date().toISOString().split('T')[0],
 			transaction_type: 'Dispatch',
-			sender: '',
+			sender: user?.name || user?.email || '',
 			department: lookups.departments[0] || '',
 			sending_from: '',
 			receiver: '',

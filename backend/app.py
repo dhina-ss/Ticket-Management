@@ -2716,7 +2716,9 @@ def api_courier_update(entry_id):
             c.item = (data.get('item') if 'item' in data else (c.item or '')).strip()
             c.ref_type = (data.get('ref_type') if 'ref_type' in data else (c.ref_type or '')).strip()
             if 'creator_email' in data:
-                c.creator_email = (data.get('creator_email') or '').strip()
+                new_creator = (data.get('creator_email') or '').strip()
+                if not c.creator_email:
+                    c.creator_email = new_creator
 
             courier_app_pkg.db.session.commit()
             return jsonify({"success": True}), 200
