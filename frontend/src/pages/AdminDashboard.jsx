@@ -258,7 +258,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
     );
 
     const toggleAccess = (perm) => {
-        const currentAccessOptions = newUser.allowed_menus.includes('Petty Cash') ? [...ACCESS_OPTIONS, 'Delete'] : ACCESS_OPTIONS;
+        const currentAccessOptions = (newUser.allowed_menus.includes('Petty Cash') || newUser.allowed_menus.includes('Courier')) ? [...ACCESS_OPTIONS, 'Delete'] : ACCESS_OPTIONS;
         if (perm === 'All') {
             setNewUser(p => ({
                 ...p,
@@ -556,8 +556,8 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                                     <MultiSelectFormDropdown
                                         label="Access"
                                         icon="admin_panel_settings"
-                                        options={['All', ...(newUser.allowed_menus.includes('Petty Cash') ? [...ACCESS_OPTIONS, 'Delete'] : ACCESS_OPTIONS)]}
-                                        selected={newUser.access.length === (newUser.allowed_menus.includes('Petty Cash') ? ACCESS_OPTIONS.length + 1 : ACCESS_OPTIONS.length) ? ['All', ...newUser.access] : newUser.access}
+                                        options={['All', ...((newUser.allowed_menus.includes('Petty Cash') || newUser.allowed_menus.includes('Courier')) ? [...ACCESS_OPTIONS, 'Delete'] : ACCESS_OPTIONS)]}
+                                        selected={newUser.access.length === ((newUser.allowed_menus.includes('Petty Cash') || newUser.allowed_menus.includes('Courier')) ? ACCESS_OPTIONS.length + 1 : ACCESS_OPTIONS.length) ? ['All', ...newUser.access] : newUser.access}
                                         onChange={toggleAccess}
                                     />
                                 </div>

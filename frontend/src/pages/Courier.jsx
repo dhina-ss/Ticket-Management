@@ -63,8 +63,21 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 const Courier = () => {
 	const navigate = useNavigate();
 	const { user, isAuthenticated, logout } = useAuth();
-	const hasEditPermission = user?.email === 'admin@support.com' || user?.access === 'Edit';
 	const isAdmin = user?.email === 'admin@support.com' || user?.role === 'Super admin' || user?.role === 'admin';
+	const hasEditPermission = isAdmin || (typeof user?.access === 'string' ? user.access.includes('Edit') : Array.isArray(user?.access) ? user.access.includes('Edit') : user?.access === 'Edit');
+	const hasDeletePermission = isAdmin || (typeof user?.access === 'string' ? user.access.includes('Delete') : Array.isArray(user?.access) ? user.access.includes('Delete') : user?.access === 'Delete');
+
+	const canEditEntry = (entry) => {
+		if (hasEditPermission) return true;
+		if (entry?.creator_email && user?.email && entry.creator_email === user?.email) return true;
+		return false;
+	};
+
+	const canDeleteEntry = (entry) => {
+		if (hasDeletePermission) return true;
+		if (entry?.creator_email && user?.email && entry.creator_email === user?.email) return true;
+		return false;
+	};
 
 	// Dark mode state
 	const [darkMode, setDarkMode] = useState(() => {
@@ -705,7 +718,7 @@ const Courier = () => {
 													<th className="p-4">Remarks</th>
 												</>
 											)}
-											{hasEditPermission && <th className="p-4 text-right font-semibold">Actions</th>}
+											<th className="p-4 text-right font-semibold">Actions</th>
 										</tr>
 									</thead>
 									<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -752,24 +765,28 @@ const Courier = () => {
 														<td className="px-4 py-2 max-w-[200px] truncate" title={entry.remarks}>{entry.remarks || '-'}</td>
 													</>
 												)}
-												{hasEditPermission && (
-													<td className="px-4 py-2 text-right">
-														<div className="flex items-center justify-end gap-1">
+												<td className="px-4 py-2 text-right">
+													<div className="flex items-center justify-end gap-1">
+														{hasEditPermission && (
 															<button
 																onClick={(e) => { e.stopPropagation(); handleOpenEdit(entry); }}
+																title="Edit entry"
 																className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
 															>
 																<span className="material-symbols-outlined text-lg">edit</span>
 															</button>
+														)}
+														{hasDeletePermission && (
 															<button
 																onClick={(e) => { e.stopPropagation(); handleDeleteClick(entry); }}
+																title="Delete entry"
 																className="h-9 w-9 flex items-center justify-center p-1 text-slate-500 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
 															>
 																<span className="material-symbols-outlined text-lg">delete</span>
 															</button>
-														</div>
-													</td>
-												)}
+														)}
+													</div>
+												</td>
 											</tr>
 										))}
 									</tbody>
@@ -1201,8 +1218,20 @@ const Courier = () => {
 								Courier Details
 							</h2>
 							<div className="flex items-center gap-2">
-								<button onClick={() => setIsDetailsModalOpen(false)} className="px-2 pt-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors cursor-pointer border-0 bg-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white">
-									<span className="material-symbols-outlined">close</span>
+								{hasEditPermission && (
+									<button
+										onClick={() => {
+											setIsDetailsModalOpen(false);
+											handleOpenEdit(selectedCourier);
+										}}
+										title="Edit Courier"
+										className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors cursor-pointer border-0 bg-transparent text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center"
+									>
+										<span className="material-symbols-outlined text-xl">edit</span>
+									</button>
+								)}
+								<button onClick={() => setIsDetailsModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors cursor-pointer border-0 bg-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center">
+									<span className="material-symbols-outlined text-xl">close</span>
 								</button>
 							</div>
 						</div>
