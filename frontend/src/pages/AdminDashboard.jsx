@@ -95,7 +95,7 @@ const BRANCH_OPTIONS = [
     'Doctor Towels_ Karur'
 ];
 
-const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onChange }) => {
+const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onChange, menuWidthClass }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -146,7 +146,7 @@ const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onC
             </div>
 
             {isOpen && (
-                <div className="absolute top-full left-0 mt-2 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] overflow-hidden animate-in fade-in zoom-in duration-150">
+                <div className={`absolute top-full left-0 mt-2 ${menuWidthClass || 'min-w-[240px] w-max max-w-[340px]'} bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] overflow-hidden animate-in fade-in zoom-in duration-150`}>
                     <div className="max-h-40 overflow-y-auto custom-scrollbar">
                         {options.map((option) => (
                             <label
@@ -162,7 +162,7 @@ const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onC
                                 <div className={`h-4.5 w-4.5 rounded flex items-center justify-center border-2 transition-all ${isSelected(option) ? 'bg-primary border-primary shadow-sm shadow-primary/20' : 'border-slate-300 dark:border-slate-600 group-hover:border-primary/50'}`}>
                                     {isSelected(option) && <span className="material-symbols-outlined text-white text-[12px] font-bold">check</span>}
                                 </div>
-                                <span className={`text-[13px] font-medium transition-colors ${isSelected(option) ? 'text-primary' : 'text-slate-600 dark:text-slate-300'}`}>
+                                <span className={`text-[13px] font-medium whitespace-nowrap transition-colors ${isSelected(option) ? 'text-primary' : 'text-slate-600 dark:text-slate-300'}`}>
                                     {option === 'All' ? `All` : option}
                                 </span>
                             </label>
@@ -225,13 +225,14 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
     );
 };
 
-const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission, currentUser, refreshUser }) => {
+const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission, currentUser, refreshUser, fetchUsers }) => {
     const [newUser, setNewUser] = useState({
         name: '', email: '', password: '',
         access: ['View'],
         support_type: ['IT Support', 'Admin Support'],
         allowed_menus: [],
         branch: ['All'],
+        courier_users: [],
         add_as_assignee: false,
         can_receive_mail: false,
         can_send_mail: false,
@@ -248,6 +249,10 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
     const ITEMS_PER_PAGE = 20;
 
     useEffect(() => {
+        if (fetchUsers) fetchUsers();
+    }, []);
+
+    useEffect(() => {
         setCurrentPage(1);
     }, [searchQuery]);
 
@@ -258,14 +263,6 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
     );
 
     const toggleAccess = (perm) => {
-        const currentAccessOptions = (newUser.allowed_menus.includes('Petty Cash') || newUser.allowed_menus.includes('Courier')) ? [...ACCESS_OPTIONS, 'Delete'] : ACCESS_OPTIONS;
-        if (perm === 'All') {
-            setNewUser(p => ({
-                ...p,
-                access: p.access.length === currentAccessOptions.length ? [] : [...currentAccessOptions]
-            }));
-            return;
-        }
         setNewUser(p => ({
             ...p,
             access: p.access.includes(perm)
@@ -274,19 +271,12 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
         }));
     };
 
-    const toggleSupportType = (type) => {
-        if (type === 'All') {
-            setNewUser(p => ({
-                ...p,
-                support_type: p.support_type.length === SUPPORT_TYPE_OPTIONS.length ? [] : [...SUPPORT_TYPE_OPTIONS]
-            }));
-            return;
-        }
+    const toggleSupportType = (st) => {
         setNewUser(p => ({
             ...p,
-            support_type: p.support_type.includes(type)
-                ? p.support_type.filter(t => t !== type)
-                : [...p.support_type, type]
+            support_type: p.support_type.includes(st)
+                ? p.support_type.filter(s => s !== st)
+                : [...p.support_type, st]
         }));
     };
 
@@ -306,15 +296,39 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
         }));
     };
 
+    const toggleCourierUser = (userName) => {
+        const userList = allUsers.length > 0 ? allUsers : users;
+        const userRoleNames = userList
+            .filter(u => (!u.role || u.role.toLowerCase() === 'user') && u.name !== newUser.name && u.email !== newUser.email)
+            .map(u => u.name);
+        if (userName === 'All') {
+            setNewUser(p => ({
+                ...p,
+                courier_users: p.courier_users.length === userRoleNames.length ? [] : [...userRoleNames]
+            }));
+            return;
+        }
+        setNewUser(p => ({
+            ...p,
+            courier_users: p.courier_users.includes(userName)
+                ? p.courier_users.filter(u => u !== userName)
+                : [...p.courier_users, userName]
+        }));
+    };
+
     const toggleBranch = (branch) => {
         setNewUser(p => {
             if (branch === 'All') {
                 return { ...p, branch: ['All'] };
             }
-            const newBranches = p.branch.includes(branch)
-                ? p.branch.filter(b => b !== branch)
-                : [...p.branch.filter(b => b !== 'All'), branch];
-            return { ...p, branch: newBranches.length ? newBranches : ['All'] };
+            let updated = p.branch.filter(b => b !== 'All');
+            if (updated.includes(branch)) {
+                updated = updated.filter(b => b !== branch);
+            } else {
+                updated.push(branch);
+            }
+            if (updated.length === 0) updated = ['All'];
+            return { ...p, branch: updated };
         });
     };
 
@@ -328,6 +342,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
             support_type: ['IT Support', 'Admin Support'],
             allowed_menus: [],
             branch: ['All'],
+            courier_users: [],
             add_as_assignee: false,
             can_receive_mail: false,
             can_send_mail: false,
@@ -338,6 +353,14 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
 
     const handleOpenEdit = (user) => {
         setEditingUser(user);
+        const userList = allUsers.length > 0 ? allUsers : users;
+        const rawCourierUsers = (user.courier_users || '').split(',').map(s => s.trim()).filter(Boolean);
+        const mappedCourierUsers = Array.from(new Set(rawCourierUsers.map(item => {
+            if (item === 'All') return 'All';
+            const found = userList.find(u => u.email?.toLowerCase() === item.toLowerCase() || u.name?.toLowerCase() === item.toLowerCase());
+            return found ? found.name : item;
+        })));
+
         setNewUser({
             name: user.name,
             email: user.email,
@@ -345,6 +368,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
             access: (user.access || 'View').split(',').map(s => s.trim()),
             support_type: (user.support_type || 'IT Support,Admin Support').split(',').map(s => s.trim()),
             allowed_menus: (user.allowed_menus || '').split(',').map(s => s.trim()).filter(Boolean),
+            courier_users: mappedCourierUsers,
             add_as_assignee: !!user.is_assignee,
             can_receive_mail: !!user.can_receive_mail,
             can_send_mail: !!user.can_send_mail,
@@ -368,7 +392,26 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
             const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users';
             const method = editingUser ? 'PUT' : 'POST';
 
-            const payload = { ...newUser, access: newUser.access.join(','), support_type: newUser.support_type.join(','), allowed_menus: newUser.allowed_menus.join(','), branch: newUser.branch.join(',') };
+            const userList = allUsers.length > 0 ? allUsers : users;
+            const expandedCourierUsers = [];
+            newUser.courier_users.forEach(item => {
+                if (!expandedCourierUsers.includes(item)) expandedCourierUsers.push(item);
+                const found = userList.find(u => u.name === item || u.email === item);
+                if (found) {
+                    if (found.email && !expandedCourierUsers.includes(found.email)) expandedCourierUsers.push(found.email);
+                    if (found.name && !expandedCourierUsers.includes(found.name)) expandedCourierUsers.push(found.name);
+                }
+            });
+            const courierUsersString = expandedCourierUsers.join(',');
+
+            const payload = {
+                ...newUser,
+                access: newUser.access.join(','),
+                support_type: newUser.support_type.join(','),
+                allowed_menus: newUser.allowed_menus.join(','),
+                branch: newUser.branch.join(','),
+                courier_users: courierUsersString
+            };
 
             const res = await (method === 'PUT' ? api.put(url, payload) : api.post(url, payload));
             const data = await res.data;
@@ -382,6 +425,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                     access: newUser.access.join(','),
                     support_type: newUser.support_type.join(','),
                     allowed_menus: newUser.allowed_menus.join(','),
+                    courier_users: courierUsersString,
                     can_receive_mail: newUser.can_receive_mail,
                     can_send_mail: newUser.can_send_mail,
                     receiver_position: newUser.receiver_position,
@@ -399,6 +443,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                     access: newUser.access.join(','),
                     support_type: newUser.support_type.join(','),
                     allowed_menus: newUser.allowed_menus.join(','),
+                    courier_users: courierUsersString,
                     id: data.id,
                     created_at: 'Just now',
                     can_receive_mail: newUser.can_receive_mail,
@@ -432,7 +477,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
                     {/* Panel */}
                     <form onSubmit={handleSaveUser}
-                        className="relative z-10 w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-8">
+                        className="relative z-10 w-full max-w-[50%] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-8">
                         {/* Header */}
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-3">
@@ -446,7 +491,7 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                                 </h2>
                             </div>
                             <button type="button" onClick={closeModal}
-                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                                className="w-9 h-9 flex justify-center items-center text-slate-400 bg-slate-100 dark:bg-slate-800 rounded-xl hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                                 <span className="material-symbols-outlined text-xl">close</span>
                             </button>
                         </div>
@@ -577,6 +622,28 @@ const UsersView = ({ users, setUsers, usersLoading, showAddUser, setShowAddUser,
                                     />
                                 </div>
                                 )}
+
+                                {/* Users List (Courier Access) */}
+                                {newUser.allowed_menus.includes('Courier') && (() => {
+                                    const userList = allUsers.length > 0 ? allUsers : users;
+                                    const userRoleNames = userList
+                                        .filter(u => (!u.role || u.role.toLowerCase() === 'user') && u.name !== newUser.name && u.email !== newUser.email)
+                                        .map(u => u.name);
+                                    return (
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                                Users List (Courier Access)
+                                            </label>
+                                            <MultiSelectFormDropdown
+                                                label="Users"
+                                                icon="group"
+                                                options={['All', ...userRoleNames]}
+                                                selected={newUser.courier_users.length === userRoleNames.length && userRoleNames.length > 0 ? ['All', ...newUser.courier_users] : newUser.courier_users}
+                                                onChange={toggleCourierUser}
+                                            />
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             {/* Add as Assignee & Send Mail (Row 1) */}
@@ -4845,6 +4912,7 @@ const AdminDashboard = () => {
             fetchCategories();
             fetchDepartments();
             fetchAssetTypes();
+            fetchUsers();
         }
     }, [user?.email]);
 
@@ -6210,6 +6278,7 @@ const AdminDashboard = () => {
                 {/* Users View */}
                 {activeView === 'users' && user?.email === 'admin@support.com' && (
                     <UsersView
+                        allUsers={users}
                         users={users.filter(u =>
                             (u.name || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
                             (u.email || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
@@ -6223,6 +6292,7 @@ const AdminDashboard = () => {
                         hasEditPermission={hasEditPermission}
                         currentUser={user}
                         refreshUser={refreshUser}
+                        fetchUsers={fetchUsers}
                     />
                 )}
 

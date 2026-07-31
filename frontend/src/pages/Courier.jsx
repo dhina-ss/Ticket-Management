@@ -259,7 +259,25 @@ const Courier = () => {
 			});
 			const res = await api.get(`/api/courier/entries?${params.toString()}`);
 			if (res.status === 200) {
-				const filtered = isAdmin ? res.data : res.data.filter(e => e.creator_email === user?.email);
+				const allowedCourierAccess = (user?.courier_users || '')
+					.split(',')
+					.map(s => s.trim().toLowerCase())
+					.filter(Boolean);
+
+				const filtered = isAdmin
+					? res.data
+					: res.data.filter(e => {
+						if (!e) return false;
+						const creator = (e.creator_email || '').toLowerCase().trim();
+						const sender = (e.sender || '').toLowerCase().trim();
+						const userEmail = (user?.email || '').toLowerCase().trim();
+						const userName = (user?.name || '').toLowerCase().trim();
+
+						if (creator === userEmail || (userName && sender === userName)) return true;
+						if (allowedCourierAccess.includes('all')) return true;
+
+						return allowedCourierAccess.some(acc => acc && (acc === creator || acc === sender));
+					});
 				setEntries(filtered);
 			}
 		} catch (err) {
@@ -487,15 +505,17 @@ const Courier = () => {
 			<div className="flex-1 overflow-y-auto px-20 py-6 space-y-6">
 
 				{/* Statistics section */}
-				<div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+				<div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-6`}>
 					<div className="bg-white dark:bg-[#1C212B] rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
 						<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Shipments</p>
 						<h3 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2">{entries.length}</h3>
 					</div>
-					<div className="bg-white dark:bg-[#1C212B] rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
-						<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Cost</p>
-						<h3 className="text-3xl font-extrabold text-pink-600 dark:text-pink-400 mt-2">₹{totalCost.toFixed(2)}</h3>
-					</div>
+					{isAdmin && (
+						<div className="bg-white dark:bg-[#1C212B] rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
+							<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Cost</p>
+							<h3 className="text-3xl font-extrabold text-pink-600 dark:text-pink-400 mt-2">₹{totalCost.toFixed(2)}</h3>
+						</div>
+					)}
 					<div className="bg-white dark:bg-[#1C212B] rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
 						<p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Dispatches</p>
 						<h3 className="text-3xl font-extrabold text-blue-600 dark:text-blue-400 mt-2">{dispatches}</h3>
@@ -700,17 +720,17 @@ const Courier = () => {
 											<th className="p-4">Item</th>
 											<th className="p-4">Ref Type</th>
 											<th className="p-4">Supplier / Buyer</th>
+											<th className="p-4">Budget Status</th>
+											<th className="p-4">Package Type</th>
+											<th className="p-4">No. of Pkgs</th>
+											<th className="p-4">Weight (Kg)</th>
 											<th className="p-4">Courier Operator</th>
 											<th className="p-4">Tracking Number</th>
 											{isAdmin && (
 												<>
 													<th className="p-4">To Office</th>
 													<th className="p-4">Product Desc</th>
-													<th className="p-4">Package Type</th>
-													<th className="p-4">No. of Pkgs</th>
 													<th className="p-4">Order Ref</th>
-													<th className="p-4">Budgeted</th>
-													<th className="p-4">Weight (Kg)</th>
 													<th className="p-4">Box Measurement</th>
 													<th className="p-4">Chargeable Wt</th>
 													<th className="p-4">Cost (INR)</th>
@@ -747,17 +767,17 @@ const Courier = () => {
 												<td className="px-4 py-2">{entry.item || '-'}</td>
 												<td className="px-4 py-2">{entry.ref_type || '-'}</td>
 												<td className="px-4 py-2">{entry.supplier_buyer_type ? `${entry.supplier_buyer_type}: ${entry.supplier_buyer_name || ''}` : '-'}</td>
+												<td className="px-4 py-2">{entry.budgeted || '-'}</td>
+												<td className="px-4 py-2">{entry.package_type || '-'}</td>
+												<td className="px-4 py-2">{entry.num_packages || '-'}</td>
+												<td className="px-4 py-2">{entry.weight_kg || '-'}</td>
 												<td className="px-4 py-2 font-semibold text-slate-900 dark:text-white">{entry.courier_name || '-'}</td>
 												<td className="px-4 py-2 font-mono">{entry.awb_no || '-'}</td>
 												{isAdmin && (
 													<>
 														<td className="px-4 py-2">{entry.receiver_office || '-'}</td>
 														<td className="px-4 py-2">{entry.product_description || '-'}</td>
-														<td className="px-4 py-2">{entry.package_type || '-'}</td>
-														<td className="px-4 py-2">{entry.num_packages || '-'}</td>
 														<td className="px-4 py-2">{entry.order_reference || '-'}</td>
-														<td className="px-4 py-2">{entry.budgeted || '-'}</td>
-														<td className="px-4 py-2">{entry.weight_kg || '-'}</td>
 														<td className="px-4 py-2">{entry.box_measurement || '-'}</td>
 														<td className="px-4 py-2">{entry.chargeable_weight || '-'}</td>
 														<td className="px-4 py-2 font-bold text-pink-600 dark:text-pink-400">₹{(entry.courier_cost || 0).toFixed(2)}</td>
@@ -1032,7 +1052,8 @@ const Courier = () => {
 												label="Type"
 												options={[
 													{ label: 'Buyer', value: 'Buyer' },
-													{ label: 'Supplier', value: 'Supplier' }
+													{ label: 'Supplier', value: 'Supplier' },
+													{ label: 'Others', value: 'Others' }
 												]}
 												value={formData.supplier_buyer_type}
 												onChange={val => setFormData(prev => ({ ...prev, supplier_buyer_type: val }))}
@@ -1049,6 +1070,56 @@ const Courier = () => {
 											/>
 										</div>
 									</div>
+								</div>
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								{/* Budget status */}
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Budgeted status</label>
+									<SelectDropdown
+										label="Budgeted status"
+										options={(lookups.budget_statuses?.length > 0 ? lookups.budget_statuses : ['Non Budgeted', 'Budgeted']).map(b => ({ label: b, value: b }))}
+										value={formData.budgeted}
+										onChange={val => setFormData(prev => ({ ...prev, budgeted: val }))}
+									/>
+								</div>
+
+								{/* Package Type */}
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Package Type</label>
+									<SelectDropdown
+										label="Package Type"
+										options={(lookups.package_types?.length > 0 ? lookups.package_types : ['Cover', 'Box']).map(p => ({ label: p, value: p }))}
+										value={formData.package_type}
+										onChange={val => setFormData(prev => ({ ...prev, package_type: val }))}
+									/>
+								</div>
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								{/* Number of packages */}
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Number of Packages</label>
+									<input
+										type="text"
+										value={formData.num_packages}
+										onChange={e => setFormData(prev => ({ ...prev, num_packages: e.target.value }))}
+										placeholder="E.g. 5"
+										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+									/>
+								</div>
+
+								{/* Weight */}
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Weight (Kg)</label>
+									<input
+										type="text"
+										value={formData.weight_kg}
+										onChange={e => setFormData(prev => ({ ...prev, weight_kg: e.target.value }))}
+										placeholder="E.g. 10.5"
+										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+									/>
 								</div>
 							</div>
 
@@ -1089,7 +1160,7 @@ const Courier = () => {
 
 							{isAdmin && (
 								<>
-									<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+									<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 										{/* Cost */}
 										<div>
 											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Cost (INR)</label>
@@ -1102,17 +1173,6 @@ const Courier = () => {
 											/>
 										</div>
 
-										{/* Budget status */}
-										<div>
-											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Budgeted status</label>
-											<SelectDropdown
-												label="Budgeted status"
-												options={(lookups.budget_statuses?.length > 0 ? lookups.budget_statuses : ['Non Budgeted', 'Budgeted']).map(b => ({ label: b, value: b }))}
-												value={formData.budgeted}
-												onChange={val => setFormData(prev => ({ ...prev, budgeted: val }))}
-											/>
-										</div>
-
 										{/* Payment Mode */}
 										<div>
 											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Payment Mode</label>
@@ -1121,43 +1181,6 @@ const Courier = () => {
 												options={(lookups.payment_modes?.length > 0 ? lookups.payment_modes : ['Net Banking', 'Cash']).map(p => ({ label: p, value: p }))}
 												value={formData.payment_mode}
 												onChange={val => setFormData(prev => ({ ...prev, payment_mode: val }))}
-											/>
-										</div>
-									</div>
-
-									<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-										{/* Package Type */}
-										<div>
-											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Package Type</label>
-											<SelectDropdown
-												label="Package Type"
-												options={(lookups.package_types?.length > 0 ? lookups.package_types : ['Cover', 'Box']).map(p => ({ label: p, value: p }))}
-												value={formData.package_type}
-												onChange={val => setFormData(prev => ({ ...prev, package_type: val }))}
-											/>
-										</div>
-
-										{/* Number of packages */}
-										<div>
-											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Number of Packages</label>
-											<input
-												type="text"
-												value={formData.num_packages}
-												onChange={e => setFormData(prev => ({ ...prev, num_packages: e.target.value }))}
-												placeholder="E.g. 5"
-												className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
-											/>
-										</div>
-
-										{/* Weight */}
-										<div>
-											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Weight (Kg)</label>
-											<input
-												type="text"
-												value={formData.weight_kg}
-												onChange={e => setFormData(prev => ({ ...prev, weight_kg: e.target.value }))}
-												placeholder="E.g. 10.5"
-												className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
 											/>
 										</div>
 									</div>
@@ -1289,10 +1312,12 @@ const Courier = () => {
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Wt(Kg)</label>
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.weight_kg || '-'}</p>
 								</div>
-								<div>
-									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Cost(₹)</label>
-									<p className="font-bold text-pink-600 text-sm">₹{(selectedCourier.courier_cost || 0).toFixed(2)}</p>
-								</div>
+								{isAdmin && (
+									<div>
+										<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Cost(₹)</label>
+										<p className="font-bold text-pink-600 text-sm">₹{(selectedCourier.courier_cost || 0).toFixed(2)}</p>
+									</div>
+								)}
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Budget</label>
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.budgeted || '-'}</p>

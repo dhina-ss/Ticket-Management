@@ -250,6 +250,10 @@ def init_db():
                 cur.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_manager_approvals JSONB DEFAULT '[]'::jsonb;")
                 # Add role field
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';")
+                # Add courier_users field for user-level courier visibility
+                cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS courier_users TEXT DEFAULT '';")
+                # Add branch field to pettycash table
+                cur.execute("ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS branch TEXT DEFAULT 'Cotton Concepts HO_ Coimbatore';")
                 # Ensure existing admin@support.com gets Super admin role
                 cur.execute("UPDATE admin_users SET role = 'Super admin' WHERE email = 'admin@support.com' AND (role IS NULL OR role = 'user');")
                 # Seed default admin if table is empty
@@ -661,7 +665,8 @@ def init_db():
                         manager_notes TEXT,
                         sub_remarks TEXT,
                         receiver_name TEXT,
-                        verified_by TEXT
+                        verified_by TEXT,
+                        branch TEXT DEFAULT 'Cotton Concepts HO_ Coimbatore'
                     );
                 """)
                 # Ensure all columns exist for pettycash
@@ -679,7 +684,8 @@ def init_db():
                     "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS sub_remarks TEXT;",
                     "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS user_name TEXT;",
                     "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS receiver_name TEXT;",
-                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS verified_by TEXT;"
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS verified_by TEXT;",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS branch TEXT DEFAULT 'Cotton Concepts HO_ Coimbatore';"
                 ]
                 for stmt in alter_pettycash:
                     cur.execute(stmt)
@@ -845,7 +851,7 @@ def get_admin_users() -> list:
         # We match by name and ensured it's not soft-deleted.
         cur.execute("""
             SELECT u.id, u.name, u.email, u.access, u.support_type, u.created_at, 
-                   u.can_receive_mail, u.can_send_mail, u.receiver_position, u.branch, u.allowed_menus, u.role,
+                   u.can_receive_mail, u.can_send_mail, u.receiver_position, u.branch, u.allowed_menus, u.role, u.courier_users,
                    EXISTS (SELECT 1 FROM assignees a WHERE a.name = u.name AND a.is_delete = false) as is_assignee
             FROM admin_users u
             ORDER BY u.created_at ASC;
@@ -858,14 +864,14 @@ def get_admin_users() -> list:
     return rows
 
 
-def create_admin_user(name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus="", role="user"):
+def create_admin_user(name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus="", role="user", courier_users=""):
     conn = _get_conn()
     try:
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
-                    (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role)
+                    "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
+                    (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users)
                 )
                 new_id = cur.fetchone()[0]
     except Exception:
@@ -874,20 +880,20 @@ def create_admin_user(name, email, password, access, support_type, can_receive_m
     return {"id": new_id}
 
 
-def update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus="", role="user"):
+def update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus="", role="user", courier_users=""):
     conn = _get_conn()
     try:
         with conn:
             with conn.cursor() as cur:
                 if password:
                     cur.execute(
-                        "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s, role = %s WHERE id = %s;",
-                        (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, user_id)
+                        "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s, role = %s, courier_users = %s WHERE id = %s;",
+                        (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users, user_id)
                     )
                 else:
                     cur.execute(
-                        "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s, role = %s WHERE id = %s;",
-                        (name, email, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, user_id)
+                        "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s, role = %s, courier_users = %s WHERE id = %s;",
+                        (name, email, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users, user_id)
                     )
                 updated = cur.rowcount > 0
     except Exception:
@@ -911,7 +917,7 @@ def verify_admin_login(email: str, password: str) -> dict | None:
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch, can_receive_mail, can_send_mail, allowed_menus, role FROM admin_users WHERE email = %s AND password = %s;",
+                "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch, can_receive_mail, can_send_mail, allowed_menus, role, courier_users FROM admin_users WHERE email = %s AND password = %s;",
                 (email, password)
             )
             row = cur.fetchone()

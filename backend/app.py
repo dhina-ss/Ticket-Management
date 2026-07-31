@@ -600,12 +600,13 @@ def create_user():
         branch = data.get("branch", "All").strip()
         allowed_menus = data.get("allowed_menus", "").strip()
         role = data.get("role", "user").strip()
+        courier_users = data.get("courier_users", "").strip()
 
         if not name or not email or not password:
             return jsonify({"error": "Name, email and password are required."}), 400
         if len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
-        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role)
+        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users)
         logging.info(f"Admin Action: Created new user - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
         
         # Optionally add as assignee
@@ -638,13 +639,14 @@ def edit_user(user_id):
         branch = data.get("branch", "All").strip()
         allowed_menus = data.get("allowed_menus", "").strip()
         role = data.get("role", "user").strip()
+        courier_users = data.get("courier_users", "").strip()
 
         if not name or not email:
             return jsonify({"error": "Name and email are required."}), 400
         if password and len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
         
-        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role)
+        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users)
         if updated:
             logging.info(f"Admin Action: Edited user {user_id} - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
             
@@ -2810,7 +2812,7 @@ def api_petty_cash_dashboard():
             month_total = sum(e[0] for e in month_exps if e[0])
             
             # month credit
-            cur.execute("SELECT SUM(added_cash) FROM day_ledger WHERE date >= %s", (month_start,))
+            cur.execute("SELECT SUM(amount) FROM cash_add_history WHERE date >= %s", (month_start,))
             month_credit_result = cur.fetchone()[0]
             month_credit = float(month_credit_result) if month_credit_result else 0.0
             
@@ -2829,7 +2831,6 @@ def api_petty_cash_dashboard():
             cur.execute("SELECT closing_balance FROM day_ledger WHERE date < %s AND is_closed = TRUE ORDER BY date DESC LIMIT 1", (today,))
             last_ledger = cur.fetchone()
             opening = float(last_ledger[0]) if last_ledger else 0.0
-            
             
             cat_totals = defaultdict(float)
             for e in today_expenses:
@@ -2855,12 +2856,16 @@ def api_petty_cash_dashboard():
             today_added = float(today_ledger[0]) if today_ledger else 0.0
             today_closed = bool(today_ledger[2]) if today_ledger else False
             
-            # User specifically requested the current balance to perfectly mirror the Analysis page's Monthly Financial Summary.
-            # Analysis Page logic: Month Opening Balance + Month Added Cash (month_credit) - Month Total Expenses (month_total)
-            cur.execute("SELECT opening_balance FROM day_ledger WHERE date >= %s ORDER BY date ASC LIMIT 1", (month_start,))
-            month_first_ledger = cur.fetchone()
-            month_opening = float(month_first_ledger[0]) if month_first_ledger else 0.0
-            current_balance = float(month_opening) + float(month_credit) - float(month_total)
+            # Calculate current balance: Total Cash Added (all time) minus Total Non-rejected Expenses (all time)
+            cur.execute("SELECT SUM(amount) FROM cash_add_history")
+            all_credit_res = cur.fetchone()[0]
+            all_credit = float(all_credit_res) if all_credit_res else 0.0
+
+            cur.execute("SELECT SUM(expense_amount) FROM pettycash WHERE status != 'rejected'")
+            all_exp_res = cur.fetchone()[0]
+            all_expenses = float(all_exp_res) if all_exp_res else 0.0
+
+            current_balance = all_credit - all_expenses
                 
             ledger_info = {
                 "opening_balance": opening,
@@ -2913,9 +2918,10 @@ def api_petty_cash_expenses():
         subcategory = request.args.get('subcategory', '')
         purpose = request.args.get('purpose', '')
         status_f = request.args.get('status', '')
+        branch_f = request.args.get('branch', '')
         
-        query_expenses = "SELECT 'expense' as type, id, date, category, sub_category, sub_remarks, expense_amount, description, status, user_name, approved_by, approved_at, manager_notes, created_at, receiver_name, verified_by FROM pettycash WHERE 1=1"
-        query_credit = "SELECT 'credit' as type, id, date, 'Added Cash' as category, '' as sub_category, '' as sub_remarks, amount as expense_amount, description, 'approved' as status, user_name, user_name as approved_by, created_at as approved_at, '' as manager_notes, created_at, '' as receiver_name, '' as verified_by FROM cash_add_history WHERE 1=1"
+        query_expenses = "SELECT 'expense' as type, id, date, category, sub_category, sub_remarks, expense_amount, description, status, user_name, approved_by, approved_at, manager_notes, created_at, receiver_name, verified_by, branch FROM pettycash WHERE 1=1"
+        query_credit = "SELECT 'credit' as type, id, date, 'Added Cash' as category, '' as sub_category, '' as sub_remarks, amount as expense_amount, description, 'approved' as status, user_name, user_name as approved_by, created_at as approved_at, '' as manager_notes, created_at, '' as receiver_name, '' as verified_by, '' as branch FROM cash_add_history WHERE 1=1"
         
         params_expenses = []
         params_credit = []
@@ -2946,6 +2952,9 @@ def api_petty_cash_expenses():
             params_expenses.append(purpose)
             query_credit += " AND LOWER(user_name) = LOWER(%s)"
             params_credit.append(purpose)
+        if branch_f and branch_f not in ('null', 'undefined'):
+            query_expenses += " AND branch = %s"
+            params_expenses.append(branch_f)
         if status_f and status_f not in ('null', 'undefined'):
             query_expenses += " AND status = %s"
             params_expenses.append(status_f)
@@ -2978,7 +2987,8 @@ def api_petty_cash_expenses():
                     "approved_at": r[11].isoformat() if hasattr(r[11], 'isoformat') else str(r[11]) if r[11] else "",
                     "manager_notes": r[12] or "",
                     "receiver_name": r[14] or "",
-                    "verified_by": r[15] or ""
+                    "verified_by": r[15] or "",
+                    "branch": r[16] or "Cotton Concepts HO_ Coimbatore"
                 })
         conn.close()
         return jsonify(result), 200
@@ -3012,8 +3022,8 @@ def api_petty_cash_add():
                 amount_val = 0
             
             cur.execute("""
-                INSERT INTO pettycash (date, category, sub_category, sub_remarks, expense_amount, description, user_name, status, approved_by, approved_at, receiver_name, verified_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, %s)
+                INSERT INTO pettycash (date, category, sub_category, sub_remarks, expense_amount, description, user_name, status, approved_by, approved_at, receiver_name, verified_by, branch)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, %s, %s)
             """, (
                 data.get('date'),
                 data.get('category'),
@@ -3025,7 +3035,8 @@ def api_petty_cash_add():
                 status,
                 approved_by,
                 data.get('receiver_name'),
-                data.get('verified_by')
+                data.get('verified_by'),
+                data.get('branch', 'Cotton Concepts HO_ Coimbatore')
             ))
             rebuild_ledger_balances(conn)
             conn.commit()
@@ -3080,12 +3091,13 @@ def api_petty_cash_update(eid):
                 
             cur.execute("""
                 UPDATE pettycash 
-                SET date=%s, category=%s, sub_category=%s, sub_remarks=%s, expense_amount=%s, description=%s, user_name=%s, approved_by=%s, receiver_name=%s, verified_by=%s
+                SET date=%s, category=%s, sub_category=%s, sub_remarks=%s, expense_amount=%s, description=%s, user_name=%s, approved_by=%s, receiver_name=%s, verified_by=%s, branch=%s
                 WHERE id=%s
             """, (
                 data.get('date'), data.get('category'), data.get('subcategory'),
                 data.get('sub_remarks'), amount_val, data.get('description'),
-                data.get('submitted_by'), data.get('approved_by'), data.get('receiver_name'), data.get('verified_by'), eid
+                data.get('submitted_by'), data.get('approved_by'), data.get('receiver_name'), data.get('verified_by'),
+                data.get('branch', 'Cotton Concepts HO_ Coimbatore'), eid
             ))
             rebuild_ledger_balances(conn)
             conn.commit()

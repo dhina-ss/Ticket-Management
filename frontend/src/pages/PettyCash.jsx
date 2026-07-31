@@ -23,7 +23,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 				onClick={() => !disabled && setIsOpen(o => !o)}
 				className={variant === 'filter'
 					? `flex items-center justify-between gap-2 px-3 py-2 bg-[#eceef0] dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all hover:bg-slate-200 dark:hover:bg-slate-700 outline-none focus:outline-none focus:ring-0 cursor-pointer ${widthClass} ${isOpen ? 'bg-white dark:bg-slate-900 shadow-sm' : ''} ${disabled ? 'opacity-50 cursor-not-allowed hover:bg-[#eceef0] dark:hover:bg-slate-800' : ''}`
-					: `flex items-center justify-between ${widthClass} px-3 py-2 text-sm rounded-xl border-none cursor-pointer transition-all bg-slate-50 dark:bg-slate-800 font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/20' : ''} ${disabled ? 'opacity-50 cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800' : ''}`
+					: `flex items-center justify-between ${widthClass} h-11 px-3 text-sm rounded-xl border-none cursor-pointer transition-all bg-slate-50 dark:bg-slate-800 font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/20' : ''} ${disabled ? 'opacity-50 cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800' : ''}`
 				}
 			>
 				<div className="flex items-center gap-2 truncate">
@@ -140,14 +140,15 @@ const PettyCash = () => {
 		date_to: '',
 		category: '',
 		subcategory: '',
-		purpose: ''
+		purpose: '',
+		branch: ''
 	});
 
 	// Modals
 	const [showAddModal, setShowAddModal] = useState(false);
 	const [showAddCashModal, setShowAddCashModal] = useState(false);
 	const [addCashAmount, setAddCashAmount] = useState('');
-	const [addCashDate, setAddCashDate] = useState(new Date().toISOString().split('T')[0]);
+	const [addCashDate, setAddCashDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 	const [addCashDescription, setAddCashDescription] = useState('');
 	const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 	const [showCreditHistoryModal, setShowCreditHistoryModal] = useState(false);
@@ -161,7 +162,7 @@ const PettyCash = () => {
 	const handleOpenEditCash = (exp) => {
 		setEditingCash(exp);
 		setAddCashAmount(exp.amount?.toString() || '');
-		setAddCashDate(exp.date || new Date().toISOString().split('T')[0]);
+		setAddCashDate(exp.date ? exp.date.split('T')[0] : format(new Date(), 'yyyy-MM-dd'));
 		setAddCashDescription(exp.description || '');
 		setShowAddCashModal(true);
 	};
@@ -221,10 +222,31 @@ const PettyCash = () => {
 		}
 	};
 
+	const ALL_BRANCH_OPTIONS = [
+		'Cotton Concepts HO_ Coimbatore',
+		'Doctor Towels HO',
+		'Cotton Concepts_ Vengamedu',
+		'Cotton Concepts_ Karur',
+		'Doctor Towels_ Karur'
+	];
+
+	const allowedBranches = React.useMemo(() => {
+		if (!user?.branch || user.branch === 'All' || user.email === 'admin@support.com') {
+			return ALL_BRANCH_OPTIONS;
+		}
+		const userBranches = user.branch.split(',').map(b => b.trim()).filter(Boolean);
+		if (userBranches.length === 0 || userBranches.includes('All')) {
+			return ALL_BRANCH_OPTIONS;
+		}
+		return userBranches;
+	}, [user?.branch, user?.email]);
+
 	const handleOpenAdd = () => {
 		setEditingExpense(null);
+		const defaultBranch = allowedBranches.length > 0 ? allowedBranches[0] : 'Cotton Concepts HO_ Coimbatore';
 		setExpenseForm({
-			date: new Date().toISOString().split('T')[0],
+			date: format(new Date(), 'yyyy-MM-dd'),
+			branch: defaultBranch,
 			category: '',
 			subcategory: '',
 			sub_remarks: '',
@@ -240,8 +262,12 @@ const PettyCash = () => {
 
 	const handleOpenEdit = (exp) => {
 		setEditingExpense(exp);
+		const defaultBranch = exp.branch && allowedBranches.includes(exp.branch)
+			? exp.branch
+			: (allowedBranches[0] || 'Cotton Concepts HO_ Coimbatore');
 		setExpenseForm({
-			date: exp.date || new Date().toISOString().split('T')[0],
+			date: exp.date ? exp.date.split('T')[0] : format(new Date(), 'yyyy-MM-dd'),
+			branch: defaultBranch,
 			category: exp.category || '',
 			subcategory: exp.subcategory || '',
 			sub_remarks: exp.sub_remarks || '',
@@ -250,15 +276,17 @@ const PettyCash = () => {
 			approved_by: exp.approved_by || '',
 			verified_by: exp.verified_by || '',
 			receiver_name: exp.receiver_name || '',
-			purpose: exp.submitted_by || 'Admin'
+			purpose: exp.purpose || (exp.submitted_by === 'Management' ? 'Management' : 'Admin')
 		});
 		setShowAddModal(true);
 	};
 
 	const handleCloseAddModal = () => {
 		setEditingExpense(null);
+		const defaultBranch = allowedBranches.length > 0 ? allowedBranches[0] : 'Cotton Concepts HO_ Coimbatore';
 		setExpenseForm({
-			date: new Date().toISOString().split('T')[0],
+			date: format(new Date(), 'yyyy-MM-dd'),
+			branch: defaultBranch,
 			category: '',
 			subcategory: '',
 			sub_remarks: '',
@@ -314,7 +342,8 @@ const PettyCash = () => {
 
 	// Form States
 	const [expenseForm, setExpenseForm] = useState({
-		date: new Date().toISOString().split('T')[0],
+		date: format(new Date(), 'yyyy-MM-dd'),
+		branch: 'Cotton Concepts HO_ Coimbatore',
 		category: '',
 		subcategory: '',
 		sub_remarks: '',
@@ -394,11 +423,10 @@ const PettyCash = () => {
 		// Close the form modal and show loading popup immediately
 		handleCloseAddModal();
 		setShowSavingLoader(true);
-		const minDelay = new Promise(resolve => setTimeout(resolve, 3000));
 		try {
 			const payload = {
 				...expenseForm,
-				submitted_by: expenseForm.purpose,
+				submitted_by: user?.name || user?.username || user?.email?.split('@')[0] || expenseForm.purpose || 'User',
 				is_manager: isManager
 			};
 
@@ -412,14 +440,11 @@ const PettyCash = () => {
 			if (res.status === 200 || res.status === 201) {
 				fetchDashboard();
 				fetchExpenses();
-				// Wait for minimum 5 seconds before hiding loader and showing success
-				await minDelay;
 				setShowSavingLoader(false);
 				setSuccessModal({ show: true, type: isEditing ? 'Update' : 'Add', id: 'Expense Entry' });
 			}
 		} catch (err) {
 			console.error('Error saving expense:', err);
-			await minDelay;
 			setShowSavingLoader(false);
 			alert('Error saving expense entry.');
 		}
@@ -434,9 +459,6 @@ const PettyCash = () => {
 			alert('Please enter a valid amount greater than 0.');
 			return;
 		}
-
-		const isConfirmed = window.confirm(`Are you sure you want to save this cash addition of ₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}?`);
-		if (!isConfirmed) return;
 
 		try {
 			const payload = {
@@ -458,7 +480,7 @@ const PettyCash = () => {
 				fetchExpenses();
 				setShowAddCashModal(false);
 				setAddCashAmount('');
-				setAddCashDate(new Date().toISOString().split('T')[0]);
+				setAddCashDate(format(new Date(), 'yyyy-MM-dd'));
 				setAddCashDescription('');
 				setEditingCash(null);
 				setSuccessModal({ show: true, type: editingCash ? 'Update' : 'Add', id: `Cash Addition of ₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` });
@@ -598,14 +620,18 @@ const PettyCash = () => {
 		document.body.removeChild(element);
 	};
 
-	const filteredExpenses = expenses.filter(exp =>
-		!searchQuery ||
-		(exp.description && exp.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-		(exp.category && exp.category.toLowerCase().includes(searchQuery.toLowerCase())) ||
-		(exp.subcategory && exp.subcategory.toLowerCase().includes(searchQuery.toLowerCase())) ||
-		(exp.submitted_by && exp.submitted_by.toLowerCase().includes(searchQuery.toLowerCase())) ||
-		(exp.amount && exp.amount.toString().includes(searchQuery))
-	);
+	const filteredExpenses = expenses.filter(exp => {
+		const matchesBranchFilter = !filters.branch || exp.branch === filters.branch;
+		const isUserAllowedBranch = !user?.branch || user.branch === 'All' || user.email === 'admin@support.com' || allowedBranches.includes(exp.branch);
+		const matchesSearch = !searchQuery ||
+			(exp.description && exp.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+			(exp.category && exp.category.toLowerCase().includes(searchQuery.toLowerCase())) ||
+			(exp.subcategory && exp.subcategory.toLowerCase().includes(searchQuery.toLowerCase())) ||
+			(exp.submitted_by && exp.submitted_by.toLowerCase().includes(searchQuery.toLowerCase())) ||
+			(exp.amount && exp.amount.toString().includes(searchQuery));
+
+		return matchesBranchFilter && isUserAllowedBranch && matchesSearch;
+	});
 
 	const pagedExpenses = filteredExpenses.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
@@ -850,6 +876,22 @@ const PettyCash = () => {
 							]}
 						/>
 
+						{/* Branch */}
+						{allowedBranches.length > 1 && (
+							<SelectDropdown
+								variant="filter"
+								icon="store"
+								widthClass="w-52"
+								label="All Branches"
+								value={filters.branch}
+								onChange={val => setFilters(prev => ({ ...prev, branch: val }))}
+								options={[
+									{ label: 'All Branches', value: '' },
+									...allowedBranches.map(b => ({ label: b, value: b }))
+								]}
+							/>
+						)}
+
 						{/* Date Range */}
 						<div className="relative" ref={datePickerRef}>
 							<button
@@ -984,28 +1026,30 @@ const PettyCash = () => {
 					) : (
 						<>
 							<div className="overflow-auto flex-1 custom-scrollbar">
-								<table className="w-full text-left border-collapse text-sm">
+								<table className="w-full min-w-[1850px] text-left border-collapse text-sm">
 									<thead className="sticky top-0 z-10 bg-[#eceef0] dark:bg-slate-800 shadow-sm">
 										<tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-semibold">
-											<th className="p-4 w-16 text-center">#</th>
-											<th className="p-4">Date</th>
-											<th className="p-4">Category</th>
-											<th className="p-4">Purpose</th>
-											<th className="p-4">Description</th>
-											<th className="p-4 font-semibold text-red-600 dark:text-red-400 text-right">Debit (₹)</th>
-											<th className="p-4 font-semibold text-emerald-600 dark:text-emerald-400 text-right">Credit (₹)</th>
-											<th className="p-4">Verified By</th>
-											<th className="p-4">Approved By</th>
-											<th className="p-4">Receiver</th>
-											{hasActionPermission && <th className="p-4 text-right font-semibold">Actions</th>}
+											<th className="p-4 w-16 min-w-[64px] text-center">#</th>
+											<th className="p-4 min-w-[130px]">Date</th>
+											<th className="p-4 min-w-[240px]">Branch</th>
+											<th className="p-4 min-w-[220px]">Category</th>
+											<th className="p-4 min-w-[140px]">Purpose</th>
+											<th className="p-4 min-w-[280px]">Description</th>
+											<th className="p-4 min-w-[150px] font-semibold text-red-600 dark:text-red-400 text-right">Debit (₹)</th>
+											<th className="p-4 min-w-[150px] font-semibold text-emerald-600 dark:text-emerald-400 text-right">Credit (₹)</th>
+											<th className="p-4 min-w-[160px]">Verified By</th>
+											<th className="p-4 min-w-[160px]">Approved By</th>
+											<th className="p-4 min-w-[160px]">Receiver</th>
+											{hasActionPermission && <th className="p-4 min-w-[140px] text-right font-semibold">Actions</th>}
 										</tr>
 									</thead>
 									<tbody className="divide-y divide-slate-100 dark:divide-slate-800">
 										{pagedExpenses.map((exp, index) => (
 											<tr key={exp.id} onClick={() => handleRowClick(exp)} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20 transition-colors cursor-pointer">
-												<td className="px-4 py-2 text-center text-slate-500 font-medium">{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
-												<td className="px-4 py-2 font-medium">{exp.date ? exp.date.split('-').reverse().join('-') : ''}</td>
-												<td className="px-4 py-2">
+												<td className="px-4 py-3 text-center text-slate-500 font-medium">{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
+												<td className="px-4 py-3 font-medium whitespace-nowrap">{exp.date ? exp.date.split('-').reverse().join('-') : ''}</td>
+												<td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-300">{exp.type === 'credit' ? '-' : (exp.branch || '-')}</td>
+												<td className="px-4 py-3">
 													<div>
 														<div className="font-semibold text-slate-900 dark:text-white">{exp.category}</div>
 														<div className="text-[11px] text-slate-400">
@@ -1013,13 +1057,13 @@ const PettyCash = () => {
 														</div>
 													</div>
 												</td>
-												<td className="px-4 py-2 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : exp.submitted_by}</td>
-												<td className="px-4 py-2 max-w-[200px] truncate" title={exp.description}>{exp.description}</td>
-												<td className="px-4 py-2 font-bold text-[#ec1d22] text-right">{exp.type !== 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
-												<td className="px-4 py-2 font-bold text-emerald-600 dark:text-emerald-400 text-right">{exp.type === 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
-												<td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.type === 'credit' ? '-' : (exp.verified_by || '-')}</td>
-												<td className="px-4 py-2 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : (exp.approved_by || '-')}</td>
-												<td className="px-4 py-2 text-slate-600 dark:text-slate-300">{exp.type === 'credit' ? '-' : (exp.receiver_name || '-')}</td>
+												<td className="px-4 py-3 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : exp.submitted_by}</td>
+												<td className="px-4 py-3 max-w-[320px] truncate" title={exp.description}>{exp.description}</td>
+												<td className="px-4 py-3 font-bold text-[#ec1d22] text-right whitespace-nowrap">{exp.type !== 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+												<td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400 text-right whitespace-nowrap">{exp.type === 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
+												<td className="px-4 py-3 text-slate-600 dark:text-slate-300">{exp.type === 'credit' ? '-' : (exp.verified_by || '-')}</td>
+												<td className="px-4 py-3 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : (exp.approved_by || '-')}</td>
+												<td className="px-4 py-3 text-slate-600 dark:text-slate-300">{exp.type === 'credit' ? '-' : (exp.receiver_name || '-')}</td>
 												{hasActionPermission && (
 													<td className="px-4 py-2 text-right">
 														{exp.type === 'credit' && (hasEditPermission || hasDeletePermission) && (
@@ -1088,16 +1132,20 @@ const PettyCash = () => {
 									</tbody>
 									<tfoot className="bg-slate-100 dark:bg-[#151921] sticky bottom-0 z-10 border-t-2 border-slate-200 dark:border-slate-700">
 										<tr className="font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-[#151921] border-t border-slate-200 dark:border-slate-700">
-											<td colSpan="7" className="p-4 text-right uppercase tracking-wider text-xs text-slate-500 dark:text-slate-400">Page Total:</td>
-											<td className="p-4 text-[#ec1d22] text-right">{pageDebitTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-											<td className="p-4 text-emerald-600 dark:text-emerald-400 text-right">{pageCreditTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+											<td colSpan="6" className="p-4 text-right uppercase tracking-wider text-xs text-slate-500 dark:text-slate-400">Page Total:</td>
+											<td className="p-4 text-[#ec1d22] text-right font-extrabold">{pageDebitTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+											<td className="p-4 text-emerald-600 dark:text-emerald-400 text-right font-extrabold">{pageCreditTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+											<td className="p-4"></td>
+											<td className="p-4"></td>
 											<td className="p-4"></td>
 											{hasActionPermission && <td className="p-4"></td>}
 										</tr>
 										<tr className="font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-[#151921]">
-											<td colSpan="7" className="p-4 text-right uppercase tracking-wider text-xs text-slate-500 dark:text-slate-400">Overall Total:</td>
-											<td className="p-4 text-[#ec1d22] text-right">{overallDebitTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-											<td className="p-4 text-emerald-600 dark:text-emerald-400 text-right">{overallCreditTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+											<td colSpan="6" className="p-4 text-right uppercase tracking-wider text-xs text-slate-500 dark:text-slate-400">Overall Total:</td>
+											<td className="p-4 text-[#ec1d22] text-right font-extrabold">{overallDebitTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+											<td className="p-4 text-emerald-600 dark:text-emerald-400 text-right font-extrabold">{overallCreditTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+											<td className="p-4"></td>
+											<td className="p-4"></td>
 											<td className="p-4"></td>
 											{hasActionPermission && <td className="p-4"></td>}
 										</tr>
@@ -1161,7 +1209,7 @@ const PettyCash = () => {
 			{/* Add Expense Modal */}
 			{showAddModal && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto overscroll-contain">
-					<div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl p-6 md:p-8">
+					<div className="bg-white dark:bg-slate-900 w-full max-w-[60%] rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl p-6 md:p-8">
 						<div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
 							<h3 className="text-xl font-bold text-slate-900 dark:text-white">{editingExpense ? 'Edit Expense' : 'Add Expense'}</h3>
 							<button
@@ -1173,7 +1221,7 @@ const PettyCash = () => {
 						</div>
 
 						<form onSubmit={handleAddExpense} className="space-y-4">
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date <span className="text-red-500">*</span></label>
 									<input
@@ -1181,7 +1229,7 @@ const PettyCash = () => {
 										required
 										value={expenseForm.date}
 										onChange={e => setExpenseForm(prev => ({ ...prev, date: e.target.value }))}
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+										className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 text-sm"
 									/>
 								</div>
 								<div>
@@ -1194,7 +1242,7 @@ const PettyCash = () => {
 										value={expenseForm.amount}
 										onChange={e => setExpenseForm(prev => ({ ...prev, amount: e.target.value }))}
 										placeholder="0.00"
-										className={`w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl outline-none focus:outline-none focus:ring-0 font-bold ${
+										className={`w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border rounded-xl outline-none focus:outline-none focus:ring-0 text-sm font-bold ${
 											isAmountExceeded ? 'border-red-500 text-red-500 focus:border-red-500' : 'border-none text-[#ec1d22]'
 										}`}
 									/>
@@ -1205,14 +1253,24 @@ const PettyCash = () => {
 										</p>
 									)}
 								</div>
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Branch <span className="text-red-500">*</span></label>
+									<SelectDropdown
+										label="Select Branch"
+										options={allowedBranches}
+										value={expenseForm.branch}
+										onChange={val => setExpenseForm(prev => ({ ...prev, branch: val }))}
+										disabled={allowedBranches.length === 1}
+									/>
+								</div>
 							</div>
 
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 								<div>
 									<div className="flex justify-between items-center mb-2">
 										<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Category <span className="text-red-500">*</span></label>
 										<button type="button" onClick={() => setShowAddCategory(true)} className="text-xs font-bold text-amber-600 hover:text-amber-700 transition-colors cursor-pointer bg-transparent border-none p-0 flex items-center gap-1">
-											<span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span> Add Category
+											<span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span> Add
 										</button>
 									</div>
 									<SelectDropdown
@@ -1231,28 +1289,7 @@ const PettyCash = () => {
 										onChange={val => setExpenseForm(prev => ({ ...prev, subcategory: val }))}
 										disabled={!expenseForm.category || !dashboard.subcategories[expenseForm.category] || dashboard.subcategories[expenseForm.category].length === 0}
 									/>
-									{expenseForm.category && (dashboard.subcategories[expenseForm.category] || []).filter(s => s !== 'Other').length > 0 && (
-										<div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 flex flex-wrap gap-1 items-center">
-										</div>
-									)}
 								</div>
-							</div>
-
-							{expenseForm.subcategory === 'Other' && (
-								<div className="mb-4">
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory Remarks</label>
-									<input
-										type="text"
-										required
-										value={expenseForm.sub_remarks}
-										onChange={e => setExpenseForm(prev => ({ ...prev, sub_remarks: e.target.value }))}
-										placeholder="E.g. Stationery purchase detail"
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
-									/>
-								</div>
-							)}
-
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Purpose <span className="text-red-500">*</span></label>
 									<SelectDropdown
@@ -1262,6 +1299,23 @@ const PettyCash = () => {
 										onChange={val => setExpenseForm(prev => ({ ...prev, purpose: val }))}
 									/>
 								</div>
+							</div>
+
+							{expenseForm.subcategory === 'Other' && (
+								<div>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategory Remarks</label>
+									<input
+										type="text"
+										required
+										value={expenseForm.sub_remarks}
+										onChange={e => setExpenseForm(prev => ({ ...prev, sub_remarks: e.target.value }))}
+										placeholder="E.g. Stationery purchase detail"
+										className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 text-sm"
+									/>
+								</div>
+							)}
+
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Receiver Name</label>
 									<input
@@ -1269,12 +1323,9 @@ const PettyCash = () => {
 										value={expenseForm.receiver_name || ''}
 										onChange={e => setExpenseForm(prev => ({ ...prev, receiver_name: e.target.value }))}
 										placeholder="Receiver's name (optional)"
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+										className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 text-sm"
 									/>
 								</div>
-							</div>
-
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Verified By</label>
 									<input
@@ -1282,7 +1333,7 @@ const PettyCash = () => {
 										value={expenseForm.verified_by || ''}
 										onChange={e => setExpenseForm(prev => ({ ...prev, verified_by: e.target.value }))}
 										placeholder="Verifier's name (optional)"
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+										className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 text-sm"
 									/>
 								</div>
 								<div>
@@ -1292,7 +1343,7 @@ const PettyCash = () => {
 										value={expenseForm.approved_by || ''}
 										onChange={e => setExpenseForm(prev => ({ ...prev, approved_by: e.target.value }))}
 										placeholder="Approver's username (optional)"
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+										className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 text-sm"
 									/>
 								</div>
 							</div>
@@ -1503,6 +1554,13 @@ const PettyCash = () => {
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Date</label>
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedExpense.date ? selectedExpense.date.split('-').reverse().join('-') : '-'}</p>
 								</div>
+								<div>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Branch</label>
+									<p className="font-medium text-sm text-slate-800 dark:text-slate-200">{selectedExpense.branch || '-'}</p>
+								</div>
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Approved By</label>
 									<p className="font-medium text-sm text-slate-800 dark:text-slate-200">{selectedExpense.approved_by || '-'}</p>
