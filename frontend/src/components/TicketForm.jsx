@@ -20,11 +20,27 @@ const TicketForm = () => {
     const [categoriesLoading, setCategoriesLoading] = useState(false);
     const [departments, setDepartments] = useState([]);
     const [departmentsLoading, setDepartmentsLoading] = useState(false);
+    const [branchOptions, setBranchOptions] = useState([]);
     const [gifSettings, setGifSettings] = useState(null);
     const [submittedTicketInfo, setSubmittedTicketInfo] = useState(null);
 
     useEffect(() => {
+        const fetchBranches = async () => {
+            try {
+                const response = await api.get('/api/settings/branches-locations');
+                if (response.data?.branches) {
+                    setBranchOptions(response.data.branches.map(b => ({
+                        value: b.name,
+                        label: b.name
+                    })));
+                }
+            } catch (err) {
+                console.error("Failed to fetch branches:", err);
+            }
+        };
+        fetchBranches();
         const fetchCategories = async () => {
+
             setCategoriesLoading(true);
             try {
                 const response = await api.get('/api/categories');
@@ -227,13 +243,7 @@ const TicketForm = () => {
                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Branch <span className="text-red-500">*</span></label>
                                     <CustomSelect
                                         placeholder="Select a branch"
-                                        options={[
-                                            { value: 'Cotton Concepts HO_ Coimbatore', label: 'Cotton Concepts HO, Coimbatore' },
-                                            { value: 'Doctor Towels HO', label: 'Doctor Towels HO' },
-                                            { value: 'Cotton Concepts_ Vengamedu', label: 'Cotton Concepts, Vengamedu' },
-                                            { value: 'Cotton Concepts_ Karur', label: 'Cotton Concepts, Karur Factory' },
-                                            { value: 'Doctor Towels_ Karur', label: 'Doctor Towels, Karur' }
-                                        ]}
+                                        options={branchOptions}
                                         value={formData.branch}
                                         onChange={(val) => setFormData(prev => ({ ...prev, branch: val }))}
                                     />

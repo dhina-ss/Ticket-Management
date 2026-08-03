@@ -252,8 +252,12 @@ def init_db():
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';")
                 # Add courier_users field for user-level courier visibility
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS courier_users TEXT DEFAULT '';")
+                # Add department field for user-level department specification (e.g. Courier department)
+                cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS department TEXT DEFAULT '';")
+                # Add purpose column to couriers table
+                cur.execute("ALTER TABLE couriers ADD COLUMN IF NOT EXISTS purpose TEXT DEFAULT '';")
                 # Add branch field to pettycash table
-                cur.execute("ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS branch TEXT DEFAULT 'Cotton Concepts HO_ Coimbatore';")
+                cur.execute("ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS branch TEXT DEFAULT 'Cotton Concepts HO, Coimbatore';")
                 # Ensure existing admin@support.com gets Super admin role
                 cur.execute("UPDATE admin_users SET role = 'Super admin' WHERE email = 'admin@support.com' AND (role IS NULL OR role = 'user');")
                 # Seed default admin if table is empty
@@ -263,10 +267,10 @@ def init_db():
                         "INSERT INTO admin_users (name, email, password, access, support_type, branch, allowed_menus, role) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                         ("Admin User", "admin@support.com", "Admin@123", "View,Edit,Export", "IT Support,Admin Support", "All", "", "Super admin")
                     )
-
-                # Migration: Replace ', ' in branch names with '_ '
-                cur.execute("UPDATE tickets SET branch = REPLACE(branch, ', ', '_ ') WHERE branch LIKE '%, %';")
-                cur.execute("UPDATE admin_users SET branch = REPLACE(branch, ', ', '_ ') WHERE branch LIKE '%, %';")
+                # Using unconditional REPLACE (safe — REPLACE is a no-op when the substring is absent)
+                for tbl in ['tickets', 'admin_users', 'assets', 'admin_assets', 'pettycash']:
+                    cur.execute(f"UPDATE {tbl} SET branch = REPLACE(branch, '_ ', ', ') WHERE branch IS NOT NULL AND branch LIKE '%%_ %%';")
+                    cur.execute(f"UPDATE {tbl} SET branch = REPLACE(branch, '_', ', ') WHERE branch IS NOT NULL AND branch LIKE '%%_%%';")
         conn.close()
         
         # Run auto-cleanup once per restart
@@ -851,7 +855,7 @@ def get_admin_users() -> list:
         # We match by name and ensured it's not soft-deleted.
         cur.execute("""
             SELECT u.id, u.name, u.email, u.access, u.support_type, u.created_at, 
-                   u.can_receive_mail, u.can_send_mail, u.receiver_position, u.branch, u.allowed_menus, u.role, u.courier_users,
+                   u.can_receive_mail, u.can_send_mail, u.receiver_position, u.branch, u.allowed_menus, u.role, u.courier_users, u.department,
                    EXISTS (SELECT 1 FROM assignees a WHERE a.name = u.name AND a.is_delete = false) as is_assignee
             FROM admin_users u
             ORDER BY u.created_at ASC;
@@ -864,14 +868,14 @@ def get_admin_users() -> list:
     return rows
 
 
-def create_admin_user(name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus="", role="user", courier_users=""):
+def create_admin_user(name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus="", role="user", courier_users="", department=""):
     conn = _get_conn()
     try:
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
-                    (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users)
+                    "INSERT INTO admin_users (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users, department) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;",
+                    (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users, department)
                 )
                 new_id = cur.fetchone()[0]
     except Exception:
@@ -880,20 +884,20 @@ def create_admin_user(name, email, password, access, support_type, can_receive_m
     return {"id": new_id}
 
 
-def update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus="", role="user", courier_users=""):
+def update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail=False, can_send_mail=False, receiver_position=None, branch="All", allowed_menus="", role="user", courier_users="", department=""):
     conn = _get_conn()
     try:
         with conn:
             with conn.cursor() as cur:
                 if password:
                     cur.execute(
-                        "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s, role = %s, courier_users = %s WHERE id = %s;",
-                        (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users, user_id)
+                        "UPDATE admin_users SET name = %s, email = %s, password = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s, role = %s, courier_users = %s, department = %s WHERE id = %s;",
+                        (name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users, department, user_id)
                     )
                 else:
                     cur.execute(
-                        "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s, role = %s, courier_users = %s WHERE id = %s;",
-                        (name, email, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users, user_id)
+                        "UPDATE admin_users SET name = %s, email = %s, access = %s, support_type = %s, can_receive_mail = %s, can_send_mail = %s, receiver_position = %s, branch = %s, allowed_menus = %s, role = %s, courier_users = %s, department = %s WHERE id = %s;",
+                        (name, email, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users, department, user_id)
                     )
                 updated = cur.rowcount > 0
     except Exception:
@@ -917,7 +921,7 @@ def verify_admin_login(email: str, password: str) -> dict | None:
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch, can_receive_mail, can_send_mail, allowed_menus, role, courier_users FROM admin_users WHERE email = %s AND password = %s;",
+                "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch, can_receive_mail, can_send_mail, allowed_menus, role, courier_users, department FROM admin_users WHERE email = %s AND password = %s;",
                 (email, password)
             )
             row = cur.fetchone()
@@ -2239,4 +2243,83 @@ def set_app_setting(key: str, value: str) -> bool:
     except Exception as e:
         print(f"DEBUG: set_app_setting error: {e}")
         return False
+
+DEFAULT_BRANCHES_LOCATIONS_SETTING = {
+    "branches": [
+        {"id": "b-1", "name": "Cotton Concepts HO, Coimbatore", "created_at": "2026-01-01T00:00:00Z"},
+        {"id": "b-2", "name": "Doctor Towels HO", "created_at": "2026-01-01T00:00:00Z"},
+        {"id": "b-3", "name": "Cotton Concepts, Vengamedu", "created_at": "2026-01-01T00:00:00Z"},
+        {"id": "b-4", "name": "Cotton Concepts, Karur", "created_at": "2026-01-01T00:00:00Z"},
+        {"id": "b-5", "name": "Doctor Towels, Karur", "created_at": "2026-01-01T00:00:00Z"}
+    ],
+
+    "from_locations": [
+        {"id": "fl-1", "name": "Head Office", "location_type": "main", "created_at": "2026-01-01T00:00:00Z"},
+        {"id": "fl-2", "name": "Warehouse A", "location_type": "main", "created_at": "2026-01-01T00:00:00Z"},
+        {"id": "fl-3", "name": "Factory Unit 1", "location_type": "others", "created_at": "2026-01-01T00:00:00Z"},
+        {"id": "fl-4", "name": "Dispatch Center", "location_type": "others", "created_at": "2026-01-01T00:00:00Z"}
+    ],
+    "to_locations": [
+        {"id": "tl-1", "name": "Branch Office", "location_type": "main", "created_at": "2026-01-01T00:00:00Z"},
+        {"id": "tl-2", "name": "Client Site", "location_type": "main", "created_at": "2026-01-01T00:00:00Z"},
+        {"id": "tl-3", "name": "Vendor Facility", "location_type": "others", "created_at": "2026-01-01T00:00:00Z"},
+        {"id": "tl-4", "name": "Processing Plant", "location_type": "others", "created_at": "2026-01-01T00:00:00Z"}
+    ]
+}
+
+def get_branches_locations_setting() -> dict:
+    import json, re
+    raw = get_app_setting('branches_locations')
+    if raw:
+        try:
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                if "branches" not in data:
+                    data["branches"] = DEFAULT_BRANCHES_LOCATIONS_SETTING["branches"]
+                else:
+                    # Fix any underscore variants in branch names: '_ ', '_', etc.
+                    updated = False
+                    for b in data.get("branches", []):
+                        original = b.get("name", "")
+                        # Replace '_ ' (underscore-space) first, then lone '_'
+                        fixed = original.replace("_ ", ", ")
+                        fixed = re.sub(r'(?<![_])_(?![_])', ', ', fixed)  # single underscore not part of __
+                        fixed = fixed.replace(",,", ",")  # clean up any double commas
+                        if fixed != original:
+                            b["name"] = fixed
+                            updated = True
+                    if updated:
+                        set_branches_locations_setting(data)
+                if "from_locations" not in data:
+                    data["from_locations"] = DEFAULT_BRANCHES_LOCATIONS_SETTING["from_locations"]
+                else:
+                    # Migrate existing from_locations without location_type to 'main'
+                    migrated = False
+                    for item in data.get("from_locations", []):
+                        if "location_type" not in item:
+                            item["location_type"] = "main"
+                            migrated = True
+                    if migrated:
+                        set_branches_locations_setting(data)
+                if "to_locations" not in data:
+                    data["to_locations"] = DEFAULT_BRANCHES_LOCATIONS_SETTING["to_locations"]
+                else:
+                    # Migrate existing to_locations without location_type to 'main'
+                    migrated = False
+                    for item in data.get("to_locations", []):
+                        if "location_type" not in item:
+                            item["location_type"] = "main"
+                            migrated = True
+                    if migrated:
+                        set_branches_locations_setting(data)
+                return data
+        except Exception:
+            pass
+    set_branches_locations_setting(DEFAULT_BRANCHES_LOCATIONS_SETTING)
+    return DEFAULT_BRANCHES_LOCATIONS_SETTING
+
+def set_branches_locations_setting(data: dict) -> bool:
+    import json
+    return set_app_setting('branches_locations', json.dumps(data))
+
 

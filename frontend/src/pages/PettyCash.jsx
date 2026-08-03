@@ -38,7 +38,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 				<span className={`material-symbols-outlined text-slate-400 ${variant === 'filter' ? 'text-base' : 'text-[18px] shrink-0 ml-1'} transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
 			</div>
 			{isOpen && (
-				<div className={`absolute left-0 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border-none z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
+				<div className={`absolute left-0 min-w-full w-max max-w-[360px] bg-white dark:bg-slate-900 rounded-xl shadow-xl border-none z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
 					? 'bottom-full mb-1.5 origin-bottom'
 					: 'top-full mt-1.5 origin-top'
 					}`}>
@@ -47,7 +47,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 							<div
 								key={opt.value ?? opt}
 								onClick={() => { onChange(opt.value ?? opt); setIsOpen(false); }}
-								className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium ${(opt.value ?? opt) === value
+								className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium whitespace-nowrap ${(opt.value ?? opt) === value
 									? 'bg-primary/10 text-primary'
 									: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
 									}`}
@@ -222,28 +222,36 @@ const PettyCash = () => {
 		}
 	};
 
-	const ALL_BRANCH_OPTIONS = [
-		'Cotton Concepts HO_ Coimbatore',
-		'Doctor Towels HO',
-		'Cotton Concepts_ Vengamedu',
-		'Cotton Concepts_ Karur',
-		'Doctor Towels_ Karur'
-	];
+	const [dynamicBranches, setDynamicBranches] = useState([]);
+
+	useEffect(() => {
+		const fetchBranchSettings = async () => {
+			try {
+				const res = await api.get('/api/settings/branches-locations');
+				if (res.data?.branches && res.data.branches.length > 0) {
+					setDynamicBranches(res.data.branches.map(b => b.name));
+				}
+			} catch (err) {
+				console.error('Failed to fetch branches setting in Petty Cash:', err);
+			}
+		};
+		fetchBranchSettings();
+	}, []);
+
+	const ALL_BRANCH_OPTIONS = dynamicBranches;
 
 	const allowedBranches = React.useMemo(() => {
 		if (!user?.branch || user.branch === 'All' || user.email === 'admin@support.com') {
 			return ALL_BRANCH_OPTIONS;
 		}
-		const userBranches = user.branch.split(',').map(b => b.trim()).filter(Boolean);
-		if (userBranches.length === 0 || userBranches.includes('All')) {
-			return ALL_BRANCH_OPTIONS;
-		}
-		return userBranches;
-	}, [user?.branch, user?.email]);
+		const matched = ALL_BRANCH_OPTIONS.filter(b => user.branch.includes(b));
+		return matched.length > 0 ? matched : ALL_BRANCH_OPTIONS;
+	}, [user?.branch, user?.email, ALL_BRANCH_OPTIONS]);
 
 	const handleOpenAdd = () => {
 		setEditingExpense(null);
-		const defaultBranch = allowedBranches.length > 0 ? allowedBranches[0] : 'Cotton Concepts HO_ Coimbatore';
+		const defaultBranch = allowedBranches.length > 0 ? allowedBranches[0] : '';
+
 		setExpenseForm({
 			date: format(new Date(), 'yyyy-MM-dd'),
 			branch: defaultBranch,
@@ -264,7 +272,7 @@ const PettyCash = () => {
 		setEditingExpense(exp);
 		const defaultBranch = exp.branch && allowedBranches.includes(exp.branch)
 			? exp.branch
-			: (allowedBranches[0] || 'Cotton Concepts HO_ Coimbatore');
+			: (allowedBranches[0] || 'Cotton Concepts HO, Coimbatore');
 		setExpenseForm({
 			date: exp.date ? exp.date.split('T')[0] : format(new Date(), 'yyyy-MM-dd'),
 			branch: defaultBranch,
@@ -283,7 +291,7 @@ const PettyCash = () => {
 
 	const handleCloseAddModal = () => {
 		setEditingExpense(null);
-		const defaultBranch = allowedBranches.length > 0 ? allowedBranches[0] : 'Cotton Concepts HO_ Coimbatore';
+		const defaultBranch = allowedBranches.length > 0 ? allowedBranches[0] : 'Cotton Concepts HO, Coimbatore';
 		setExpenseForm({
 			date: format(new Date(), 'yyyy-MM-dd'),
 			branch: defaultBranch,
@@ -343,7 +351,7 @@ const PettyCash = () => {
 	// Form States
 	const [expenseForm, setExpenseForm] = useState({
 		date: format(new Date(), 'yyyy-MM-dd'),
-		branch: 'Cotton Concepts HO_ Coimbatore',
+		branch: 'Cotton Concepts HO, Coimbatore',
 		category: '',
 		subcategory: '',
 		sub_remarks: '',

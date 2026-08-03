@@ -40,7 +40,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 				<span className={`material-symbols-outlined text-slate-400 ${variant === 'filter' ? 'text-base' : 'text-[18px] shrink-0 ml-1'} transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
 			</div>
 			{isOpen && (
-				<div className={`absolute left-0 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
+				<div className={`absolute left-0 min-w-full w-max max-w-[360px] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
 					? 'bottom-full mb-1.5 origin-bottom'
 					: 'top-full mt-1.5 origin-top'
 					}`}>
@@ -49,7 +49,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 							<div
 								key={opt.value ?? opt}
 								onClick={() => { onChange(opt.value ?? opt); setIsOpen(false); }}
-								className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium ${(opt.value ?? opt) === value
+								className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium whitespace-nowrap ${(opt.value ?? opt) === value
 									? 'bg-primary/10 text-primary'
 									: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
 									}`}

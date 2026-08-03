@@ -70,7 +70,7 @@ const CustomSelect = ({
 
             {isOpen && !disabled && (
                 <div
-                    className={`absolute left-0 right-0 w-full bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 z-[100] p-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${
+                    className={`absolute left-0 min-w-full w-max max-w-[360px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 z-[100] p-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${
                         direction === 'up' ? 'bottom-full mb-1.5 origin-bottom' : 'top-full mt-1.5 origin-top'
                     }`}
                 >
@@ -90,7 +90,7 @@ const CustomSelect = ({
                                             : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
                                     }`}
                                 >
-                                    <span className="truncate">{label}</span>
+                                    <span className="whitespace-nowrap">{label}</span>
                                     {isSelected && (
                                         <span className="material-symbols-outlined text-base shrink-0 ml-2">check</span>
                                     )}

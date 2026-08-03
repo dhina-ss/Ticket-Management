@@ -127,6 +127,7 @@ class Courier(db.Model):
     transaction_type = db.Column(db.String(20), default='Dispatch')
     sender = db.Column(db.String(100))
     department = db.Column(db.String(50))
+    purpose = db.Column(db.String(100))
     sending_from = db.Column(db.String(100))
     receiver = db.Column(db.String(100))
     receiver_office = db.Column(db.String(100))

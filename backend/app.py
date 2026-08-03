@@ -567,7 +567,20 @@ def get_tickets():
         if support_type_arg:
             support_types = [s.strip() for s in support_type_arg.split(',') if s.strip()]
         if branch_arg:
-            branches = [b.strip() for b in branch_arg.split(',') if b.strip()]
+            if '||' in branch_arg:
+                branches = [b.strip() for b in branch_arg.split('||') if b.strip()]
+            else:
+                from database import get_branches_locations_setting
+                bl = get_branches_locations_setting()
+                known_b = [b['name'] for b in bl.get('branches', [])]
+                if branch_arg.strip() in known_b:
+                    branches = [branch_arg.strip()]
+                else:
+                    matched = [kb for kb in known_b if kb in branch_arg]
+                    if matched:
+                        branches = matched
+                    else:
+                        branches = [b.strip() for b in branch_arg.split(',') if b.strip()]
         return jsonify(get_all_tickets(support_types, branches)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -601,12 +614,13 @@ def create_user():
         allowed_menus = data.get("allowed_menus", "").strip()
         role = data.get("role", "user").strip()
         courier_users = data.get("courier_users", "").strip()
+        department = data.get("department", "").strip()
 
         if not name or not email or not password:
             return jsonify({"error": "Name, email and password are required."}), 400
         if len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
-        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users)
+        result = create_admin_user(name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users, department)
         logging.info(f"Admin Action: Created new user - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
         
         # Optionally add as assignee
@@ -640,13 +654,14 @@ def edit_user(user_id):
         allowed_menus = data.get("allowed_menus", "").strip()
         role = data.get("role", "user").strip()
         courier_users = data.get("courier_users", "").strip()
+        department = data.get("department", "").strip()
 
         if not name or not email:
             return jsonify({"error": "Name and email are required."}), 400
         if password and len(password) < 6:
             return jsonify({"error": "Password must be at least 6 characters long."}), 400
         
-        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users)
+        updated = update_admin_user(user_id, name, email, password, access, support_type, can_receive_mail, can_send_mail, receiver_position, branch, allowed_menus, role, courier_users, department)
         if updated:
             logging.info(f"Admin Action: Edited user {user_id} - Name: {name}, Email: {email}, Access: {access}, Support: {support_type}")
             
@@ -1647,17 +1662,20 @@ def submit_ticket():
         # ── Custom ID Generation based on Branch ──────────────────────────
         # Mapping: branch name -> (prefix, suffix)
         BRANCH_MAP = {
-            "Cotton Concepts HO_ Coimbatore": ("CCCD", "HO"),
+            "Cotton Concepts HO, Coimbatore": ("CCCD", "HO"),
             "Doctor Towels HO":               ("DST", "HO"),
+            "Cotton Concepts, Vengamedu":     ("VMCC", ""),
+            "Cotton Concepts, Karur":         ("KRFCC", ""),
+            "Doctor Towels, Karur":           ("KRDST", ""),
+            # Legacy fallback
+            "Cotton Concepts HO_ Coimbatore": ("CCCD", "HO"),
             "Cotton Concepts_ Vengamedu":     ("VMCC", ""),
             "Cotton Concepts_ Karur":         ("KRFCC", ""),
             "Doctor Towels_ Karur":           ("KRDST", ""),
         }
         
         branch_name = data.get("branch", "").strip()
-        # Normalize: if someone sends "HO, Coimbatore" instead of "HO_ Coimbatore"
-        normalized_branch = branch_name.replace(", ", "_ ")
-        prefix, suffix = BRANCH_MAP.get(normalized_branch, BRANCH_MAP.get(branch_name, ("TKT", "")))
+        prefix, suffix = BRANCH_MAP.get(branch_name, BRANCH_MAP.get(branch_name.replace("_ ", ", "), ("TKT", "")))
         
         from database import get_max_sequential_id
         max_num = get_max_sequential_id(prefix, suffix)
@@ -2423,11 +2441,11 @@ try:
             Branch = courier_app_pkg.models.Branch
             if Branch.query.count() == 0:
                 default_branches = [
-                    ('Cotton Concepts HO_ Coimbatore', 'CCCD-HO', 'Coimbatore', 'CCCD'),
+                    ('Cotton Concepts HO, Coimbatore', 'CCCD-HO', 'Coimbatore', 'CCCD'),
                     ('Doctor Towels HO',  'DST-HO',  'Coimbatore', 'DST'),
-                    ('Cotton Concepts_ Vengamedu',     'CC-VNG',  'Karur',       'CCCD'),
-                    ('Cotton Concepts_ Karur',         'CC-KRR',  'Karur',       'CCCD'),
-                    ('Doctor Towels_ Karur',           'DST-KRR',  'Karur',       'DST'),
+                    ('Cotton Concepts, Vengamedu',     'CC-VNG',  'Karur',       'CCCD'),
+                    ('Cotton Concepts, Karur',         'CC-KRR',  'Karur',       'CCCD'),
+                    ('Doctor Towels, Karur',           'DST-KRR',  'Karur',       'DST'),
                 ]
                 for name, code, loc, company in default_branches:
                     b = Branch(name=name, code=code, location=loc, company=company)
@@ -2486,12 +2504,31 @@ def api_courier_lookups():
             
             branches = [{"id": b.id, "name": b.name, "code": b.code} for b in courier_app_pkg.models.Branch.query.filter_by(is_active=True).all()]
             
-            from database import get_departments
+            from database import get_departments, get_branches_locations_setting
             # Fetch departments that have "Courier" support type (or all if you prefer, but Courier is what they map it to)
             courier_departments = [d['name'] for d in get_departments("Courier")]
             # Fallback to all departments if none have Courier support type yet, so the dropdown isn't empty
             if not courier_departments:
                 courier_departments = [d['name'] for d in get_departments()]
+
+            bl_settings = get_branches_locations_setting()
+            from_locations = [
+                {"name": item['name'], "location_type": item.get('location_type', 'main')}
+                for item in bl_settings.get('from_locations', []) if item.get('name')
+            ]
+            to_locations = [
+                {"name": item['name'], "location_type": item.get('location_type', 'main')}
+                for item in bl_settings.get('to_locations', []) if item.get('name')
+            ]
+            bl_branches = [item['name'] for item in bl_settings.get('branches', []) if item.get('name')]
+
+            # Merge any branches from branches_locations setting if not already present by name
+            existing_branch_names = {b['name'].lower() for b in branches}
+            next_id = max([b['id'] for b in branches], default=0) + 1
+            for b_name in bl_branches:
+                if b_name.lower() not in existing_branch_names:
+                    branches.append({"id": next_id, "name": b_name, "code": ""})
+                    next_id += 1
             
             return jsonify({
                 "departments": courier_departments,
@@ -2501,9 +2538,12 @@ def api_courier_lookups():
                 "budget_statuses": _lookup('budget_status') or ['Non Budgeted', 'Budgeted'],
                 "payment_modes": _lookup('payment_mode'),
                 "transaction_types": _lookup('transaction_type'),
-                "branches": branches
+                "branches": branches,
+                "from_locations": from_locations,
+                "to_locations": to_locations
             }), 200
     except Exception as e:
+
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/courier/entries', methods=['GET'])
@@ -2561,6 +2601,7 @@ def api_courier_entries():
                     "transaction_type": c.transaction_type,
                     "sender": c.sender,
                     "department": c.department,
+                    "purpose": getattr(c, 'purpose', None) or "",
                     "sending_from": c.sending_from,
                     "receiver": c.receiver,
                     "receiver_office": c.receiver_office,
@@ -2642,6 +2683,7 @@ def api_courier_create():
                 transaction_type=data.get('transaction_type', 'Dispatch'),
                 sender=(data.get('sender') or '').strip(),
                 department=(data.get('department') or '').strip(),
+                purpose=(data.get('purpose') or '').strip(),
                 sending_from=(data.get('sending_from') or '').strip(),
                 receiver=(data.get('receiver') or '').strip(),
                 receiver_office=(data.get('receiver_office') or '').strip(),
@@ -2691,6 +2733,7 @@ def api_courier_update(entry_id):
             c.transaction_type = data.get('transaction_type', c.transaction_type)
             c.sender = (data.get('sender') if 'sender' in data else (c.sender or '')).strip()
             c.department = (data.get('department') if 'department' in data else (c.department or '')).strip()
+            c.purpose = (data.get('purpose') if 'purpose' in data else (getattr(c, 'purpose', '') or '')).strip()
             c.sending_from = (data.get('sending_from') if 'sending_from' in data else (c.sending_from or '')).strip()
             c.receiver = (data.get('receiver') if 'receiver' in data else (c.receiver or '')).strip()
             c.receiver_office = (data.get('receiver_office') if 'receiver_office' in data else (c.receiver_office or '')).strip()
@@ -3384,7 +3427,125 @@ def save_ticket_gif_setting_route():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+# ---------------------------------------------------------------------------
+# Branches & Locations Settings API Endpoints
+# ---------------------------------------------------------------------------
+@app.route('/api/settings/branches-locations', methods=['GET'])
+def get_branches_locations_route():
+    try:
+        from database import get_branches_locations_setting
+        data = get_branches_locations_setting()
+        return jsonify(data), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/settings/branches-locations', methods=['POST'])
+def add_branches_locations_item_route():
+    try:
+        from database import get_branches_locations_setting, set_branches_locations_setting
+        import time
+        from datetime import datetime
+
+        req_data = request.get_json() or {}
+        item_type = req_data.get('type') # 'branches' | 'from_locations' | 'to_locations'
+        name = (req_data.get('name') or '').strip()
+        location_type = req_data.get('location_type', 'main')  # 'main' | 'others'
+
+        if item_type not in ['branches', 'from_locations', 'to_locations']:
+            return jsonify({"error": "Invalid item type"}), 400
+        if not name:
+            return jsonify({"error": "Name is required"}), 400
+
+        data = get_branches_locations_setting()
+        items = data.get(item_type, [])
+
+        # Check duplicate
+        if any(item.get('name', '').lower() == name.lower() for item in items):
+            return jsonify({"error": f"Item '{name}' already exists in this list"}), 400
+
+        new_item = {
+            "id": f"{item_type[:2]}-{int(time.time() * 1000)}",
+            "name": name,
+            "created_at": datetime.utcnow().isoformat() + "Z"
+        }
+        # Only from/to locations have location_type
+        if item_type in ['from_locations', 'to_locations']:
+            new_item["location_type"] = location_type if location_type in ['main', 'others'] else 'main'
+
+        items.append(new_item)
+        data[item_type] = items
+
+        set_branches_locations_setting(data)
+        return jsonify({"success": True, "item": new_item, "settings": data}), 201
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/settings/branches-locations/<item_type>/<item_id>', methods=['PUT'])
+def update_branches_locations_item_route(item_type, item_id):
+    try:
+        from database import get_branches_locations_setting, set_branches_locations_setting
+        req_data = request.get_json() or {}
+        name = (req_data.get('name') or '').strip()
+        location_type = req_data.get('location_type')  # may be None if not sent
+
+        if item_type not in ['branches', 'from_locations', 'to_locations']:
+            return jsonify({"error": "Invalid item type"}), 400
+        if not name:
+            return jsonify({"error": "Name is required"}), 400
+
+        data = get_branches_locations_setting()
+        items = data.get(item_type, [])
+
+        found = False
+        for item in items:
+            if str(item.get('id')) == str(item_id):
+                # Check duplicate with other items
+                if any(other.get('name', '').lower() == name.lower() and str(other.get('id')) != str(item_id) for other in items):
+                    return jsonify({"error": f"Item '{name}' already exists"}), 400
+                item['name'] = name
+                # Update location_type only for from/to locations if provided
+                if item_type in ['from_locations', 'to_locations'] and location_type in ['main', 'others']:
+                    item['location_type'] = location_type
+                found = True
+                break
+
+        if not found:
+            return jsonify({"error": "Item not found"}), 404
+
+        data[item_type] = items
+        set_branches_locations_setting(data)
+        return jsonify({"success": True, "settings": data}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/settings/branches-locations/<item_type>/<item_id>', methods=['DELETE'])
+def delete_branches_locations_item_route(item_type, item_id):
+    try:
+        from database import get_branches_locations_setting, set_branches_locations_setting
+        if item_type not in ['branches', 'from_locations', 'to_locations']:
+            return jsonify({"error": "Invalid item type"}), 400
+
+        data = get_branches_locations_setting()
+        items = data.get(item_type, [])
+
+        updated_items = [item for item in items if str(item.get('id')) != str(item_id)]
+        if len(updated_items) == len(items):
+            return jsonify({"error": "Item not found"}), 404
+
+        data[item_type] = updated_items
+        set_branches_locations_setting(data)
+        return jsonify({"success": True, "settings": data}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/uploads/<path:filename>')
+
 def serve_uploads(filename):
     uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads')
     return send_from_directory(uploads_dir, filename)

@@ -36,7 +36,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 				<span className={`material-symbols-outlined text-slate-400 ${variant === 'filter' ? 'text-base' : 'text-[18px] shrink-0 ml-1'} transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
 			</div>
 			{isOpen && (
-				<div className={`absolute left-0 ${menuWidthClass} bg-white dark:bg-slate-900 rounded-xl shadow-xl border-none z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
+				<div className={`absolute left-0 ${menuWidthClass || 'min-w-full w-max max-w-[360px]'} bg-white dark:bg-slate-900 rounded-xl shadow-xl border-none z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
 					? 'bottom-full mb-1.5 origin-bottom'
 					: 'top-full mt-1.5 origin-top'
 					}`}>
@@ -45,7 +45,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 							<div
 								key={opt.value ?? opt}
 								onClick={() => { onChange(opt.value ?? opt); setIsOpen(false); }}
-								className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium ${(opt.value ?? opt) === value
+								className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium whitespace-nowrap ${(opt.value ?? opt) === value
 									? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400'
 									: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
 									}`}
@@ -53,6 +53,77 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 								{opt.label ?? opt}
 							</div>
 						))}
+					</div>
+				</div>
+			)}
+		</div>
+	);
+};
+
+// Grouped location dropdown: shows Main and Others sections
+const GroupedLocationDropdown = ({ label, locations = [], value, onChange, direction = 'down', error, disabled = false }) => {
+	const [isOpen, setIsOpen] = useState(false);
+	const ref = useRef(null);
+	useEffect(() => {
+		const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false); };
+		document.addEventListener('mousedown', handler);
+		return () => document.removeEventListener('mousedown', handler);
+	}, []);
+
+	const mainItems = locations.filter(l => (l.location_type || 'main') === 'main');
+	const otherItems = locations.filter(l => l.location_type === 'others');
+
+	const displayLabel = value || label;
+
+	return (
+		<div className="relative" ref={ref}>
+			<div
+				onClick={() => !disabled && setIsOpen(o => !o)}
+				className={`flex items-center justify-between w-full px-3 py-2 text-sm rounded-xl border-none transition-all bg-slate-50 dark:bg-slate-800 font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/20' : ''} ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+			>
+				<span className="text-slate-800 dark:text-slate-200 truncate">{displayLabel}</span>
+				<span className={`material-symbols-outlined text-slate-400 text-[18px] shrink-0 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
+			</div>
+			{isOpen && (
+				<div className={`absolute left-0 min-w-full w-max max-w-[360px] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up' ? 'bottom-full mb-1.5 origin-bottom' : 'top-full mt-1.5 origin-top'}`}>
+					<div className="max-h-56 overflow-y-auto custom-scrollbar px-1.5 py-0.5 space-y-0.5">
+						{mainItems.length > 0 && (
+							<>
+								<div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Main</div>
+								{mainItems.map(loc => (
+									<div
+										key={loc.name}
+										onClick={() => { onChange(loc.name); setIsOpen(false); }}
+										className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium whitespace-nowrap ${loc.name === value
+											? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400'
+											: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+											}`}
+									>
+										{loc.name}
+									</div>
+								))}
+							</>
+						)}
+						{otherItems.length > 0 && (
+							<>
+								<div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800 mt-1">Others</div>
+								{otherItems.map(loc => (
+									<div
+										key={loc.name}
+										onClick={() => { onChange(loc.name); setIsOpen(false); }}
+										className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium whitespace-nowrap ${loc.name === value
+											? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400'
+											: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+											}`}
+									>
+										{loc.name}
+									</div>
+								))}
+							</>
+						)}
+						{mainItems.length === 0 && otherItems.length === 0 && (
+							<div className="px-3 py-4 text-sm text-slate-400 text-center">No locations available</div>
+						)}
 					</div>
 				</div>
 			)}
@@ -128,7 +199,9 @@ const Courier = () => {
 		budget_statuses: [],
 		payment_modes: [],
 		transaction_types: [],
-		branches: []
+		branches: [],
+		from_locations: [],
+		to_locations: []
 	});
 
 	const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -330,13 +403,13 @@ const Courier = () => {
 			date: new Date().toISOString().split('T')[0],
 			transaction_type: 'Dispatch',
 			sender: user?.name || user?.email || '',
-			department: lookups.departments[0] || '',
-			sending_from: '',
+			department: user?.department || '',
+			sending_from: lookups.from_locations?.[0]?.name || '',
 			receiver: '',
 			receiver_office: '',
 			supplier_buyer_type: 'Buyer',
 			supplier_buyer_name: '',
-			destination: '',
+			destination: lookups.to_locations?.[0]?.name || '',
 			product_description: '',
 			package_type: lookups.package_types[0] || '',
 			num_packages: 1,
@@ -370,7 +443,7 @@ const Courier = () => {
 			date: entry.date,
 			transaction_type: entry.transaction_type,
 			sender: entry.sender || '',
-			department: entry.department || '',
+			department: entry.department || user?.department || '',
 			sending_from: entry.sending_from || '',
 			receiver: entry.receiver || '',
 			receiver_office: entry.receiver_office || '',
@@ -576,11 +649,11 @@ const Courier = () => {
 							variant="filter"
 							icon="business"
 							widthClass="w-40"
-							label="All Depts"
+							label="All Departments"
 							value={filters.dept}
 							onChange={val => setFilters(prev => ({ ...prev, dept: val }))}
 							options={[
-								{ label: 'All Depts', value: '' },
+								{ label: 'All Departments', value: '' },
 								...lookups.departments.map(d => ({ label: d, value: d }))
 							]}
 						/>
@@ -878,7 +951,7 @@ const Courier = () => {
 								onClick={() => setShowModal(false)}
 								className=" w-8 h-8 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 border-0 bg-slate-100 dark:bg-slate-800 cursor-pointer flex items-center justify-center"
 							>
-								<span className="material-symbols-outlined text-xl">close</span>
+								<span className="material-symbols-outlined text-xl" style={{fontSize: '20px'}}>close</span>
 							</button>
 						</div>
 
@@ -901,16 +974,7 @@ const Courier = () => {
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Branch <span className="text-red-500"> *</span></label>
 									<SelectDropdown
 										label="Select Branch"
-										options={lookups.branches?.length > 0
-											? lookups.branches.map(b => ({ label: b.name, value: b.id }))
-											: [
-												{ label: 'Cotton Concepts HO_ Coimbatore', value: 1 },
-												{ label: 'Doctor Towels HO', value: 2 },
-												{ label: 'Cotton Concepts_ Vengamedu', value: 3 },
-												{ label: 'Cotton Concepts_ Karur', value: 4 },
-												{ label: 'Doctor Towels_ Karur', value: 5 }
-											]
-										}
+										options={(lookups.branches || []).map(b => ({ label: b.name, value: b.id }))}
 										value={formData.branch_id}
 										onChange={val => setFormData(prev => ({ ...prev, branch_id: val }))}
 									/>
@@ -933,14 +997,15 @@ const Courier = () => {
 									/>
 								</div>
 
-								{/* Department */}
+								{/* Department (Disabled) */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department<span className="text-red-500"> *</span></label>
-									<SelectDropdown
-										label="Select Department"
-										options={lookups.departments.map(d => ({ label: d, value: d }))}
-										value={formData.department}
-										onChange={val => setFormData(prev => ({ ...prev, department: val }))}
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
+									<input
+										type="text"
+										disabled
+										value={formData.department || user?.department || ''}
+										placeholder="No Department"
+										className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-800/60 border-none rounded-xl text-slate-500 dark:text-slate-400 font-medium cursor-not-allowed outline-none focus:outline-none"
 									/>
 								</div>
 							</div>
@@ -975,24 +1040,22 @@ const Courier = () => {
 								{/* Sending From */}
 								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">From Location</label>
-									<input
-										type="text"
+									<GroupedLocationDropdown
+										label="Select From Location"
+										locations={lookups.from_locations || []}
 										value={formData.sending_from}
-										onChange={e => setFormData(prev => ({ ...prev, sending_from: e.target.value }))}
-										placeholder="Office / Location"
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+										onChange={val => setFormData(prev => ({ ...prev, sending_from: val }))}
 									/>
 								</div>
 
 								{/* Destination */}
 								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">To Location</label>
-									<input
-										type="text"
+									<GroupedLocationDropdown
+										label="Select To Location"
+										locations={lookups.to_locations || []}
 										value={formData.destination}
-										onChange={e => setFormData(prev => ({ ...prev, destination: e.target.value }))}
-										placeholder="City / Country"
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
+										onChange={val => setFormData(prev => ({ ...prev, destination: val }))}
 									/>
 								</div>
 							</div>
@@ -1216,7 +1279,7 @@ const Courier = () => {
 								<button
 									type="button"
 									onClick={() => setShowModal(false)}
-									className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-350 font-bold rounded-xl cursor-pointer border-0"
+									className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl cursor-pointer border-0"
 								>
 									Cancel
 								</button>
@@ -1277,7 +1340,7 @@ const Courier = () => {
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.sender || '-'}</p>
 								</div>
 								<div>
-									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Dept</label>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Department</label>
 									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.department || '-'}</p>
 								</div>
 								<div>

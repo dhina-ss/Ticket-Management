@@ -88,11 +88,11 @@ const normalizeCategory = (cat) => {
 
 const BRANCH_OPTIONS = [
     'All',
-    'Cotton Concepts HO_ Coimbatore',
+    'Cotton Concepts HO, Coimbatore',
     'Doctor Towels HO',
-    'Cotton Concepts_ Vengamedu',
-    'Cotton Concepts_ Karur',
-    'Doctor Towels_ Karur'
+    'Cotton Concepts, Vengamedu',
+    'Cotton Concepts, Karur',
+    'Doctor Towels, Karur'
 ];
 
 const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onChange, menuWidthClass }) => {
@@ -146,7 +146,7 @@ const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onC
             </div>
 
             {isOpen && (
-                <div className={`absolute top-full left-0 mt-2 ${menuWidthClass || 'min-w-[240px] w-max max-w-[340px]'} bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] overflow-hidden animate-in fade-in zoom-in duration-150`}>
+                <div className={`absolute top-full left-0 mt-2 ${menuWidthClass || 'min-w-full w-max max-w-[360px]'} bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] overflow-hidden animate-in fade-in zoom-in duration-150`}>
                     <div className="max-h-40 overflow-y-auto custom-scrollbar">
                         {options.map((option) => (
                             <label
@@ -159,7 +159,7 @@ const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onC
                                     checked={isSelected(option)}
                                     onChange={() => toggleOption(option)}
                                 />
-                                <div className={`h-4.5 w-4.5 rounded flex items-center justify-center border-2 transition-all ${isSelected(option) ? 'bg-primary border-primary shadow-sm shadow-primary/20' : 'border-slate-300 dark:border-slate-600 group-hover:border-primary/50'}`}>
+                                <div className={`h-4.5 w-4.5 rounded flex items-center justify-center border-2 transition-all shrink-0 ${isSelected(option) ? 'bg-primary border-primary shadow-sm shadow-primary/20' : 'border-slate-300 dark:border-slate-600 group-hover:border-primary/50'}`}>
                                     {isSelected(option) && <span className="material-symbols-outlined text-white text-[12px] font-bold">check</span>}
                                 </div>
                                 <span className={`text-[13px] font-medium whitespace-nowrap transition-colors ${isSelected(option) ? 'text-primary' : 'text-slate-600 dark:text-slate-300'}`}>
@@ -201,7 +201,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
                 <span className={`material-symbols-outlined text-slate-400 text-[18px] transition-transform duration-200 shrink-0 ml-1 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
             </div>
             {isOpen && !disabled && (
-                <div className={`absolute left-0 w-full bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
+                <div className={`absolute left-0 min-w-full w-max max-w-[360px] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
                     ? 'bottom-full mb-1.5 origin-bottom'
                     : 'top-full mt-1.5 origin-top'
                     }`}>
@@ -210,7 +210,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
                             <div
                                 key={opt.value ?? opt}
                                 onClick={() => { onChange(opt.value ?? opt); setIsOpen(false); }}
-                                className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium ${(opt.value ?? opt) === value
+                                className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium whitespace-nowrap ${(opt.value ?? opt) === value
                                     ? 'bg-primary/10 text-primary font-semibold'
                                     : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                                     }`}
@@ -225,7 +225,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
     );
 };
 
-const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission, currentUser, refreshUser, fetchUsers }) => {
+const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission, currentUser, refreshUser, fetchUsers, departments = [] }) => {
     const [newUser, setNewUser] = useState({
         name: '', email: '', password: '',
         access: ['View'],
@@ -233,6 +233,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
         allowed_menus: [],
         branch: ['All'],
         courier_users: [],
+        department: '',
         add_as_assignee: false,
         can_receive_mail: false,
         can_send_mail: false,
@@ -343,6 +344,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
             allowed_menus: [],
             branch: ['All'],
             courier_users: [],
+            department: '',
             add_as_assignee: false,
             can_receive_mail: false,
             can_send_mail: false,
@@ -369,6 +371,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
             support_type: (user.support_type || 'IT Support,Admin Support').split(',').map(s => s.trim()),
             allowed_menus: (user.allowed_menus || '').split(',').map(s => s.trim()).filter(Boolean),
             courier_users: mappedCourierUsers,
+            department: user.department || '',
             add_as_assignee: !!user.is_assignee,
             can_receive_mail: !!user.can_receive_mail,
             can_send_mail: !!user.can_send_mail,
@@ -404,8 +407,14 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
             });
             const courierUsersString = expandedCourierUsers.join(',');
 
+            const deptList = (departments && departments.length > 0)
+                ? departments.map(d => typeof d === 'string' ? d : d.name)
+                : ['Admin', 'HR', 'Finance', 'Sales', 'Production', 'Logistics', 'Courier', 'IT'];
+            const userDept = newUser.department || ((newUser.allowed_menus.includes('Courier') || newUser.allowed_menus.includes('All')) ? deptList[0] || '' : '');
+
             const payload = {
                 ...newUser,
+                department: userDept,
                 access: newUser.access.join(','),
                 support_type: newUser.support_type.join(','),
                 allowed_menus: newUser.allowed_menus.join(','),
@@ -422,6 +431,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                     ...u,
                     name: newUser.name,
                     email: newUser.email,
+                    department: userDept,
                     access: newUser.access.join(','),
                     support_type: newUser.support_type.join(','),
                     allowed_menus: newUser.allowed_menus.join(','),
@@ -440,6 +450,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                 setUsers(prev => [...prev, {
                     name: newUser.name,
                     email: newUser.email,
+                    department: userDept,
                     access: newUser.access.join(','),
                     support_type: newUser.support_type.join(','),
                     allowed_menus: newUser.allowed_menus.join(','),
@@ -477,7 +488,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
                     {/* Panel */}
                     <form onSubmit={handleSaveUser}
-                        className="relative z-10 w-full max-w-[50%] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-8">
+                        className="relative z-10 w-full max-w-[60%] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-8">
                         {/* Header */}
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-3">
@@ -624,24 +635,40 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                                 )}
 
                                 {/* Users List (Courier Access) */}
-                                {newUser.allowed_menus.includes('Courier') && (() => {
+                                {(newUser.allowed_menus.includes('Courier') || newUser.allowed_menus.includes('All')) && (() => {
                                     const userList = allUsers.length > 0 ? allUsers : users;
                                     const userRoleNames = userList
                                         .filter(u => (!u.role || u.role.toLowerCase() === 'user') && u.name !== newUser.name && u.email !== newUser.email)
                                         .map(u => u.name);
+                                    const deptList = (departments && departments.length > 0)
+                                        ? departments.map(d => typeof d === 'string' ? d : d.name)
+                                        : ['Admin', 'HR', 'Finance', 'Sales', 'Production', 'Logistics', 'Courier', 'IT'];
                                     return (
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                                                Users List (Courier Access)
-                                            </label>
-                                            <MultiSelectFormDropdown
-                                                label="Users"
-                                                icon="group"
-                                                options={['All', ...userRoleNames]}
-                                                selected={newUser.courier_users.length === userRoleNames.length && userRoleNames.length > 0 ? ['All', ...newUser.courier_users] : newUser.courier_users}
-                                                onChange={toggleCourierUser}
-                                            />
-                                        </div>
+                                        <>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                                    Department (Courier) <span className="text-red-400">*</span>
+                                                </label>
+                                                <SelectDropdown
+                                                    value={newUser.department || deptList[0]}
+                                                    onChange={val => setNewUser(p => ({ ...p, department: val }))}
+                                                    options={deptList}
+                                                    label="Select Department"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                                                    Users List (Courier Access)
+                                                </label>
+                                                <MultiSelectFormDropdown
+                                                    label="Users"
+                                                    icon="group"
+                                                    options={['All', ...userRoleNames]}
+                                                    selected={newUser.courier_users.length === userRoleNames.length && userRoleNames.length > 0 ? ['All', ...newUser.courier_users] : newUser.courier_users}
+                                                    onChange={toggleCourierUser}
+                                                />
+                                            </div>
+                                        </>
                                     );
                                 })()}
                             </div>
@@ -782,19 +809,19 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
             ) : (
                 <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                     <div className="flex-1 overflow-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full min-w-[1100px] text-sm whitespace-nowrap">
                             <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
                                 <tr>
-                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">#</th>
-                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Name</th>
-                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Role</th>
-                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Email</th>
-                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Access</th>
-                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Support Type</th>
-                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Branch</th>
-                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Created At</th>
-                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Mail</th>
-                                {hasEditPermission && <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Actions</th>}
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-12">#</th>
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 min-w-[150px]">Name</th>
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 min-w-[100px]">Role</th>
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 min-w-[200px]">Email</th>
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 min-w-[140px]">Access</th>
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 min-w-[180px]">Support Type</th>
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 min-w-[160px]">Branch</th>
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 min-w-[140px]">Created At</th>
+                                <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 min-w-[100px]">Mail</th>
+                                {hasEditPermission && <th className="text-left px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 min-w-[90px]">Actions</th>}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1217,7 +1244,7 @@ const AssetsView = ({
         e.preventDefault();
 
         const resolvedCategory = newAsset.category || (String(newAsset.group).toLowerCase() === 'admin' ? 'Furniture' : 'Laptop');
-        const resolvedBranch = newAsset.branch || 'Cotton Concepts HO_ Coimbatore';
+        const resolvedBranch = newAsset.branch || (currentBranchList[0] || '');
         const resolvedWarranty = newAsset.warranty || '1 Year';
         const resolvedCondition = newAsset.condition || 'Excellent';
         const resolvedDepartment = newAsset.department || 'IT';
@@ -1275,7 +1302,7 @@ const AssetsView = ({
         const resetGroup = activeView === 'admin_assets' ? 'Admin' : 'IT';
         const resetCategory = activeView === 'admin_assets' ? 'Furniture' : 'Laptop';
         const resetDept = activeView === 'admin_assets' ? 'ADMIN' : 'IT';
-        setNewAsset({ assetId: '', category: resetCategory, brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: resetDept, branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Excellent', remarks: '', images: [], qrCode: '', group: resetGroup, assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+        setNewAsset({ assetId: '', category: resetCategory, brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: resetDept, branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '1 Year', condition: 'Excellent', remarks: '', images: [], qrCode: '', group: resetGroup, assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
     };
 
     const handleEdit = (asset) => {
@@ -2186,9 +2213,9 @@ const AssetsView = ({
                                                 <div className="col-span-2 lg:col-span-1">
                                                     <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Branch <span className="text-red-500">*</span></label>
                                                     <SelectDropdown
-                                                        value={newAsset.branch || 'Cotton Concepts HO_ Coimbatore'}
+                                                        value={newAsset.branch || (currentBranchList[0] || '')}
                                                         onChange={v => setNewAsset(p => ({ ...p, branch: v }))}
-                                                        options={['Cotton Concepts HO_ Coimbatore', 'Doctor Towels HO', 'Cotton Concepts_ Vengamedu', 'Cotton Concepts_ Karur', 'Doctor Towels_ Karur']}
+                                                        options={currentBranchList}
                                                     />
                                                 </div>
                                             </div>
@@ -2303,7 +2330,7 @@ const AssetsView = ({
                                                             setNewAsset(p => ({ ...p, branch: v }));
                                                             setValidationErrors(prev => ({ ...prev, branch: false }));
                                                         }}
-                                                        options={['Cotton Concepts HO_ Coimbatore', 'Doctor Towels HO', 'Cotton Concepts_ Vengamedu', 'Cotton Concepts_ Karur', 'Doctor Towels_ Karur']}
+                                                        options={currentBranchList}
                                                         direction='up'
                                                         maxHeight='max-h-20'
                                                         error={validationErrors.branch}
@@ -3705,8 +3732,387 @@ const TicketGifView = ({ isExpanded, onToggle, hasEditPermission, showToast, cat
     );
 };
 
+const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showToast }) => {
+    const [activeTab, setActiveTab] = useState('branches'); // 'branches' | 'from_locations' | 'to_locations'
+    const [loading, setLoading] = useState(false);
+    const [data, setData] = useState({ branches: [], from_locations: [], to_locations: [] });
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Modal states
+    const [showModal, setShowModal] = useState(false);
+    const [editingItem, setEditingItem] = useState(null);
+    const [itemName, setItemName] = useState('');
+    const [itemLocationType, setItemLocationType] = useState('main'); // 'main' | 'others'
+    const itemLocationTypeRef = useRef('main'); // ref avoids stale closure in handleSubmit
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState('');
+    const [itemToDelete, setItemToDelete] = useState(null);
+
+    const setLocationType = (type) => {
+        itemLocationTypeRef.current = type;
+        setItemLocationType(type);
+    };
+
+    const fetchBranchesLocations = async () => {
+        setLoading(true);
+        try {
+            const res = await api.get('/api/settings/branches-locations');
+            if (res.data) {
+                setData(res.data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch branches and locations settings:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchBranchesLocations();
+    }, []);
+
+    const handleOpenAddModal = () => {
+        setEditingItem(null);
+        setItemName('');
+        setLocationType('main');
+        setError('');
+        setShowModal(true);
+    };
+
+    const handleOpenEditModal = (item) => {
+        setEditingItem(item);
+        setItemName(item.name || '');
+        setLocationType(item.location_type || 'main');
+        setError('');
+        setShowModal(true);
+    };
+
+    const handleCloseModal = () => {
+        setShowModal(false);
+        setEditingItem(null);
+        setItemName('');
+        setLocationType('main');
+        setError('');
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!itemName.trim()) return;
+        setIsSubmitting(true);
+        setError('');
+
+        // Always read from ref to avoid stale closure issues
+        const currentLocationType = itemLocationTypeRef.current;
+
+        try {
+            if (editingItem) {
+                const payload = { name: itemName.trim() };
+                if (activeTab !== 'branches') payload.location_type = currentLocationType;
+                const res = await api.put(`/api/settings/branches-locations/${activeTab}/${editingItem.id}`, payload);
+                if (res.data?.settings) {
+                    handleCloseModal();
+                    if (showToast) showToast('Item updated successfully!');
+                    fetchBranchesLocations();
+                }
+            } else {
+                const payload = { type: activeTab, name: itemName.trim() };
+                if (activeTab !== 'branches') payload.location_type = currentLocationType;
+                const res = await api.post('/api/settings/branches-locations', payload);
+                if (res.data?.settings) {
+                    handleCloseModal();
+                    if (showToast) showToast('Item added successfully!');
+                    fetchBranchesLocations();
+                }
+            }
+        } catch (err) {
+            setError(err.response?.data?.error || 'Failed to save item');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const confirmDelete = async () => {
+        if (!itemToDelete) return;
+        try {
+            const res = await api.delete(`/api/settings/branches-locations/${activeTab}/${itemToDelete.id}`);
+            if (res.data?.settings) {
+                setData(res.data.settings);
+                if (showToast) showToast('Item deleted successfully!');
+            }
+        } catch (err) {
+            if (showToast) showToast(err.response?.data?.error || 'Failed to delete item');
+        } finally {
+            setItemToDelete(null);
+        }
+    };
+
+    const currentItems = data[activeTab] || [];
+    const filteredItems = currentItems.filter(item =>
+        (item.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const getTabTitle = (tabKey) => {
+        if (tabKey === 'branches') return 'Branch List';
+        if (tabKey === 'from_locations') return 'From Location';
+        if (tabKey === 'to_locations') return 'To Location';
+        return '';
+    };
+
+    const totalCount = (data.branches?.length || 0) + (data.from_locations?.length || 0) + (data.to_locations?.length || 0);
+
+    return (
+        <div className="w-full shrink-0 px-20 py-8 border-b border-slate-200 dark:border-slate-800">
+            <div className="mb-4 flex items-end justify-between">
+                <div onClick={onToggle} className="cursor-pointer group select-none">
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
+                        Branches & Locations ({totalCount})
+                        <span className="material-symbols-outlined text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">
+                            {isExpanded ? 'expand_less' : 'expand_more'}
+                        </span>
+                    </h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Manage branch list, from locations, and to locations for tickets and couriers.</p>
+                </div>
+                {isExpanded && (
+                    <div className="flex items-center gap-3">
+                        <div className="relative w-64 animate-in fade-in zoom-in-95 duration-200">
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+                            <input
+                                type="text"
+                                placeholder={`Search ${getTabTitle(activeTab).toLowerCase()}...`}
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary text-slate-800 dark:text-white"
+                            />
+                        </div>
+                        {hasEditPermission && (
+                            <button
+                                onClick={handleOpenAddModal}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm transition-colors shrink-0 cursor-pointer"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">add</span>
+                                Add {activeTab === 'branches' ? 'Branch' : activeTab === 'from_locations' ? 'From Location' : 'To Location'}
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* List & Sub-tabs */}
+            {isExpanded && (
+                <div className="space-y-4">
+                    {/* Sub-tabs */}
+                    <div className="flex items-center gap-2">
+                        {[
+                            { key: 'branches', label: 'Branch List', count: data.branches?.length || 0, icon: 'store' },
+                            { key: 'from_locations', label: 'From Location', count: data.from_locations?.length || 0, icon: 'flight_takeoff' },
+                            { key: 'to_locations', label: 'To Location', count: data.to_locations?.length || 0, icon: 'flight_land' }
+                        ].map(t => (
+                            <button
+                                key={t.key}
+                                onClick={() => { setActiveTab(t.key); setSearchQuery(''); }}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all cursor-pointer ${
+                                    activeTab === t.key
+                                        ? 'bg-primary text-white shadow-md shadow-primary/20'
+                                        : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                <span>{t.label}</span>
+                                <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                                    activeTab === t.key
+                                        ? 'bg-white/20 text-white'
+                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                }`}>
+                                    {t.count}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-y-auto overflow-x-auto custom-scrollbar max-h-[500px]">
+                        {loading ? (
+                            <div className="p-10 text-center text-slate-500">Loading {getTabTitle(activeTab).toLowerCase()}...</div>
+                        ) : currentItems.length === 0 ? (
+                            <div className="p-10 text-center text-slate-500">No items found. Add one above.</div>
+                        ) : filteredItems.length === 0 ? (
+                            <div className="p-10 text-center text-slate-500">No items match your search query.</div>
+                        ) : (
+                            <div className="flex flex-col w-full">
+                                <table className="w-full text-left border-collapse table-fixed">
+                                    <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm">
+                                        <tr className="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800">
+                                            <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[10%]">S.No</th>
+                                            <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${activeTab !== 'branches' ? (hasEditPermission ? 'w-[48%]' : 'w-[60%]') : (hasEditPermission ? 'w-[75%]' : 'w-[90%]')}`}>{getTabTitle(activeTab)} Name</th>
+                                            {activeTab !== 'branches' && (
+                                                <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[27%]' : 'w-[30%]'}`}>Type</th>
+                                            )}
+                                            {hasEditPermission && <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {filteredItems.map((item, idx) => (
+                                            <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[10%]">{idx + 1}</td>
+                                                <td className={`px-6 py-4 ${activeTab !== 'branches' ? (hasEditPermission ? 'w-[48%]' : 'w-[60%]') : (hasEditPermission ? 'w-[75%]' : 'w-[90%]')}`}>
+                                                    <div className="text-sm font-medium text-slate-900 dark:text-white">{item.name}</div>
+                                                    {item.created_at && <div className="text-xs text-slate-400 mt-0.5">Added {formatCreatedAt(item.created_at)}</div>}
+                                                </td>
+                                                {activeTab !== 'branches' && (
+                                                    <td className={`px-6 py-4 ${hasEditPermission ? 'w-[27%]' : 'w-[30%]'}`}>
+                                                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-lg uppercase tracking-wide ${
+                                                            (item.location_type || 'main') === 'main'
+                                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                                        }`}>
+                                                            {item.location_type || 'main'}
+                                                        </span>
+                                                    </td>
+                                                )}
+                                                {hasEditPermission && (
+                                                    <td className="px-6 py-4 w-[15%]">
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                title="Edit Item"
+                                                                onClick={() => handleOpenEditModal(item)}
+                                                                className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-blue-600 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/20 shadow-sm cursor-pointer"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                            </button>
+                                                            <button
+                                                                title="Delete Item"
+                                                                onClick={() => setItemToDelete(item)}
+                                                                className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-red-600 border border-red-200 dark:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-900/20 shadow-sm cursor-pointer"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Modal */}
+            {itemToDelete && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setItemToDelete(null)}>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-slate-800 dark:text-white text-lg flex items-center gap-2">
+                                <span className="material-symbols-outlined text-red-500">warning</span>
+                                Delete {activeTab === 'branches' ? 'Branch' : 'Location'}
+                            </h3>
+                            <button onClick={() => setItemToDelete(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                                <span className="material-symbols-outlined text-[20px]">close</span>
+                            </button>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+                            Are you sure you want to delete <span className="font-semibold text-slate-800 dark:text-white">{itemToDelete.name}</span>? This action cannot be undone.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setItemToDelete(null)}
+                                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors cursor-pointer"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add / Edit Modal */}
+            {showModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={handleCloseModal}>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="font-bold text-slate-800 dark:text-white text-lg">
+                                {editingItem ? `Edit ${getTabTitle(activeTab)} Item` : `Add New ${getTabTitle(activeTab)} Item`}
+                            </h3>
+                            <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer">
+                                <span className="material-symbols-outlined text-[20px]">close</span>
+                            </button>
+                        </div>
+
+                        {error && (
+                            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm border border-red-100 dark:border-red-900/30">
+                                {error}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Name</label>
+                                <input
+                                    type="text"
+                                    value={itemName}
+                                    onChange={e => setItemName(e.target.value)}
+                                    placeholder={activeTab === 'branches' ? 'e.g. Coimbatore HO' : 'e.g. Warehouse 1'}
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all text-sm font-medium"
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+
+                            {/* Type field — only for from/to locations */}
+                            {activeTab !== 'branches' && (
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">Type</label>
+                                    <div className="flex items-center gap-2">
+                                        {['main', 'others'].map(t => (
+                                            <button
+                                                key={t}
+                                                type="button"
+                                                onClick={() => setLocationType(t)}
+                                                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer capitalize ${
+                                                    itemLocationType === t
+                                                        ? 'bg-primary text-white shadow-sm shadow-primary/30'
+                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                }`}
+                                            >
+                                                {t.charAt(0).toUpperCase() + t.slice(1)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={handleCloseModal}
+                                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-primary hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
+                                >
+                                    {isSubmitting ? 'Saving...' : editingItem ? 'Save Changes' : 'Add Item'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpanded, onToggle, hasEditPermission }) => {
+
     const [showAddCategory, setShowAddCategory] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const filteredCategories = (categories || []).filter(c =>
@@ -4318,7 +4724,7 @@ const MultiSelectFilter = ({ label, icon, options, selected, onChange, widthClas
             </button>
 
             {isOpen && (
-                <div className="absolute top-full left-0 mt-2 min-w-50 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] py-2 overflow-hidden animate-in fade-in zoom-in duration-150">
+                <div className="absolute top-full left-0 mt-2 min-w-full w-max max-w-[360px] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] py-2 overflow-hidden animate-in fade-in zoom-in duration-150">
                     <div className="max-h-72 overflow-y-auto custom-scrollbar">
                         {options.map((option) => (
                             <label
@@ -4331,10 +4737,10 @@ const MultiSelectFilter = ({ label, icon, options, selected, onChange, widthClas
                                     checked={isSelected(option)}
                                     onChange={() => toggleOption(option)}
                                 />
-                                <div className={`h-5 w-5 rounded flex items-center justify-center border-2 transition-all ${isSelected(option) ? 'bg-primary border-primary shadow-sm shadow-primary/20' : 'border-slate-300 dark:border-slate-600 group-hover:border-primary/50'}`}>
+                                <div className={`h-5 w-5 rounded flex items-center justify-center border-2 transition-all shrink-0 ${isSelected(option) ? 'bg-primary border-primary shadow-sm shadow-primary/20' : 'border-slate-300 dark:border-slate-600 group-hover:border-primary/50'}`}>
                                     {isSelected(option) && <span className="material-symbols-outlined text-white text-sm font-bold">check</span>}
                                 </div>
-                                <span className={`text-[13px] font-medium transition-colors ${isSelected(option) ? 'text-primary' : 'text-slate-600 dark:text-slate-300'}`}>
+                                <span className={`text-[13px] font-medium whitespace-nowrap transition-colors ${isSelected(option) ? 'text-primary' : 'text-slate-600 dark:text-slate-300'}`}>
                                     {option === 'All' ? `All ${label}` : option}
                                 </span>
                             </label>
@@ -4428,7 +4834,7 @@ const AdminDashboard = () => {
     const [assetDepartmentFilter, setAssetDepartmentFilter] = useState(['All']);
     const [assetConditionFilter, setAssetConditionFilter] = useState(['All']);
     const [showAddAssetModal, setShowAddAssetModal] = useState(false);
-    const [newAsset, setNewAsset] = useState({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+    const [newAsset, setNewAsset] = useState({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: '', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
     const [isEditingAsset, setIsEditingAsset] = useState(false);
     const [editingAssetId, setEditingAssetId] = useState(null);
     const [selectedAssetIds, setSelectedAssetIds] = useState([]);
@@ -4448,6 +4854,30 @@ const AdminDashboard = () => {
     const downloadDropdownRef = useRef(null);
     const [isGeneratingQRs, setIsGeneratingQRs] = useState(false);
     const [qrScannerError, setQrScannerError] = useState(null);
+    const [configuredBranches, setConfiguredBranches] = useState([]);
+
+    useEffect(() => {
+        const fetchBranchSettings = async () => {
+            try {
+                const res = await api.get('/api/settings/branches-locations');
+                if (res.data?.branches && res.data.branches.length > 0) {
+                    setConfiguredBranches(res.data.branches.map(b => b.name));
+                }
+            } catch (err) {
+                console.error('Failed to fetch branch settings:', err);
+            }
+        };
+        fetchBranchSettings();
+    }, []);
+
+    const currentBranchList = configuredBranches.length > 0 ? configuredBranches : [
+        'Cotton Concepts HO, Coimbatore',
+        'Doctor Towels HO',
+        'Cotton Concepts, Vengamedu',
+        'Cotton Concepts, Karur',
+        'Doctor Towels, Karur'
+    ];
+
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -4966,7 +5396,7 @@ const AdminDashboard = () => {
             setAssetSearchQuery('');
             if (path === '/admin-assets/add') {
                 setIsEditingAsset(false);
-                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
             }
         } else if (path === '/users') {
             setActiveView('users');
@@ -5605,11 +6035,11 @@ const AdminDashboard = () => {
         setCurrentPage(1);
     }, [searchQuery, statusFilter, branchFilter, departmentFilter, categoryFilter, assigneeFilter, mailApprovalFilter, dateRange, isDateFilterActive]);
 
-    const uniqueBranches = ['All', ...new Set(tickets.map(t => t.branch).filter(Boolean))];
+    const uniqueBranches = ['All', ...new Set([...currentBranchList, ...tickets.map(t => t.branch).filter(Boolean)])];
     const uniqueDepartments = ['All', ...new Set(tickets.map(t => t.department).filter(Boolean))];
     const uniqueCategories = ['All', ...new Set(tickets.map(t => t.category).filter(Boolean))];
     const uniqueAssignees = ['All', ...new Set(tickets.map(t => t.assignee).filter(Boolean))];
-    const uniqueAssetBranches = ['All', ...new Set((assets || []).map(a => a.branch).filter(Boolean).sort((a, b) => a.localeCompare(b)))];
+    const uniqueAssetBranches = ['All', ...new Set([...currentBranchList, ...(assets || []).map(a => a.branch).filter(Boolean)])];
     const uniqueAssetDepartments = ['All', ...new Set((assets || []).map(a => a.department).filter(Boolean).sort((a, b) => a.localeCompare(b)))];
     const uniqueAssetTypes = ['All', ...new Set((assets || []).map(a => activeView === 'admin_assets' ? a.type : a.category).filter(Boolean).sort((a, b) => a.localeCompare(b)))];
     const uniqueAssetConditions = ['All', ...new Set((assets || []).map(a => activeView === 'admin_assets' ? a.status : a.condition).filter(Boolean).sort((a, b) => a.localeCompare(b)))];
@@ -5736,10 +6166,10 @@ const AdminDashboard = () => {
                                         onClick={() => {
                                             setIsEditingAsset(false);
                                             if (activeView === 'admin_assets') {
-                                                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                                                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
                                                 navigate('/admin-assets/add', { state: { group: 'Admin' } });
                                             } else {
-                                                setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                                                setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
                                                 navigate('/assets/add', { state: { group: 'IT' } });
                                             }
                                         }}
@@ -6293,6 +6723,7 @@ const AdminDashboard = () => {
                         currentUser={user}
                         refreshUser={refreshUser}
                         fetchUsers={fetchUsers}
+                        departments={departments}
                     />
                 )}
 
@@ -6332,7 +6763,14 @@ const AdminDashboard = () => {
                             onToggle={() => setExpandedSettingsView(prev => prev === 'assetTypes' ? null : 'assetTypes')}
                             hasEditPermission={hasEditPermission}
                         />
+                        <BranchesLocationsView
+                            isExpanded={expandedSettingsView === 'branchesLocations'}
+                            onToggle={() => setExpandedSettingsView(prev => prev === 'branchesLocations' ? null : 'branchesLocations')}
+                            hasEditPermission={hasEditPermission}
+                            showToast={showToast}
+                        />
                         <TicketGifView
+
                             isExpanded={expandedSettingsView === 'ticketGif'}
                             onToggle={() => setExpandedSettingsView(prev => prev === 'ticketGif' ? null : 'ticketGif')}
                             hasEditPermission={hasEditPermission}

@@ -19,7 +19,7 @@ def test_api_assets_get_all(client, mocker):
             "email": "alice@example.com",
             "group": "IT",
             "department": "Engineering",
-            "branch": "Cotton Concepts HO_ Coimbatore",
+            "branch": "Cotton Concepts HO, Coimbatore",
             "purchaseDate": "2026-01-01",
             "warranty": "1 Year",
             "condition": "Excellent",

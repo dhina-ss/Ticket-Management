@@ -151,14 +151,25 @@ const AssetDetails = () => {
     };
 
     const CATEGORY_OPTIONS = ['Monitor', 'Laptop', 'CPU', 'Server', 'Printer', 'Mobile'];
-    const BRANCH_OPTIONS = [
-        'Cotton Concepts HO_ Coimbatore',
-        'Doctor Towels HO',
-        'Cotton Concepts_ Vengamedu',
-        'Cotton Concepts_ Karur',
-        'Doctor Towels_ Karur'
-    ];
+    const [dynamicBranches, setDynamicBranches] = useState([]);
+
+    useEffect(() => {
+        const fetchBranches = async () => {
+            try {
+                const res = await api.get('/api/settings/branches-locations');
+                if (res.data?.branches && res.data.branches.length > 0) {
+                    setDynamicBranches(res.data.branches.map(b => b.name));
+                }
+            } catch (err) {
+                console.error('Failed to fetch branch settings:', err);
+            }
+        };
+        fetchBranches();
+    }, []);
+
+    const BRANCH_OPTIONS = dynamicBranches;
     const DEPARTMENT_OPTIONS = ['IT', 'HR', 'Finance', 'Sales', 'Production', 'Logistics'];
+
     const CONDITION_OPTIONS = ['Excellent', 'Good', 'Medium', 'Average', 'Scrap', 'Stock'];
 
     // Category casing normalization
