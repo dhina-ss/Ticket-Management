@@ -2252,19 +2252,9 @@ DEFAULT_BRANCHES_LOCATIONS_SETTING = {
         {"id": "b-4", "name": "Cotton Concepts, Karur", "created_at": "2026-01-01T00:00:00Z"},
         {"id": "b-5", "name": "Doctor Towels, Karur", "created_at": "2026-01-01T00:00:00Z"}
     ],
-
-    "from_locations": [
-        {"id": "fl-1", "name": "Head Office", "location_type": "main", "created_at": "2026-01-01T00:00:00Z"},
-        {"id": "fl-2", "name": "Warehouse A", "location_type": "main", "created_at": "2026-01-01T00:00:00Z"},
-        {"id": "fl-3", "name": "Factory Unit 1", "location_type": "others", "created_at": "2026-01-01T00:00:00Z"},
-        {"id": "fl-4", "name": "Dispatch Center", "location_type": "others", "created_at": "2026-01-01T00:00:00Z"}
-    ],
-    "to_locations": [
-        {"id": "tl-1", "name": "Branch Office", "location_type": "main", "created_at": "2026-01-01T00:00:00Z"},
-        {"id": "tl-2", "name": "Client Site", "location_type": "main", "created_at": "2026-01-01T00:00:00Z"},
-        {"id": "tl-3", "name": "Vendor Facility", "location_type": "others", "created_at": "2026-01-01T00:00:00Z"},
-        {"id": "tl-4", "name": "Processing Plant", "location_type": "others", "created_at": "2026-01-01T00:00:00Z"}
-    ]
+    "locations": [],
+    "from_locations": [],
+    "to_locations": []
 }
 
 def get_branches_locations_setting() -> dict:
@@ -2281,37 +2271,23 @@ def get_branches_locations_setting() -> dict:
                     updated = False
                     for b in data.get("branches", []):
                         original = b.get("name", "")
-                        # Replace '_ ' (underscore-space) first, then lone '_'
                         fixed = original.replace("_ ", ", ")
-                        fixed = re.sub(r'(?<![_])_(?![_])', ', ', fixed)  # single underscore not part of __
-                        fixed = fixed.replace(",,", ",")  # clean up any double commas
+                        fixed = re.sub(r'(?<![_])_(?![_])', ', ', fixed)
+                        fixed = fixed.replace(",,", ",")
                         if fixed != original:
                             b["name"] = fixed
                             updated = True
                     if updated:
                         set_branches_locations_setting(data)
-                if "from_locations" not in data:
-                    data["from_locations"] = DEFAULT_BRANCHES_LOCATIONS_SETTING["from_locations"]
-                else:
-                    # Migrate existing from_locations without location_type to 'main'
-                    migrated = False
-                    for item in data.get("from_locations", []):
-                        if "location_type" not in item:
-                            item["location_type"] = "main"
-                            migrated = True
-                    if migrated:
-                        set_branches_locations_setting(data)
-                if "to_locations" not in data:
-                    data["to_locations"] = DEFAULT_BRANCHES_LOCATIONS_SETTING["to_locations"]
-                else:
-                    # Migrate existing to_locations without location_type to 'main'
-                    migrated = False
-                    for item in data.get("to_locations", []):
-                        if "location_type" not in item:
-                            item["location_type"] = "main"
-                            migrated = True
-                    if migrated:
-                        set_branches_locations_setting(data)
+
+                # Ensure locations key exists as a list (default to empty list)
+                if "locations" not in data or not isinstance(data["locations"], list):
+                    data["locations"] = []
+                    set_branches_locations_setting(data)
+                
+                # Keep from_locations and to_locations synced with locations for backward compatibility
+                data["from_locations"] = data["locations"]
+                data["to_locations"] = data["locations"]
                 return data
         except Exception:
             pass

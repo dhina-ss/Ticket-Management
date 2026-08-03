@@ -86,14 +86,7 @@ const normalizeCategory = (cat) => {
     return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 };
 
-const BRANCH_OPTIONS = [
-    'All',
-    'Cotton Concepts HO, Coimbatore',
-    'Doctor Towels HO',
-    'Cotton Concepts, Vengamedu',
-    'Cotton Concepts, Karur',
-    'Doctor Towels, Karur'
-];
+// BRANCH_OPTIONS is now dynamic - loaded from Settings page branches
 
 const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onChange, menuWidthClass }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -225,7 +218,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
     );
 };
 
-const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission, currentUser, refreshUser, fetchUsers, departments = [] }) => {
+const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission, currentUser, refreshUser, fetchUsers, departments = [], branchOptions = ['All'] }) => {
     const [newUser, setNewUser] = useState({
         name: '', email: '', password: '',
         access: ['View'],
@@ -553,7 +546,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                                     <MultiSelectFormDropdown
                                         label="Branches"
                                         icon="location_on"
-                                        options={BRANCH_OPTIONS}
+                                        options={['All', ...branchOptions.filter(b => b !== 'All')]}
                                         selected={newUser.branch}
                                         onChange={toggleBranch}
                                     />
@@ -3733,25 +3726,19 @@ const TicketGifView = ({ isExpanded, onToggle, hasEditPermission, showToast, cat
 };
 
 const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showToast }) => {
-    const [activeTab, setActiveTab] = useState('branches'); // 'branches' | 'from_locations' | 'to_locations'
+    const [activeTab, setActiveTab] = useState('branches'); // 'branches' | 'locations'
     const [loading, setLoading] = useState(false);
-    const [data, setData] = useState({ branches: [], from_locations: [], to_locations: [] });
+    const [data, setData] = useState({ branches: [], locations: [] });
     const [searchQuery, setSearchQuery] = useState('');
 
     // Modal states
     const [showModal, setShowModal] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
     const [itemName, setItemName] = useState('');
-    const [itemLocationType, setItemLocationType] = useState('main'); // 'main' | 'others'
-    const itemLocationTypeRef = useRef('main'); // ref avoids stale closure in handleSubmit
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [itemToDelete, setItemToDelete] = useState(null);
 
-    const setLocationType = (type) => {
-        itemLocationTypeRef.current = type;
-        setItemLocationType(type);
-    };
 
     const fetchBranchesLocations = async () => {
         setLoading(true);
@@ -3774,7 +3761,6 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
     const handleOpenAddModal = () => {
         setEditingItem(null);
         setItemName('');
-        setLocationType('main');
         setError('');
         setShowModal(true);
     };
@@ -3782,7 +3768,6 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
     const handleOpenEditModal = (item) => {
         setEditingItem(item);
         setItemName(item.name || '');
-        setLocationType(item.location_type || 'main');
         setError('');
         setShowModal(true);
     };
@@ -3791,7 +3776,6 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
         setShowModal(false);
         setEditingItem(null);
         setItemName('');
-        setLocationType('main');
         setError('');
     };
 
@@ -3801,13 +3785,9 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
         setIsSubmitting(true);
         setError('');
 
-        // Always read from ref to avoid stale closure issues
-        const currentLocationType = itemLocationTypeRef.current;
-
         try {
             if (editingItem) {
                 const payload = { name: itemName.trim() };
-                if (activeTab !== 'branches') payload.location_type = currentLocationType;
                 const res = await api.put(`/api/settings/branches-locations/${activeTab}/${editingItem.id}`, payload);
                 if (res.data?.settings) {
                     handleCloseModal();
@@ -3816,7 +3796,6 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
                 }
             } else {
                 const payload = { type: activeTab, name: itemName.trim() };
-                if (activeTab !== 'branches') payload.location_type = currentLocationType;
                 const res = await api.post('/api/settings/branches-locations', payload);
                 if (res.data?.settings) {
                     handleCloseModal();
@@ -3853,12 +3832,11 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
 
     const getTabTitle = (tabKey) => {
         if (tabKey === 'branches') return 'Branch List';
-        if (tabKey === 'from_locations') return 'From Location';
-        if (tabKey === 'to_locations') return 'To Location';
+        if (tabKey === 'locations') return 'Location';
         return '';
     };
 
-    const totalCount = (data.branches?.length || 0) + (data.from_locations?.length || 0) + (data.to_locations?.length || 0);
+    const totalCount = (data.branches?.length || 0) + (data.locations?.length || 0);
 
     return (
         <div className="w-full shrink-0 px-20 py-8 border-b border-slate-200 dark:border-slate-800">
@@ -3870,7 +3848,7 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
                             {isExpanded ? 'expand_less' : 'expand_more'}
                         </span>
                     </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Manage branch list, from locations, and to locations for tickets and couriers.</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Manage branch list and locations for tickets and couriers.</p>
                 </div>
                 {isExpanded && (
                     <div className="flex items-center gap-3">
@@ -3890,7 +3868,7 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
                                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium text-sm transition-colors shrink-0 cursor-pointer"
                             >
                                 <span className="material-symbols-outlined text-[18px]">add</span>
-                                Add {activeTab === 'branches' ? 'Branch' : activeTab === 'from_locations' ? 'From Location' : 'To Location'}
+                                Add {activeTab === 'branches' ? 'Branch' : 'Location'}
                             </button>
                         )}
                     </div>
@@ -3904,8 +3882,7 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
                     <div className="flex items-center gap-2">
                         {[
                             { key: 'branches', label: 'Branch List', count: data.branches?.length || 0, icon: 'store' },
-                            { key: 'from_locations', label: 'From Location', count: data.from_locations?.length || 0, icon: 'flight_takeoff' },
-                            { key: 'to_locations', label: 'To Location', count: data.to_locations?.length || 0, icon: 'flight_land' }
+                            { key: 'locations', label: 'Locations', count: data.locations?.length || 0, icon: 'location_on' }
                         ].map(t => (
                             <button
                                 key={t.key}
@@ -3941,10 +3918,7 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
                                     <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm">
                                         <tr className="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800">
                                             <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[10%]">S.No</th>
-                                            <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${activeTab !== 'branches' ? (hasEditPermission ? 'w-[48%]' : 'w-[60%]') : (hasEditPermission ? 'w-[75%]' : 'w-[90%]')}`}>{getTabTitle(activeTab)} Name</th>
-                                            {activeTab !== 'branches' && (
-                                                <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[27%]' : 'w-[30%]'}`}>Type</th>
-                                            )}
+                                            <th className={`px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider ${hasEditPermission ? 'w-[85%]' : 'w-[90%]'}`}>{getTabTitle(activeTab)} Name</th>
                                             {hasEditPermission && <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">Actions</th>}
                                         </tr>
                                     </thead>
@@ -3952,21 +3926,10 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
                                         {filteredItems.map((item, idx) => (
                                             <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                                 <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[10%]">{idx + 1}</td>
-                                                <td className={`px-6 py-4 ${activeTab !== 'branches' ? (hasEditPermission ? 'w-[48%]' : 'w-[60%]') : (hasEditPermission ? 'w-[75%]' : 'w-[90%]')}`}>
+                                                <td className={`px-6 py-4 ${hasEditPermission ? 'w-[85%]' : 'w-[90%]'}`}>
                                                     <div className="text-sm font-medium text-slate-900 dark:text-white">{item.name}</div>
                                                     {item.created_at && <div className="text-xs text-slate-400 mt-0.5">Added {formatCreatedAt(item.created_at)}</div>}
                                                 </td>
-                                                {activeTab !== 'branches' && (
-                                                    <td className={`px-6 py-4 ${hasEditPermission ? 'w-[27%]' : 'w-[30%]'}`}>
-                                                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-lg uppercase tracking-wide ${
-                                                            (item.location_type || 'main') === 'main'
-                                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                                                        }`}>
-                                                            {item.location_type || 'main'}
-                                                        </span>
-                                                    </td>
-                                                )}
                                                 {hasEditPermission && (
                                                     <td className="px-6 py-4 w-[15%]">
                                                         <div className="flex items-center gap-2">
@@ -4065,27 +4028,7 @@ const BranchesLocationsView = ({ isExpanded, onToggle, hasEditPermission, showTo
                             </div>
 
                             {/* Type field — only for from/to locations */}
-                            {activeTab !== 'branches' && (
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">Type</label>
-                                    <div className="flex items-center gap-2">
-                                        {['main', 'others'].map(t => (
-                                            <button
-                                                key={t}
-                                                type="button"
-                                                onClick={() => setLocationType(t)}
-                                                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer capitalize ${
-                                                    itemLocationType === t
-                                                        ? 'bg-primary text-white shadow-sm shadow-primary/30'
-                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                                }`}
-                                            >
-                                                {t.charAt(0).toUpperCase() + t.slice(1)}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            {/* Removed: type field is no longer shown for locations */}
 
                             <div className="flex justify-end gap-3 pt-4">
                                 <button
@@ -6724,6 +6667,7 @@ const AdminDashboard = () => {
                         refreshUser={refreshUser}
                         fetchUsers={fetchUsers}
                         departments={departments}
+                        branchOptions={currentBranchList}
                     />
                 )}
 

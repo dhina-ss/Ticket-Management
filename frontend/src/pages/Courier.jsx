@@ -60,19 +60,43 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 	);
 };
 
-// Grouped location dropdown: shows Main and Others sections
-const GroupedLocationDropdown = ({ label, locations = [], value, onChange, direction = 'down', error, disabled = false }) => {
+// Branch + flyout dropdown: shows first 5 branches directly, "Others" on hover reveals all locations in a flyout
+// Branch + flyout dropdown: shows first 5 branches directly, "Others" on hover reveals all locations in a flyout
+const BranchWithFlyoutDropdown = ({ label, branches = [], locations = [], value, onChange, direction = 'down', error, disabled = false, flyoutPosition, disabledValue }) => {
 	const [isOpen, setIsOpen] = useState(false);
+	const [showFlyout, setShowFlyout] = useState(false);
+	const [flyoutSide, setFlyoutSide] = useState(flyoutPosition || 'right'); // 'left' or 'right'
 	const ref = useRef(null);
+	const othersRef = useRef(null);
+	const flyoutTimer = useRef(null);
+
 	useEffect(() => {
-		const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false); };
+		const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) { setIsOpen(false); setShowFlyout(false); } };
 		document.addEventListener('mousedown', handler);
 		return () => document.removeEventListener('mousedown', handler);
 	}, []);
 
-	const mainItems = locations.filter(l => (l.location_type || 'main') === 'main');
-	const otherItems = locations.filter(l => l.location_type === 'others');
+	// Decide flyout side based on prop or available screen space
+	const handleOthersEnter = () => {
+		clearTimeout(flyoutTimer.current);
+		if (flyoutPosition) {
+			setFlyoutSide(flyoutPosition);
+		} else if (othersRef.current) {
+			const rect = othersRef.current.getBoundingClientRect();
+			const spaceRight = window.innerWidth - rect.right;
+			setFlyoutSide(spaceRight < 220 ? 'left' : 'right');
+		}
+		setShowFlyout(true);
+	};
+	const handleOthersLeave = () => {
+		flyoutTimer.current = setTimeout(() => setShowFlyout(false), 120);
+	};
+	const handleFlyoutEnter = () => clearTimeout(flyoutTimer.current);
+	const handleFlyoutLeave = () => {
+		flyoutTimer.current = setTimeout(() => setShowFlyout(false), 120);
+	};
 
+	const visibleBranches = branches.slice(0, 5);
 	const displayLabel = value || label;
 
 	return (
@@ -85,44 +109,77 @@ const GroupedLocationDropdown = ({ label, locations = [], value, onChange, direc
 				<span className={`material-symbols-outlined text-slate-400 text-[18px] shrink-0 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
 			</div>
 			{isOpen && (
-				<div className={`absolute left-0 min-w-full w-max max-w-[360px] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up' ? 'bottom-full mb-1.5 origin-bottom' : 'top-full mt-1.5 origin-top'}`}>
-					<div className="max-h-56 overflow-y-auto custom-scrollbar px-1.5 py-0.5 space-y-0.5">
-						{mainItems.length > 0 && (
-							<>
-								<div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Main</div>
-								{mainItems.map(loc => (
+				<div className={`absolute left-0 min-w-full w-max max-w-[280px] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-[200] py-1.5 overflow-visible animate-in fade-in zoom-in-95 duration-150 ${direction === 'up' ? 'bottom-full mb-1.5 origin-bottom' : 'top-full mt-1.5 origin-top'}`}>
+					<div className="px-1.5 py-0.5 space-y-0.5">
+						{/* First 5 branches */}
+						{visibleBranches.map(b => {
+							const isDisabled = disabledValue && b.name === disabledValue;
+							return (
+								<div
+									key={b.id ?? b.name}
+									onClick={() => { if (!isDisabled) { onChange(b.name); setIsOpen(false); setShowFlyout(false); } }}
+									title={isDisabled ? 'Already selected in the other field' : ''}
+									className={`px-3 py-2 rounded-lg text-sm transition-colors font-medium whitespace-nowrap flex items-center justify-between ${
+										isDisabled
+											? 'opacity-40 cursor-not-allowed text-slate-500 dark:text-slate-500'
+											: b.name === value
+												? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 cursor-pointer'
+												: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer'
+									}`}
+								>
+									<span>{b.name}</span>
+									{isDisabled && <span className="material-symbols-outlined text-[14px] opacity-50">block</span>}
+								</div>
+							);
+						})}
+
+						{/* Others — hover to show flyout with all locations */}
+						{locations.length > 0 && (
+							<div className="relative" ref={othersRef} onMouseEnter={handleOthersEnter} onMouseLeave={handleOthersLeave}>
+								<div className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium whitespace-nowrap ${locations.some(l => l.name === value) ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+									{flyoutSide === 'left' && <span className="material-symbols-outlined text-[14px] mr-2 opacity-60">chevron_left</span>}
+									<span className="flex-1">Others</span>
+									{flyoutSide !== 'left' && <span className="material-symbols-outlined text-[14px] ml-2 opacity-60">chevron_right</span>}
+								</div>
+
+								{/* Flyout panel */}
+								{showFlyout && (
 									<div
-										key={loc.name}
-										onClick={() => { onChange(loc.name); setIsOpen(false); }}
-										className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium whitespace-nowrap ${loc.name === value
-											? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400'
-											: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-											}`}
+										onMouseEnter={handleFlyoutEnter}
+										onMouseLeave={handleFlyoutLeave}
+										style={{ top: 0, ...(flyoutSide === 'right' ? { left: '100%', marginLeft: '4px' } : { right: '100%', marginRight: '4px' }) }}
+										className={`absolute w-56 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-100 dark:border-slate-800 z-[300] py-1.5 animate-in fade-in ${flyoutSide === 'left' ? 'slide-in-from-right-2' : 'slide-in-from-left-2'} duration-150`}
 									>
-										{loc.name}
+										<div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Locations</div>
+										<div className="max-h-52 overflow-y-auto custom-scrollbar px-1.5 space-y-0.5 pb-1">
+											{locations.map(loc => {
+												const isLocDisabled = disabledValue && loc.name === disabledValue;
+												return (
+													<div
+														key={loc.name}
+														onClick={() => { if (!isLocDisabled) { onChange(loc.name); setIsOpen(false); setShowFlyout(false); } }}
+														title={isLocDisabled ? 'Already selected in the other field' : ''}
+														className={`px-3 py-2 rounded-lg text-sm transition-colors font-medium whitespace-nowrap flex items-center justify-between ${
+															isLocDisabled
+																? 'opacity-40 cursor-not-allowed text-slate-500 dark:text-slate-500'
+																: loc.name === value
+																	? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 cursor-pointer'
+																	: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer'
+														}`}
+													>
+														<span>{loc.name}</span>
+														{isLocDisabled && <span className="material-symbols-outlined text-[14px] opacity-50">block</span>}
+													</div>
+												);
+											})}
+										</div>
 									</div>
-								))}
-							</>
+								)}
+							</div>
 						)}
-						{otherItems.length > 0 && (
-							<>
-								<div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800 mt-1">Others</div>
-								{otherItems.map(loc => (
-									<div
-										key={loc.name}
-										onClick={() => { onChange(loc.name); setIsOpen(false); }}
-										className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium whitespace-nowrap ${loc.name === value
-											? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400'
-											: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-											}`}
-									>
-										{loc.name}
-									</div>
-								))}
-							</>
-						)}
-						{mainItems.length === 0 && otherItems.length === 0 && (
-							<div className="px-3 py-4 text-sm text-slate-400 text-center">No locations available</div>
+
+						{visibleBranches.length === 0 && locations.length === 0 && (
+							<div className="px-3 py-4 text-sm text-slate-400 text-center">No options available</div>
 						)}
 					</div>
 				</div>
@@ -200,6 +257,7 @@ const Courier = () => {
 		payment_modes: [],
 		transaction_types: [],
 		branches: [],
+		locations: [],
 		from_locations: [],
 		to_locations: []
 	});
@@ -310,9 +368,14 @@ const Courier = () => {
 				const res = await api.get('/api/courier/lookups');
 				if (res.status === 200) {
 					setLookups(res.data);
-					if (res.data.branches && res.data.branches.length > 0) {
-						setFormData(prev => ({ ...prev, branch_id: res.data.branches[0].id }));
-					}
+					const firstBranchName = res.data.branches?.[0]?.name || res.data.locations?.[0]?.name || '';
+					const firstBranchId = res.data.branches?.[0]?.id || 1;
+					setFormData(prev => ({
+						...prev,
+						branch_id: firstBranchId,
+						sending_from: prev.sending_from || firstBranchName,
+						destination: prev.destination || firstBranchName
+					}));
 				}
 			} catch (err) {
 				console.error('Error fetching courier lookups:', err);
@@ -399,17 +462,18 @@ const Courier = () => {
 	// Open Modal for Add
 	const handleOpenAdd = () => {
 		setEditingEntry(null);
+		const defaultOptionName = lookups.branches?.[0]?.name || lookups.locations?.[0]?.name || '';
 		setFormData({
 			date: new Date().toISOString().split('T')[0],
 			transaction_type: 'Dispatch',
 			sender: user?.name || user?.email || '',
 			department: user?.department || '',
-			sending_from: lookups.from_locations?.[0]?.name || '',
+			sending_from: defaultOptionName,
 			receiver: '',
 			receiver_office: '',
 			supplier_buyer_type: 'Buyer',
 			supplier_buyer_name: '',
-			destination: lookups.to_locations?.[0]?.name || '',
+			destination: defaultOptionName,
 			product_description: '',
 			package_type: lookups.package_types[0] || '',
 			num_packages: 1,
@@ -839,7 +903,19 @@ const Courier = () => {
 												<td className="px-4 py-2">{entry.destination || '-'}</td>
 												<td className="px-4 py-2">{entry.item || '-'}</td>
 												<td className="px-4 py-2">{entry.ref_type || '-'}</td>
-												<td className="px-4 py-2">{entry.supplier_buyer_type ? `${entry.supplier_buyer_type}: ${entry.supplier_buyer_name || ''}` : '-'}</td>
+												<td className="px-4 py-2">
+									{entry.supplier_buyer_name ? (
+										<span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold tracking-wide ${
+											entry.supplier_buyer_type === 'Buyer'
+												? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+												: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+										}`}>
+											{entry.supplier_buyer_name}
+										</span>
+									) : (
+										<span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">-</span>
+									)}
+								</td>
 												<td className="px-4 py-2">{entry.budgeted || '-'}</td>
 												<td className="px-4 py-2">{entry.package_type || '-'}</td>
 												<td className="px-4 py-2">{entry.num_packages || '-'}</td>
@@ -1040,22 +1116,27 @@ const Courier = () => {
 								{/* Sending From */}
 								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">From Location</label>
-									<GroupedLocationDropdown
+									<BranchWithFlyoutDropdown
 										label="Select From Location"
-										locations={lookups.from_locations || []}
+										branches={lookups.branches || []}
+										locations={lookups.locations || []}
 										value={formData.sending_from}
 										onChange={val => setFormData(prev => ({ ...prev, sending_from: val }))}
+										disabledValue={formData.destination}
 									/>
 								</div>
 
 								{/* Destination */}
 								<div>
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">To Location</label>
-									<GroupedLocationDropdown
+									<BranchWithFlyoutDropdown
 										label="Select To Location"
-										locations={lookups.to_locations || []}
+										branches={lookups.branches || []}
+										locations={lookups.locations || []}
 										value={formData.destination}
 										onChange={val => setFormData(prev => ({ ...prev, destination: val }))}
+										flyoutPosition="left"
+										disabledValue={formData.sending_from}
 									/>
 								</div>
 							</div>

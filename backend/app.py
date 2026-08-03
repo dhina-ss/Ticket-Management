@@ -2474,6 +2474,35 @@ try:
                 print(f"DEBUG: Courier seeded {added} lookup items")
         except Exception as ex_seed:
             print(f"DEBUG: Courier seeding error: {ex_seed}")
+
+        # Seed the 5 standard branches into Settings page branch list (branches_locations setting)
+        try:
+            from database import get_branches_locations_setting, set_branches_locations_setting
+            import datetime
+            STANDARD_BRANCHES = [
+                {"id": "b-1", "name": "Cotton Concepts HO, Coimbatore"},
+                {"id": "b-2", "name": "Doctor Towels HO"},
+                {"id": "b-3", "name": "Cotton Concepts, Vengamedu"},
+                {"id": "b-4", "name": "Cotton Concepts, Karur"},
+                {"id": "b-5", "name": "Doctor Towels, Karur"},
+            ]
+            bl = get_branches_locations_setting()
+            existing_names = {b.get("name", "").strip().lower() for b in bl.get("branches", [])}
+            changed = False
+            for std in STANDARD_BRANCHES:
+                if std["name"].lower() not in existing_names:
+                    bl["branches"].append({
+                        "id": std["id"],
+                        "name": std["name"],
+                        "created_at": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+                    })
+                    existing_names.add(std["name"].lower())
+                    changed = True
+            if changed:
+                set_branches_locations_setting(bl)
+                print(f"DEBUG: Seeded missing standard branches into settings branch list")
+        except Exception as ex_bl:
+            print(f"DEBUG: Branch list seeding error: {ex_bl}")
 finally:
     sys.path.pop(0)
 
@@ -2502,33 +2531,31 @@ def api_courier_lookups():
                     category=cat, is_active=True
                 ).order_by(courier_app_pkg.models.LookupItem.sort_order, courier_app_pkg.models.LookupItem.value).all()]
             
-            branches = [{"id": b.id, "name": b.name, "code": b.code} for b in courier_app_pkg.models.Branch.query.filter_by(is_active=True).all()]
-            
             from database import get_departments, get_branches_locations_setting
-            # Fetch departments that have "Courier" support type (or all if you prefer, but Courier is what they map it to)
+            # Fetch departments that have "Courier" support type
             courier_departments = [d['name'] for d in get_departments("Courier")]
-            # Fallback to all departments if none have Courier support type yet, so the dropdown isn't empty
             if not courier_departments:
                 courier_departments = [d['name'] for d in get_departments()]
 
             bl_settings = get_branches_locations_setting()
-            from_locations = [
-                {"name": item['name'], "location_type": item.get('location_type', 'main')}
-                for item in bl_settings.get('from_locations', []) if item.get('name')
+            # Unified locations list (from the new single 'locations' key)
+            locations = [
+                {"name": item['name']}
+                for item in bl_settings.get('locations', []) if item.get('name')
             ]
-            to_locations = [
-                {"name": item['name'], "location_type": item.get('location_type', 'main')}
-                for item in bl_settings.get('to_locations', []) if item.get('name')
+            # Keep from_locations / to_locations for backwards compat (alias to unified locations)
+            from_locations = locations
+            to_locations = locations
+            
+            # Branch list directly from Settings page (branches_locations setting)
+            bl_branches = [
+                {"id": item.get('id', idx + 1), "name": item['name']}
+                for idx, item in enumerate(bl_settings.get('branches', [])) if item.get('name')
             ]
-            bl_branches = [item['name'] for item in bl_settings.get('branches', []) if item.get('name')]
-
-            # Merge any branches from branches_locations setting if not already present by name
-            existing_branch_names = {b['name'].lower() for b in branches}
-            next_id = max([b['id'] for b in branches], default=0) + 1
-            for b_name in bl_branches:
-                if b_name.lower() not in existing_branch_names:
-                    branches.append({"id": next_id, "name": b_name, "code": ""})
-                    next_id += 1
+            if bl_branches:
+                branches = bl_branches
+            else:
+                branches = [{"id": b.id, "name": b.name, "code": b.code} for b in courier_app_pkg.models.Branch.query.filter_by(is_active=True).all()]
             
             return jsonify({
                 "departments": courier_departments,
@@ -2539,6 +2566,7 @@ def api_courier_lookups():
                 "payment_modes": _lookup('payment_mode'),
                 "transaction_types": _lookup('transaction_type'),
                 "branches": branches,
+                "locations": locations,
                 "from_locations": from_locations,
                 "to_locations": to_locations
             }), 200
@@ -3447,11 +3475,11 @@ def add_branches_locations_item_route():
         from datetime import datetime
 
         req_data = request.get_json() or {}
-        item_type = req_data.get('type') # 'branches' | 'from_locations' | 'to_locations'
+        item_type = req_data.get('type') # 'branches' | 'locations' | 'from_locations' | 'to_locations'
         name = (req_data.get('name') or '').strip()
         location_type = req_data.get('location_type', 'main')  # 'main' | 'others'
 
-        if item_type not in ['branches', 'from_locations', 'to_locations']:
+        if item_type not in ['branches', 'locations', 'from_locations', 'to_locations']:
             return jsonify({"error": "Invalid item type"}), 400
         if not name:
             return jsonify({"error": "Name is required"}), 400
@@ -3468,12 +3496,16 @@ def add_branches_locations_item_route():
             "name": name,
             "created_at": datetime.utcnow().isoformat() + "Z"
         }
-        # Only from/to locations have location_type
-        if item_type in ['from_locations', 'to_locations']:
+        # Locations (and legacy from/to locations) have location_type
+        if item_type in ['locations', 'from_locations', 'to_locations']:
             new_item["location_type"] = location_type if location_type in ['main', 'others'] else 'main'
 
         items.append(new_item)
         data[item_type] = items
+        # Keep from_locations and to_locations synced if locations was updated
+        if item_type == 'locations':
+            data['from_locations'] = items
+            data['to_locations'] = items
 
         set_branches_locations_setting(data)
         return jsonify({"success": True, "item": new_item, "settings": data}), 201
@@ -3490,7 +3522,7 @@ def update_branches_locations_item_route(item_type, item_id):
         name = (req_data.get('name') or '').strip()
         location_type = req_data.get('location_type')  # may be None if not sent
 
-        if item_type not in ['branches', 'from_locations', 'to_locations']:
+        if item_type not in ['branches', 'locations', 'from_locations', 'to_locations']:
             return jsonify({"error": "Invalid item type"}), 400
         if not name:
             return jsonify({"error": "Name is required"}), 400
@@ -3505,8 +3537,8 @@ def update_branches_locations_item_route(item_type, item_id):
                 if any(other.get('name', '').lower() == name.lower() and str(other.get('id')) != str(item_id) for other in items):
                     return jsonify({"error": f"Item '{name}' already exists"}), 400
                 item['name'] = name
-                # Update location_type only for from/to locations if provided
-                if item_type in ['from_locations', 'to_locations'] and location_type in ['main', 'others']:
+                # Update location_type only for locations if provided
+                if item_type in ['locations', 'from_locations', 'to_locations'] and location_type in ['main', 'others']:
                     item['location_type'] = location_type
                 found = True
                 break
@@ -3515,6 +3547,9 @@ def update_branches_locations_item_route(item_type, item_id):
             return jsonify({"error": "Item not found"}), 404
 
         data[item_type] = items
+        if item_type == 'locations':
+            data['from_locations'] = items
+            data['to_locations'] = items
         set_branches_locations_setting(data)
         return jsonify({"success": True, "settings": data}), 200
     except Exception as e:
@@ -3526,7 +3561,7 @@ def update_branches_locations_item_route(item_type, item_id):
 def delete_branches_locations_item_route(item_type, item_id):
     try:
         from database import get_branches_locations_setting, set_branches_locations_setting
-        if item_type not in ['branches', 'from_locations', 'to_locations']:
+        if item_type not in ['branches', 'locations', 'from_locations', 'to_locations']:
             return jsonify({"error": "Invalid item type"}), 400
 
         data = get_branches_locations_setting()
@@ -3537,6 +3572,9 @@ def delete_branches_locations_item_route(item_type, item_id):
             return jsonify({"error": "Item not found"}), 404
 
         data[item_type] = updated_items
+        if item_type == 'locations':
+            data['from_locations'] = updated_items
+            data['to_locations'] = updated_items
         set_branches_locations_setting(data)
         return jsonify({"success": True, "settings": data}), 200
     except Exception as e:
