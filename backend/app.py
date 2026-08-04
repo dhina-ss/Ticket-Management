@@ -2927,7 +2927,15 @@ def api_petty_cash_dashboard():
             today_added = float(today_ledger[0]) if today_ledger else 0.0
             today_closed = bool(today_ledger[2]) if today_ledger else False
             
-            # Calculate current balance: Total Cash Added (all time) minus Total Non-rejected Expenses (all time)
+            # Calculate current balance:
+            # = Initial opening balance (from very first day_ledger entry)
+            #   + All cash added (cash_add_history, all time)
+            #   - All non-rejected expenses (all time)
+            # This matches the Monthly Financial Summary formula in PettyCashAnalysis.
+            cur.execute("SELECT opening_balance FROM day_ledger ORDER BY date ASC LIMIT 1")
+            first_ledger = cur.fetchone()
+            initial_opening = float(first_ledger[0]) if first_ledger else 0.0
+
             cur.execute("SELECT SUM(amount) FROM cash_add_history")
             all_credit_res = cur.fetchone()[0]
             all_credit = float(all_credit_res) if all_credit_res else 0.0
@@ -2936,7 +2944,7 @@ def api_petty_cash_dashboard():
             all_exp_res = cur.fetchone()[0]
             all_expenses = float(all_exp_res) if all_exp_res else 0.0
 
-            current_balance = all_credit - all_expenses
+            current_balance = initial_opening + all_credit - all_expenses
                 
             ledger_info = {
                 "opening_balance": opening,

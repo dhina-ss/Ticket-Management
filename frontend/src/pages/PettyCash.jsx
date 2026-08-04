@@ -1022,10 +1022,15 @@ const PettyCash = () => {
 				{/* Ledger Table */}
 				<div className="bg-white dark:bg-[#1C212B] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[calc(100vh-10px)] max-h-[calc(100vh-10px)]">
 					{loading ? (
-						<div className="p-20 text-center text-slate-500">
-							<span className="material-symbols-outlined text-4xl animate-spin text-amber-500 mb-2">progress_activity</span>
-							<p>Loading transactions...</p>
-						</div>
+					<div className="flex flex-col items-center justify-center py-16">
+						<DotLottieReact
+							src="https://lottie.host/a9245e26-69f1-4211-add6-92896a98c9a9/zK2zVshVzv.lottie"
+							loop
+							autoplay
+							style={{ width: 180, height: 180 }}
+						/>
+						<p className="text-slate-500 text-sm mt-2">Loading transactions...</p>
+					</div>
 					) : filteredExpenses.length === 0 ? (
 						<div className="p-20 text-center text-slate-500">
 							<span className="material-symbols-outlined text-4xl text-slate-300 mb-2">payments</span>

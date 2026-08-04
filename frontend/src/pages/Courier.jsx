@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
@@ -357,6 +358,7 @@ const Courier = () => {
 		payment_mode: '',
 		remarks: '',
 		branch_id: '',
+		branch_name: '',
 		item: '',
 		ref_type: 'PI'
 	});
@@ -368,13 +370,16 @@ const Courier = () => {
 				const res = await api.get('/api/courier/lookups');
 				if (res.status === 200) {
 					setLookups(res.data);
-					const firstBranchName = res.data.branches?.[0]?.name || res.data.locations?.[0]?.name || '';
-					const firstBranchId = res.data.branches?.[0]?.id || 1;
-					setFormData(prev => ({
+					const branches = res.data.branches || [];
+					const firstBranchName = branches[0]?.name || res.data.locations?.[0]?.name || '';
+					const secondBranchName = branches[1]?.name || firstBranchName;
+					const firstBranchId = branches[0]?.id || 1;
+						setFormData(prev => ({
 						...prev,
 						branch_id: firstBranchId,
+						branch_name: prev.branch_name || firstBranchName,
 						sending_from: prev.sending_from || firstBranchName,
-						destination: prev.destination || firstBranchName
+						destination: prev.destination || secondBranchName
 					}));
 				}
 			} catch (err) {
@@ -462,18 +467,20 @@ const Courier = () => {
 	// Open Modal for Add
 	const handleOpenAdd = () => {
 		setEditingEntry(null);
-		const defaultOptionName = lookups.branches?.[0]?.name || lookups.locations?.[0]?.name || '';
+		const branches = lookups.branches || [];
+		const fromDefault = branches[0]?.name || lookups.locations?.[0]?.name || '';
+		const toDefault = branches[1]?.name || fromDefault;
 		setFormData({
 			date: new Date().toISOString().split('T')[0],
 			transaction_type: 'Dispatch',
 			sender: user?.name || user?.email || '',
 			department: user?.department || '',
-			sending_from: defaultOptionName,
+			sending_from: fromDefault,
 			receiver: '',
 			receiver_office: '',
 			supplier_buyer_type: 'Buyer',
 			supplier_buyer_name: '',
-			destination: defaultOptionName,
+			destination: toDefault,
 			product_description: '',
 			package_type: lookups.package_types[0] || '',
 			num_packages: 1,
@@ -489,6 +496,7 @@ const Courier = () => {
 			payment_mode: '',
 			remarks: '',
 			branch_id: lookups.branches[0]?.id || 1,
+			branch_name: lookups.branches[0]?.name || '',
 			item: '',
 			ref_type: 'PI'
 		});
@@ -529,6 +537,14 @@ const Courier = () => {
 			payment_mode: entry.payment_mode || '',
 			remarks: entry.remarks || '',
 			branch_id: entry.branch_id || (lookups.branches[0]?.id || 1),
+			branch_name: (() => {
+				// Prefer branch_name from entry, else resolve from branch_id via lookups
+				if (entry.branch_name) return entry.branch_name;
+				const matched = (lookups.branches || []).find(b =>
+					b.id === entry.branch_id || String(b.id) === String(entry.branch_id)
+				);
+				return matched?.name || entry.branch_name || lookups.branches?.[0]?.name || '';
+			})(),
 			item: entry.item || '',
 			ref_type: entry.ref_type || 'PI'
 		});
@@ -830,9 +846,14 @@ const Courier = () => {
 				{/* Table list of entries */}
 				<div className="bg-white dark:bg-[#1C212B] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[calc(100vh-10px)] max-h-[calc(100vh-10px)]">
 					{loading ? (
-						<div className="p-20 text-center text-slate-500">
-							<span className="material-symbols-outlined text-4xl animate-spin text-pink-500 mb-2">progress_activity</span>
-							<p>Loading shipments...</p>
+						<div className="flex flex-col items-center justify-center py-16">
+							<DotLottieReact
+								src="https://lottie.host/7d777bcb-69b4-47e9-aee5-6eb87b87efeb/zOJh3ZC5Jo.lottie"
+								loop
+								autoplay
+								style={{ width: 180, height: 180 }}
+							/>
+							<p className="text-slate-500 text-sm mt-2">Loading shipments...</p>
 						</div>
 					) : entries.length === 0 ? (
 						<div className="p-20 text-center text-slate-500">
@@ -1035,24 +1056,40 @@ const Courier = () => {
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 								{/* Date */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date <span className="text-red-500"> *</span></label>
-									<input
-										type="date"
-										required
-										value={formData.date}
-										onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
-										className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0"
-									/>
-								</div>
+						<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+							Date <span className="text-red-500">*</span>
+							{!isAdmin && <span className="ml-1 text-slate-400 text-[10px] normal-case font-normal">(locked)</span>}
+						</label>
+						<div className="relative">
+							<input
+								type="date"
+								required
+								value={formData.date}
+								onChange={e => isAdmin && setFormData(prev => ({ ...prev, date: e.target.value }))}
+								readOnly={!isAdmin}
+								className={`w-full px-3 py-2.5 border-none rounded-xl outline-none focus:outline-none focus:ring-0 ${
+									isAdmin
+										? 'bg-slate-50 dark:bg-slate-800 cursor-pointer'
+										: 'bg-slate-100 dark:bg-slate-800/60 opacity-70 cursor-not-allowed select-none pointer-events-none'
+								}`}
+							/>
+							{!isAdmin && (
+								<span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-[16px]">lock</span>
+							)}
+						</div>
+					</div>
 
 								{/* Branch */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Branch <span className="text-red-500"> *</span></label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Branch <span className="text-red-500">*</span></label>
 									<SelectDropdown
 										label="Select Branch"
-										options={(lookups.branches || []).map(b => ({ label: b.name, value: b.id }))}
-										value={formData.branch_id}
-										onChange={val => setFormData(prev => ({ ...prev, branch_id: val }))}
+										options={(lookups.branches || []).map(b => ({ label: b.name, value: b.name }))}
+										value={formData.branch_name}
+										onChange={val => {
+											const match = (lookups.branches || []).find(b => b.name === val);
+											setFormData(prev => ({ ...prev, branch_name: val, branch_id: match?.id || prev.branch_id }));
+										}}
 									/>
 								</div>
 							</div>

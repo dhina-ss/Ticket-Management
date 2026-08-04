@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { DateRangePicker } from 'react-date-range';
@@ -1518,7 +1519,21 @@ const AssetsView = ({
                     <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
                         <table className="w-full text-left border-collapse table-fixed">
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {filteredAssets.length === 0 ? (
+                                {assetsLoading ? (
+                                    <tr>
+                                        <td colSpan="9">
+                                            <div className="flex flex-col items-center justify-center py-10">
+                                                <DotLottieReact
+                                                    src="https://lottie.host/8953d9e4-8bb4-4343-b9b0-7005d59974be/oP4zVtlwWj.lottie"
+                                                    loop
+                                                    autoplay
+                                                    style={{ width: 180, height: 180 }}
+                                                />
+                                                <p className="text-slate-500 text-sm mt-1">Loading assets...</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : filteredAssets.length === 0 ? (
                                     <tr>
                                         <td colSpan="9" className="text-center py-10 text-slate-400 dark:text-slate-500 text-sm">No assets found matching the criteria.</td>
                                     </tr>
@@ -6801,8 +6816,16 @@ const AdminDashboard = () => {
                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan={isSuperAdmin ? "10" : "9"} className="px-6 py-8 text-center text-slate-500">
-                                                Loading tickets...
+                                            <td colSpan={isSuperAdmin ? "10" : "9"}>
+                                                <div className="flex flex-col items-center justify-center py-10">
+                                                    <DotLottieReact
+                                                        src="https://lottie.host/82a2b8bf-587d-4b7f-b074-2530b79acfe7/Qj8QeUhyrq.lottie"
+                                                        loop
+                                                        autoplay
+                                                        style={{ width: 180, height: 180 }}
+                                                    />
+                                                    <p className="text-slate-500 text-sm mt-1">Loading tickets...</p>
+                                                </div>
                                             </td>
                                         </tr>
                                     ) : filteredTickets.length === 0 ? (
