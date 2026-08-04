@@ -217,6 +217,34 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
             )}
         </div>
     );
+const parseUserBranches = (rawBranch, availableBranchOptions = []) => {
+    if (!rawBranch || rawBranch === 'All') return ['All'];
+    const str = String(rawBranch).trim();
+    if (str.includes('|')) {
+        const parts = str.split('|').map(s => s.trim()).filter(Boolean);
+        return parts.length > 0 ? parts : ['All'];
+    }
+
+    const knownBranches = availableBranchOptions
+        .filter(b => b && b !== 'All')
+        .sort((a, b) => b.length - a.length);
+
+    let remaining = str;
+    const found = [];
+
+    for (const kb of knownBranches) {
+        if (remaining.includes(kb)) {
+            found.push(kb);
+            remaining = remaining.replace(kb, '').trim();
+        }
+    }
+
+    if (found.length > 0) {
+        return found;
+    }
+
+    const fallback = str.split(',').map(s => s.trim()).filter(Boolean);
+    return fallback.length > 0 ? fallback : ['All'];
 };
 
 const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission, currentUser, refreshUser, fetchUsers, departments = [], branchOptions = ['All'] }) => {
@@ -370,9 +398,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
             can_receive_mail: !!user.can_receive_mail,
             can_send_mail: !!user.can_send_mail,
             receiver_position: user.receiver_position || '',
-            branch: (user.branch || 'All').split('|').map(s => s.trim()).filter(Boolean).length > 0 && (user.branch || '').includes('|')
-                ? (user.branch || 'All').split('|').map(s => s.trim()).filter(Boolean)
-                : (user.branch || 'All').split(',').map(s => s.trim()).filter(Boolean),
+            branch: parseUserBranches(user.branch || 'All', branchOptions),
             role: user.role || 'user'
         });
         setAddError('');
@@ -868,10 +894,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex gap-1 flex-wrap">
-                                            {((user.branch || 'All').includes('|')
-                                                ? (user.branch || 'All').split('|')
-                                                : (user.branch || 'All').split(',')
-                                            ).map((b, i) => {
+                                            {parseUserBranches(user.branch || 'All', branchOptions).map((b, i) => {
                                                 const colors = [
                                                     'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
                                                     'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
