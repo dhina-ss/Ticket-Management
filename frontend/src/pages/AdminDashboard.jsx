@@ -217,6 +217,8 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
             )}
         </div>
     );
+};
+
 const parseUserBranches = (rawBranch, availableBranchOptions = []) => {
     if (!rawBranch || rawBranch === 'All') return ['All'];
     const str = String(rawBranch).trim();
