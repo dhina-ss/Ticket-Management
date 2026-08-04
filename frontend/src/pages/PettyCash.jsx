@@ -244,7 +244,11 @@ const PettyCash = () => {
 		if (!user?.branch || user.branch === 'All' || user.email === 'admin@support.com') {
 			return ALL_BRANCH_OPTIONS;
 		}
-		const matched = ALL_BRANCH_OPTIONS.filter(b => user.branch.includes(b));
+		// Split by | (new separator), fallback to , for old data
+		const userBranches = (user.branch || '').includes('|')
+			? user.branch.split('|').map(b => b.trim()).filter(Boolean)
+			: user.branch.split(',').map(b => b.trim()).filter(Boolean);
+		const matched = ALL_BRANCH_OPTIONS.filter(b => userBranches.includes(b));
 		return matched.length > 0 ? matched : ALL_BRANCH_OPTIONS;
 	}, [user?.branch, user?.email, ALL_BRANCH_OPTIONS]);
 

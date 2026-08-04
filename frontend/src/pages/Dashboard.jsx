@@ -145,11 +145,6 @@ const Dashboard = () => {
 	  return true;
 	}
 	
-	// Non-admin users cannot access Users or Settings
-	if (cardId === 'users' || cardId === 'settings') {
-	  return false;
-	}
-	
 	const allowedMenus = (user.allowed_menus || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 	
 	if (cardId === 'tickets') {
@@ -163,6 +158,12 @@ const Dashboard = () => {
 	}
 	if (cardId === 'courier') {
 	  return allowedMenus.includes('courier');
+	}
+	if (cardId === 'users') {
+	  return allowedMenus.includes('users');
+	}
+	if (cardId === 'settings') {
+	  return allowedMenus.includes('settings');
 	}
 	
 	return false;
@@ -190,14 +191,12 @@ const Dashboard = () => {
 	} else {
 	  // Check allowed menus
 	  if (user && user.email !== 'admin@support.com') {
-		if (id === 'users' || id === 'settings') {
-		  navigate('/');
-		  return;
-		}
 		const mapping = {
 		  'tickets': 'tickets',
 		  'petty-cash': 'petty cash',
-		  'courier': 'courier'
+		  'courier': 'courier',
+		  'users': 'users',
+		  'settings': 'settings'
 		};
 		const required = mapping[id];
 		if (required && !allowedMenus.includes(required)) {

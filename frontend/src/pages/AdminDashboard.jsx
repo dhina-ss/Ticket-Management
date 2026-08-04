@@ -370,7 +370,9 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
             can_receive_mail: !!user.can_receive_mail,
             can_send_mail: !!user.can_send_mail,
             receiver_position: user.receiver_position || '',
-            branch: (user.branch || 'All').split(',').map(s => s.trim()),
+            branch: (user.branch || 'All').split('|').map(s => s.trim()).filter(Boolean).length > 0 && (user.branch || '').includes('|')
+                ? (user.branch || 'All').split('|').map(s => s.trim()).filter(Boolean)
+                : (user.branch || 'All').split(',').map(s => s.trim()).filter(Boolean),
             role: user.role || 'user'
         });
         setAddError('');
@@ -412,7 +414,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                 access: newUser.access.join(','),
                 support_type: newUser.support_type.join(','),
                 allowed_menus: newUser.allowed_menus.join(','),
-                branch: newUser.branch.join(','),
+                branch: newUser.branch.join('|'),
                 courier_users: courierUsersString
             };
 
@@ -434,7 +436,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                     can_send_mail: newUser.can_send_mail,
                     receiver_position: newUser.receiver_position,
                     is_assignee: newUser.add_as_assignee,
-                    branch: newUser.branch.join(','),
+                    branch: newUser.branch.join('|'),
                     role: newUser.role
                 } : u));
                 if (currentUser && currentUser.id === editingUser.id) {
@@ -455,7 +457,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                     can_send_mail: newUser.can_send_mail,
                     receiver_position: newUser.receiver_position,
                     is_assignee: newUser.add_as_assignee,
-                    branch: newUser.branch.join(','),
+                    branch: newUser.branch.join('|'),
                     role: newUser.role
                 }]);
             }
@@ -864,10 +866,31 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                                             ))}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300 text-xs">
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                            {user.branch || 'All'}
-                                        </span>
+                                    <td className="px-6 py-4">
+                                        <div className="flex gap-1 flex-wrap">
+                                            {((user.branch || 'All').includes('|')
+                                                ? (user.branch || 'All').split('|')
+                                                : (user.branch || 'All').split(',')
+                                            ).map((b, i) => {
+                                                const colors = [
+                                                    'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+                                                    'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+                                                    'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+                                                    'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+                                                    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+                                                ];
+                                                const tag = b.trim();
+                                                if (!tag) return null;
+                                                if (tag === 'All') return (
+                                                    <span key="all" className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">All</span>
+                                                );
+                                                return (
+                                                    <span key={i} className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${colors[i % colors.length]}`}>
+                                                        {tag}
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{user.created_at || '—'}</td>
                                     <td className="px-6 py-4">
@@ -4726,6 +4749,9 @@ const AdminDashboard = () => {
     const location = useLocation();
     const { user, logout, refreshUser } = useAuth();
     const isSuperAdmin = user?.email === 'admin@support.com';
+    const userAllowedMenus = (user?.allowed_menus || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    const hasUsersAccess = isSuperAdmin || userAllowedMenus.includes('users');
+    const hasSettingsAccess = isSuperAdmin || userAllowedMenus.includes('settings');
     const isPowerUser = user?.receiver_position === 'Management' || user?.receiver_position === 'Manager';
     const hasEditPermission = user?.email === 'admin@support.com' || (user?.access && user.access.includes('Edit'));
 
@@ -5191,11 +5217,13 @@ const AdminDashboard = () => {
                 params.append('support_type', user.support_type);
             }
 
-            // user.branch is comma-separated: e.g. "Doctor Towels HO,Cotton Concepts_ Karur"
+            // user.branch is | separated: e.g. "Doctor Towels HO|Cotton Concepts, Karur"
             // 'All' means no branch filter needed
             if (!isSuperAdmin && user?.branch && user.branch !== 'All') {
                 // Only add filter if not all branches selected
-                const userBranches = user.branch.split(',').map(b => b.trim()).filter(Boolean);
+                const userBranches = (user.branch || '').includes('|')
+                    ? user.branch.split('|').map(b => b.trim()).filter(Boolean)
+                    : user.branch.split(',').map(b => b.trim()).filter(Boolean);
                 if (userBranches.length > 0 && !userBranches.includes('All')) {
                     params.append('branch', user.branch);
                 }
@@ -6665,7 +6693,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* Users View */}
-                {activeView === 'users' && user?.email === 'admin@support.com' && (
+                {activeView === 'users' && hasUsersAccess && (
                     <UsersView
                         allUsers={users}
                         users={users.filter(u =>
@@ -6688,7 +6716,7 @@ const AdminDashboard = () => {
                 )}
 
                 {/* Settings View */}
-                {activeView === 'settings' && user?.email === 'admin@support.com' && (
+                {activeView === 'settings' && hasSettingsAccess && (
                     <div className="flex flex-col h-full overflow-y-auto">
                         <AssigneesView
                             assignees={assignees}

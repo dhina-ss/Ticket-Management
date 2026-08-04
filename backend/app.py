@@ -567,7 +567,9 @@ def get_tickets():
         if support_type_arg:
             support_types = [s.strip() for s in support_type_arg.split(',') if s.strip()]
         if branch_arg:
-            if '||' in branch_arg:
+            if '|' in branch_arg:
+                branches = [b.strip() for b in branch_arg.split('|') if b.strip()]
+            elif '||' in branch_arg:
                 branches = [b.strip() for b in branch_arg.split('||') if b.strip()]
             else:
                 from database import get_branches_locations_setting

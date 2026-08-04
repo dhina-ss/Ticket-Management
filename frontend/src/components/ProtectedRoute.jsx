@@ -16,12 +16,6 @@ const ProtectedRoute = ({ children }) => {
     // Enforce menu permission checks based on user.allowed_menus
     if (user && user.email !== 'admin@support.com') {
         const path = location.pathname.toLowerCase();
-        
-        // Users and Settings are strictly restricted to admin@support.com
-        if (path.startsWith('/users') || path.startsWith('/settings')) {
-            return <Navigate to="/" replace />;
-        }
-
         const allowedMenus = (user.allowed_menus || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 
         let requiredMenu = null;
@@ -35,6 +29,10 @@ const ProtectedRoute = ({ children }) => {
             requiredMenu = 'courier';
         } else if (path.startsWith('/petty-cash')) {
             requiredMenu = 'petty cash';
+        } else if (path.startsWith('/users')) {
+            requiredMenu = 'users';
+        } else if (path.startsWith('/settings')) {
+            requiredMenu = 'settings';
         }
 
         if (requiredMenu && !allowedMenus.includes(requiredMenu)) {
