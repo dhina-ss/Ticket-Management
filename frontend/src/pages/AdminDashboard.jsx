@@ -1038,7 +1038,8 @@ const AssetsView = ({
     departments,
     activeView,
     hasEditPermission,
-    assetsLoading = false
+    assetsLoading = false,
+    currentBranchList = []
 }) => {
     const { user } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
@@ -6835,6 +6836,7 @@ const AdminDashboard = () => {
                         departments={departments}
                         activeView={activeView}
                         assetsLoading={assetsLoading}
+                        currentBranchList={currentBranchList}
                     />
                 )}
 
