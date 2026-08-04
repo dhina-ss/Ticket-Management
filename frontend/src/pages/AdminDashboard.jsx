@@ -989,7 +989,8 @@ const AssetsView = ({
     setSelectedAssetIds,
     departments,
     activeView,
-    hasEditPermission
+    hasEditPermission,
+    assetsLoading = false
 }) => {
     const { user } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
@@ -6780,6 +6781,7 @@ const AdminDashboard = () => {
                         setSelectedAssetIds={setSelectedAssetIds}
                         departments={departments}
                         activeView={activeView}
+                        assetsLoading={assetsLoading}
                     />
                 )}
 
