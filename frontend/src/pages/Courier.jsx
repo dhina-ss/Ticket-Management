@@ -7,8 +7,14 @@ import { DateRangePicker } from 'react-date-range';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
 import { format } from 'date-fns';
+import * as XLSX from 'xlsx';
 
-const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, variant = 'default', icon, widthClass = 'w-full', menuWidthClass = 'w-full', disabled = false }) => {
+const formatBranch = (val) => {
+	if (!val) return '';
+	return String(val).replace(/_\s*/g, ', ');
+};
+
+const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, variant = 'default', icon, widthClass = 'w-full', menuWidthClass, disabled = false }) => {
 	const [isOpen, setIsOpen] = useState(false);
 	const ref = useRef(null);
 	useEffect(() => {
@@ -37,7 +43,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 				<span className={`material-symbols-outlined text-slate-400 ${variant === 'filter' ? 'text-base' : 'text-[18px] shrink-0 ml-1'} transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
 			</div>
 			{isOpen && (
-				<div className={`absolute left-0 ${menuWidthClass || 'min-w-full w-max max-w-[360px]'} bg-white dark:bg-slate-900 rounded-xl shadow-xl border-none z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
+				<div className={`absolute left-0 ${menuWidthClass || 'min-w-full w-max'} bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-[200] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${direction === 'up'
 					? 'bottom-full mb-1.5 origin-bottom'
 					: 'top-full mt-1.5 origin-top'
 					}`}>
@@ -98,37 +104,38 @@ const BranchWithFlyoutDropdown = ({ label, branches = [], locations = [], value,
 	};
 
 	const visibleBranches = branches.slice(0, 5);
-	const displayLabel = value || label;
+	const displayLabel = value ? formatBranch(value) : label;
 
 	return (
 		<div className="relative" ref={ref}>
 			<div
 				onClick={() => !disabled && setIsOpen(o => !o)}
-				className={`flex items-center justify-between w-full px-3 py-2 text-sm rounded-xl border-none transition-all bg-slate-50 dark:bg-slate-800 font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/20' : ''} ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+				className={`flex items-center justify-between w-full px-3 py-2 text-sm rounded-xl border-none transition-all bg-slate-50 dark:bg-slate-800 font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/50 bg-red-50/20 dark:bg-red-900/10' : ''} ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
 			>
-				<span className="text-slate-800 dark:text-slate-200 truncate">{displayLabel}</span>
+				<span className={!value ? "text-slate-400 dark:text-slate-500 truncate font-normal" : "text-slate-800 dark:text-slate-200 truncate"}>{displayLabel}</span>
 				<span className={`material-symbols-outlined text-slate-400 text-[18px] shrink-0 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>expand_more</span>
 			</div>
 			{isOpen && (
-				<div className={`absolute left-0 min-w-full w-max max-w-[280px] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-[200] py-1.5 overflow-visible animate-in fade-in zoom-in-95 duration-150 ${direction === 'up' ? 'bottom-full mb-1.5 origin-bottom' : 'top-full mt-1.5 origin-top'}`}>
+				<div className={`absolute left-0 min-w-full w-max bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-[200] py-1.5 overflow-visible animate-in fade-in zoom-in-95 duration-150 ${direction === 'up' ? 'bottom-full mb-1.5 origin-bottom' : 'top-full mt-1.5 origin-top'}`}>
 					<div className="px-1.5 py-0.5 space-y-0.5">
 						{/* First 5 branches */}
 						{visibleBranches.map(b => {
-							const isDisabled = disabledValue && b.name === disabledValue;
+							const formattedName = formatBranch(b.name);
+							const isDisabled = disabledValue && (b.name === disabledValue || formattedName === disabledValue);
 							return (
 								<div
 									key={b.id ?? b.name}
-									onClick={() => { if (!isDisabled) { onChange(b.name); setIsOpen(false); setShowFlyout(false); } }}
+									onClick={() => { if (!isDisabled) { onChange(formattedName); setIsOpen(false); setShowFlyout(false); } }}
 									title={isDisabled ? 'Already selected in the other field' : ''}
 									className={`px-3 py-2 rounded-lg text-sm transition-colors font-medium whitespace-nowrap flex items-center justify-between ${
 										isDisabled
 											? 'opacity-40 cursor-not-allowed text-slate-500 dark:text-slate-500'
-											: b.name === value
+											: (b.name === value || formattedName === value)
 												? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 cursor-pointer'
 												: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer'
 									}`}
 								>
-									<span>{b.name}</span>
+									<span>{formattedName}</span>
 									{isDisabled && <span className="material-symbols-outlined text-[14px] opacity-50">block</span>}
 								</div>
 							);
@@ -137,7 +144,7 @@ const BranchWithFlyoutDropdown = ({ label, branches = [], locations = [], value,
 						{/* Others — hover to show flyout with all locations */}
 						{locations.length > 0 && (
 							<div className="relative" ref={othersRef} onMouseEnter={handleOthersEnter} onMouseLeave={handleOthersLeave}>
-								<div className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium whitespace-nowrap ${locations.some(l => l.name === value) ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+								<div className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors font-medium whitespace-nowrap ${locations.some(l => l.name === value || formatBranch(l.name) === value) ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
 									{flyoutSide === 'left' && <span className="material-symbols-outlined text-[14px] mr-2 opacity-60">chevron_left</span>}
 									<span className="flex-1">Others</span>
 									{flyoutSide !== 'left' && <span className="material-symbols-outlined text-[14px] ml-2 opacity-60">chevron_right</span>}
@@ -149,26 +156,27 @@ const BranchWithFlyoutDropdown = ({ label, branches = [], locations = [], value,
 										onMouseEnter={handleFlyoutEnter}
 										onMouseLeave={handleFlyoutLeave}
 										style={{ top: 0, ...(flyoutSide === 'right' ? { left: '100%', marginLeft: '4px' } : { right: '100%', marginRight: '4px' }) }}
-										className={`absolute w-56 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-100 dark:border-slate-800 z-[300] py-1.5 animate-in fade-in ${flyoutSide === 'left' ? 'slide-in-from-right-2' : 'slide-in-from-left-2'} duration-150`}
+										className={`absolute min-w-56 w-max bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-100 dark:border-slate-800 z-[300] py-1.5 animate-in fade-in ${flyoutSide === 'left' ? 'slide-in-from-right-2' : 'slide-in-from-left-2'} duration-150`}
 									>
 										<div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Locations</div>
 										<div className="max-h-52 overflow-y-auto custom-scrollbar px-1.5 space-y-0.5 pb-1">
 											{locations.map(loc => {
-												const isLocDisabled = disabledValue && loc.name === disabledValue;
+												const formattedLocName = formatBranch(loc.name);
+												const isLocDisabled = disabledValue && (loc.name === disabledValue || formattedLocName === disabledValue);
 												return (
 													<div
 														key={loc.name}
-														onClick={() => { if (!isLocDisabled) { onChange(loc.name); setIsOpen(false); setShowFlyout(false); } }}
+														onClick={() => { if (!isLocDisabled) { onChange(formattedLocName); setIsOpen(false); setShowFlyout(false); } }}
 														title={isLocDisabled ? 'Already selected in the other field' : ''}
 														className={`px-3 py-2 rounded-lg text-sm transition-colors font-medium whitespace-nowrap flex items-center justify-between ${
 															isLocDisabled
 																? 'opacity-40 cursor-not-allowed text-slate-500 dark:text-slate-500'
-																: loc.name === value
+																: (loc.name === value || formattedLocName === value)
 																	? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 cursor-pointer'
 																	: 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer'
 														}`}
 													>
-														<span>{loc.name}</span>
+														<span>{formattedLocName}</span>
 														{isLocDisabled && <span className="material-symbols-outlined text-[14px] opacity-50">block</span>}
 													</div>
 												);
@@ -332,6 +340,7 @@ const Courier = () => {
 	};
 
 	// Form State
+	const [formErrors, setFormErrors] = useState({});
 	const [formData, setFormData] = useState({
 		date: new Date().toISOString().split('T')[0],
 		transaction_type: 'Dispatch',
@@ -369,17 +378,18 @@ const Courier = () => {
 			try {
 				const res = await api.get('/api/courier/lookups');
 				if (res.status === 200) {
-					setLookups(res.data);
-					const branches = res.data.branches || [];
-					const firstBranchName = branches[0]?.name || res.data.locations?.[0]?.name || '';
-					const secondBranchName = branches[1]?.name || firstBranchName;
-					const firstBranchId = branches[0]?.id || 1;
-						setFormData(prev => ({
+					const cleanedBranches = (res.data.branches || []).map(b => ({ ...b, name: formatBranch(b.name) }));
+					const cleanedLocations = (res.data.locations || []).map(l => ({ ...l, name: formatBranch(l.name) }));
+					setLookups({
+						...res.data,
+						branches: cleanedBranches,
+						locations: cleanedLocations
+					});
+					const firstBranchName = cleanedBranches[0]?.name || cleanedLocations[0]?.name || '';
+					setFormData(prev => ({
 						...prev,
-						branch_id: firstBranchId,
-						branch_name: prev.branch_name || firstBranchName,
-						sending_from: prev.sending_from || firstBranchName,
-						destination: prev.destination || secondBranchName
+						branch_id: firstBranchName,
+						branch_name: prev.branch_name || firstBranchName
 					}));
 				}
 			} catch (err) {
@@ -435,9 +445,22 @@ const Courier = () => {
 	// Handle Submit (Create/Update)
 	const handleSubmit = async (e) => {
 		e.preventDefault();
+		const errors = {};
+		if (!formData.sending_from || !formData.sending_from.trim()) {
+			errors.sending_from = true;
+		}
+		if (!formData.destination || !formData.destination.trim()) {
+			errors.destination = true;
+		}
+		if (Object.keys(errors).length > 0) {
+			setFormErrors(errors);
+			return;
+		}
+		setFormErrors({});
 		try {
 			const payload = {
 				...formData,
+				courier_cost: Math.max(0, parseFloat(formData.courier_cost) || 0),
 				creator_email: editingEntry ? (editingEntry.creator_email || user?.email || '') : (user?.email || '')
 			};
 			if (editingEntry) {
@@ -467,20 +490,18 @@ const Courier = () => {
 	// Open Modal for Add
 	const handleOpenAdd = () => {
 		setEditingEntry(null);
-		const branches = lookups.branches || [];
-		const fromDefault = branches[0]?.name || lookups.locations?.[0]?.name || '';
-		const toDefault = branches[1]?.name || fromDefault;
+		setFormErrors({});
 		setFormData({
 			date: new Date().toISOString().split('T')[0],
 			transaction_type: 'Dispatch',
 			sender: user?.name || user?.email || '',
 			department: user?.department || '',
-			sending_from: fromDefault,
+			sending_from: '',
 			receiver: '',
 			receiver_office: '',
 			supplier_buyer_type: 'Buyer',
 			supplier_buyer_name: '',
-			destination: toDefault,
+			destination: '',
 			product_description: '',
 			package_type: lookups.package_types[0] || '',
 			num_packages: 1,
@@ -495,7 +516,7 @@ const Courier = () => {
 			courier_cost: 0,
 			payment_mode: '',
 			remarks: '',
-			branch_id: lookups.branches[0]?.id || 1,
+			branch_id: lookups.branches[0]?.name || '',
 			branch_name: lookups.branches[0]?.name || '',
 			item: '',
 			ref_type: 'PI'
@@ -511,6 +532,7 @@ const Courier = () => {
 
 	const handleOpenEdit = (entry) => {
 		setEditingEntry(entry);
+		setFormErrors({});
 		setFormData({
 			date: entry.date,
 			transaction_type: entry.transaction_type,
@@ -536,19 +558,59 @@ const Courier = () => {
 			courier_cost: entry.courier_cost || 0,
 			payment_mode: entry.payment_mode || '',
 			remarks: entry.remarks || '',
-			branch_id: entry.branch_id || (lookups.branches[0]?.id || 1),
-			branch_name: (() => {
-				// Prefer branch_name from entry, else resolve from branch_id via lookups
-				if (entry.branch_name) return entry.branch_name;
-				const matched = (lookups.branches || []).find(b =>
-					b.id === entry.branch_id || String(b.id) === String(entry.branch_id)
-				);
-				return matched?.name || entry.branch_name || lookups.branches?.[0]?.name || '';
-			})(),
+			branch_id: entry.branch_name || entry.branch_id || (lookups.branches[0]?.name || ''),
+			branch_name: entry.branch_name || (lookups.branches || []).find(b => b.id === entry.branch_id || b.name === entry.branch_name)?.name || lookups.branches?.[0]?.name || '',
 			item: entry.item || '',
 			ref_type: entry.ref_type || 'PI'
 		});
 		setShowModal(true);
+	};
+
+	// Export to XLSX handler
+	const handleExportXLSX = () => {
+		if (!entries || entries.length === 0) {
+			alert('No courier data available to export.');
+			return;
+		}
+
+		const dataToExport = entries.map((entry, index) => {
+			const branchName = formatBranch(entry.branch_name);
+			return {
+				'S.No': index + 1,
+				'Date': entry.date || '-',
+				'Branch': branchName || '-',
+				'Transaction Type': entry.transaction_type || '-',
+				'Department': entry.department || '-',
+				'From Name': entry.sender || '-',
+				'From Location': formatBranch(entry.sending_from) || '-',
+				'To Name': entry.receiver || '-',
+				'To Location': formatBranch(entry.destination) || '-',
+				'Item': entry.item || '-',
+				'Ref Type': entry.ref_type || '-',
+				'Ref Value': entry.order_reference || '-',
+				'Supplier/Buyer Type': entry.supplier_buyer_type || '-',
+				'Supplier/Buyer Name': entry.supplier_buyer_name || '-',
+				'Budget Status': entry.budgeted || '-',
+				'Package Type': entry.package_type || '-',
+				'No. of Packages': entry.num_packages ?? '-',
+				'Weight (Kg)': entry.weight_kg ?? '-',
+				'Courier Operator': entry.courier_name || '-',
+				'AWB / Tracking No': entry.awb_no || '-',
+				'To Office': entry.receiver_office || '-',
+				'Product Description': entry.product_description || '-',
+				'Box Measurement': entry.box_measurement || '-',
+				'Chargeable Weight': entry.chargeable_weight ?? '-',
+				'Cost (INR)': entry.courier_cost || 0,
+				'Payment Mode': entry.payment_mode || '-',
+				'Remarks': entry.remarks || '-'
+			};
+		});
+
+		const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+		const workbook = XLSX.utils.book_new();
+		XLSX.utils.book_append_sheet(workbook, worksheet, "Courier Report");
+		const today = format(new Date(), 'yyyy-MM-dd');
+		XLSX.writeFile(workbook, `Courier_Report_${today}.xlsx`);
 	};
 
 	// Quick stats
@@ -700,11 +762,11 @@ const Courier = () => {
 							icon="domain"
 							widthClass="w-50"
 							label="All Branches"
-							value={filters.branch_id}
-							onChange={val => setFilters(prev => ({ ...prev, branch_id: val }))}
+							value={filters.branch_name || filters.branch_id}
+							onChange={val => setFilters(prev => ({ ...prev, branch_name: val, branch_id: val }))}
 							options={[
 								{ label: 'All Branches', value: '' },
-								...lookups.branches.map(b => ({ label: b.name, value: b.id }))
+								...lookups.branches.map(b => ({ label: formatBranch(b.name), value: formatBranch(b.name) }))
 							]}
 						/>
 
@@ -816,6 +878,16 @@ const Courier = () => {
 							)}
 						</div>
 
+						{/* Download XLSX Report */}
+						<button
+							onClick={handleExportXLSX}
+							aria-label="Download Courier Report as XLSX"
+							title="Download Courier Report (XLSX)"
+							className="flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors shadow-sm cursor-pointer"
+						>
+							<span className="material-symbols-outlined text-[20px]">download</span>
+						</button>
+
 						{/* Clear Filters */}
 						{(filters.search !== '' || filters.dept !== '' || filters.trans_type !== '' || filters.branch_id !== '' || filters.budgeted !== '' || isDateFilterActive) && (
 							<button
@@ -906,7 +978,7 @@ const Courier = () => {
 												<td className="px-4 py-2 font-medium">{entry.date}</td>
 												<td className="px-4 py-2">
 													<div className="font-semibold text-slate-700 dark:text-slate-300">
-														{lookups.branches?.find(b => b.id === entry.branch_id)?.name || entry.branch_name || '-'}
+														{formatBranch(entry.branch_name) || '-'}
 													</div>
 												</td>
 												<td className="px-4 py-2">
@@ -919,9 +991,9 @@ const Courier = () => {
 												</td>
 												<td className="px-4 py-2">{entry.department || '-'}</td>
 												<td className="px-4 py-2 font-semibold text-slate-900 dark:text-white">{entry.sender || '-'}</td>
-												<td className="px-4 py-2">{entry.sending_from || '-'}</td>
+												<td className="px-4 py-2">{formatBranch(entry.sending_from) || '-'}</td>
 												<td className="px-4 py-2 font-semibold text-slate-900 dark:text-white">{entry.receiver || '-'}</td>
-												<td className="px-4 py-2">{entry.destination || '-'}</td>
+												<td className="px-4 py-2">{formatBranch(entry.destination) || '-'}</td>
 												<td className="px-4 py-2">{entry.item || '-'}</td>
 												<td className="px-4 py-2">{entry.ref_type || '-'}</td>
 												<td className="px-4 py-2">
@@ -1084,10 +1156,10 @@ const Courier = () => {
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Branch <span className="text-red-500">*</span></label>
 									<SelectDropdown
 										label="Select Branch"
-										options={(lookups.branches || []).map(b => ({ label: b.name, value: b.name }))}
-										value={formData.branch_name}
+										options={(lookups.branches || []).map(b => ({ label: formatBranch(b.name), value: formatBranch(b.name) }))}
+										value={formatBranch(formData.branch_name)}
 										onChange={val => {
-											const match = (lookups.branches || []).find(b => b.name === val);
+											const match = (lookups.branches || []).find(b => formatBranch(b.name) === val || b.name === val);
 											setFormData(prev => ({ ...prev, branch_name: val, branch_id: match?.id || prev.branch_id }));
 										}}
 									/>
@@ -1152,29 +1224,47 @@ const Courier = () => {
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 								{/* Sending From */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">From Location</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+										From Location <span className="text-red-500">*</span>
+									</label>
 									<BranchWithFlyoutDropdown
 										label="Select From Location"
 										branches={lookups.branches || []}
 										locations={lookups.locations || []}
 										value={formData.sending_from}
-										onChange={val => setFormData(prev => ({ ...prev, sending_from: val }))}
+										onChange={val => {
+											setFormData(prev => ({ ...prev, sending_from: val }));
+											if (val) setFormErrors(prev => ({ ...prev, sending_from: false }));
+										}}
 										disabledValue={formData.destination}
+										error={formErrors.sending_from}
 									/>
+									{formErrors.sending_from && (
+										<p className="text-xs text-red-500 mt-1 font-medium">From Location is required</p>
+									)}
 								</div>
 
 								{/* Destination */}
 								<div>
-									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">To Location</label>
+									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+										To Location <span className="text-red-500">*</span>
+									</label>
 									<BranchWithFlyoutDropdown
 										label="Select To Location"
 										branches={lookups.branches || []}
 										locations={lookups.locations || []}
 										value={formData.destination}
-										onChange={val => setFormData(prev => ({ ...prev, destination: val }))}
+										onChange={val => {
+											setFormData(prev => ({ ...prev, destination: val }));
+											if (val) setFormErrors(prev => ({ ...prev, destination: false }));
+										}}
 										flyoutPosition="left"
 										disabledValue={formData.sending_from}
+										error={formErrors.destination}
 									/>
+									{formErrors.destination && (
+										<p className="text-xs text-red-500 mt-1 font-medium">To Location is required</p>
+									)}
 								</div>
 							</div>
 
@@ -1347,9 +1437,21 @@ const Courier = () => {
 											<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Cost (INR)</label>
 											<input
 												type="number"
+												min="0"
 												step="0.01"
 												value={formData.courier_cost}
-												onChange={e => setFormData(prev => ({ ...prev, courier_cost: e.target.value }))}
+												onWheel={e => e.target.blur()}
+												onKeyDown={e => {
+													if (e.key === '-' || e.key === 'e' || e.key === 'E') {
+														e.preventDefault();
+													}
+												}}
+												onChange={e => {
+													const val = e.target.value;
+													if (val === '' || parseFloat(val) >= 0) {
+														setFormData(prev => ({ ...prev, courier_cost: val }));
+													}
+												}}
 												className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none focus:outline-none focus:ring-0 font-bold text-pink-600"
 											/>
 										</div>
@@ -1463,7 +1565,7 @@ const Courier = () => {
 								</div>
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">From Location</label>
-									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.sending_from || '-'}</p>
+									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{formatBranch(selectedCourier.sending_from) || '-'}</p>
 								</div>
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">To Name</label>
@@ -1471,7 +1573,7 @@ const Courier = () => {
 								</div>
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">To Location</label>
-									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{selectedCourier.destination || '-'}</p>
+									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{formatBranch(selectedCourier.destination) || '-'}</p>
 								</div>
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Product</label>
@@ -1487,7 +1589,7 @@ const Courier = () => {
 								</div>
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Branch</label>
-									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{lookups.branches?.find(b => b.id === selectedCourier.branch_id)?.name || selectedCourier.branch_name || '-'}</p>
+									<p className="font-medium text-slate-800 dark:text-slate-200 text-sm">{formatBranch(selectedCourier.branch_name) || '-'}</p>
 								</div>
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Wt(Kg)</label>

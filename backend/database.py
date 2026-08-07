@@ -254,8 +254,11 @@ def init_db():
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS courier_users TEXT DEFAULT '';")
                 # Add department field for user-level department specification (e.g. Courier department)
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS department TEXT DEFAULT '';")
-                # Add purpose column to couriers table
+                # Add purpose and branch_name columns to couriers table, and drop old branch/branch_id columns
                 cur.execute("ALTER TABLE couriers ADD COLUMN IF NOT EXISTS purpose TEXT DEFAULT '';")
+                cur.execute("ALTER TABLE couriers ADD COLUMN IF NOT EXISTS branch_name TEXT DEFAULT '';")
+                cur.execute("ALTER TABLE couriers DROP COLUMN IF EXISTS branch_id CASCADE;")
+                cur.execute("ALTER TABLE couriers DROP COLUMN IF EXISTS branch CASCADE;")
                 # Add branch field to pettycash table
                 cur.execute("ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS branch TEXT DEFAULT 'Cotton Concepts HO, Coimbatore';")
                 # Ensure existing admin@support.com gets Super admin role
@@ -271,6 +274,8 @@ def init_db():
                 for tbl in ['tickets', 'admin_users', 'assets', 'admin_assets', 'pettycash']:
                     cur.execute(f"UPDATE {tbl} SET branch = REPLACE(branch, '_ ', ', ') WHERE branch IS NOT NULL AND branch LIKE '%%_ %%';")
                     cur.execute(f"UPDATE {tbl} SET branch = REPLACE(branch, '_', ', ') WHERE branch IS NOT NULL AND branch LIKE '%%_%%';")
+                cur.execute("UPDATE couriers SET branch_name = REPLACE(branch_name, '_ ', ', ') WHERE branch_name IS NOT NULL AND branch_name LIKE '%%_ %%';")
+                cur.execute("UPDATE couriers SET branch_name = REPLACE(branch_name, '_', ', ') WHERE branch_name IS NOT NULL AND branch_name LIKE '%%_%%';")
         conn.close()
         
         # Run auto-cleanup once per restart
@@ -2244,19 +2249,6 @@ def set_app_setting(key: str, value: str) -> bool:
         print(f"DEBUG: set_app_setting error: {e}")
         return False
 
-DEFAULT_BRANCHES_LOCATIONS_SETTING = {
-    "branches": [
-        {"id": "b-1", "name": "Cotton Concepts HO, Coimbatore", "created_at": "2026-01-01T00:00:00Z"},
-        {"id": "b-2", "name": "Doctor Towels HO", "created_at": "2026-01-01T00:00:00Z"},
-        {"id": "b-3", "name": "Cotton Concepts, Vengamedu", "created_at": "2026-01-01T00:00:00Z"},
-        {"id": "b-4", "name": "Cotton Concepts, Karur", "created_at": "2026-01-01T00:00:00Z"},
-        {"id": "b-5", "name": "Doctor Towels, Karur", "created_at": "2026-01-01T00:00:00Z"}
-    ],
-    "locations": [],
-    "from_locations": [],
-    "to_locations": []
-}
-
 def get_branches_locations_setting() -> dict:
     import json, re
     raw = get_app_setting('branches_locations')
@@ -2264,35 +2256,40 @@ def get_branches_locations_setting() -> dict:
         try:
             data = json.loads(raw)
             if isinstance(data, dict):
-                if "branches" not in data:
-                    data["branches"] = DEFAULT_BRANCHES_LOCATIONS_SETTING["branches"]
-                else:
-                    # Fix any underscore variants in branch names: '_ ', '_', etc.
-                    updated = False
-                    for b in data.get("branches", []):
-                        original = b.get("name", "")
-                        fixed = original.replace("_ ", ", ")
-                        fixed = re.sub(r'(?<![_])_(?![_])', ', ', fixed)
-                        fixed = fixed.replace(",,", ",")
-                        if fixed != original:
-                            b["name"] = fixed
-                            updated = True
-                    if updated:
-                        set_branches_locations_setting(data)
+                if "branches" not in data or not isinstance(data["branches"], list):
+                    data["branches"] = []
+
+                # Fix any underscore variants in branch names: '_ ', '_', etc.
+                updated = False
+                for b in data.get("branches", []):
+                    original = b.get("name", "")
+                    fixed = original.replace("_ ", ", ")
+                    fixed = re.sub(r'(?<![_])_(?![_])', ', ', fixed)
+                    fixed = fixed.replace(",,", ",")
+                    if fixed != original:
+                        b["name"] = fixed
+                        updated = True
 
                 # Ensure locations key exists as a list (default to empty list)
                 if "locations" not in data or not isinstance(data["locations"], list):
                     data["locations"] = []
+                    updated = True
+
+                if updated:
                     set_branches_locations_setting(data)
-                
+
                 # Keep from_locations and to_locations synced with locations for backward compatibility
                 data["from_locations"] = data["locations"]
                 data["to_locations"] = data["locations"]
                 return data
         except Exception:
             pass
-    set_branches_locations_setting(DEFAULT_BRANCHES_LOCATIONS_SETTING)
-    return DEFAULT_BRANCHES_LOCATIONS_SETTING
+    return {
+        "branches": [],
+        "locations": [],
+        "from_locations": [],
+        "to_locations": []
+    }
 
 def set_branches_locations_setting(data: dict) -> bool:
     import json

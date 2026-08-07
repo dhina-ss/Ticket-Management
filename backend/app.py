@@ -2377,7 +2377,7 @@ try:
             if 'couriers' in table_names:
                 existing_couriers = {c['name'] for c in inspector.get_columns('couriers')}
                 required_couriers_cols = [
-                    ("branch_id",            "INTEGER"),
+                    ("branch_name",          "VARCHAR(100)"),
                     ("created_by",           "INTEGER"),
                     ("creator_email",        "VARCHAR(150)"),
                     ("created_at",           "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
@@ -2415,6 +2415,16 @@ try:
                                 conn.execute(text(f"ALTER TABLE couriers ADD COLUMN {col} {typedef}"))
                             except Exception as e_col:
                                 print(f"Warning: Failed to add column {col} to couriers: {e_col}")
+                    if 'branch_id' in existing_couriers:
+                        try:
+                            conn.execute(text("ALTER TABLE couriers DROP COLUMN branch_id"))
+                        except Exception:
+                            pass
+                    if 'branch' in existing_couriers:
+                        try:
+                            conn.execute(text("ALTER TABLE couriers DROP COLUMN branch"))
+                        except Exception:
+                            pass
                     conn.commit()
 
             if 'users' in table_names:
@@ -2551,13 +2561,13 @@ def api_courier_lookups():
             
             # Branch list directly from Settings page (branches_locations setting)
             bl_branches = [
-                {"id": item.get('id', idx + 1), "name": item['name']}
-                for idx, item in enumerate(bl_settings.get('branches', [])) if item.get('name')
+                {"name": item['name']}
+                for item in bl_settings.get('branches', []) if item.get('name')
             ]
             if bl_branches:
                 branches = bl_branches
             else:
-                branches = [{"id": b.id, "name": b.name, "code": b.code} for b in courier_app_pkg.models.Branch.query.filter_by(is_active=True).all()]
+                branches = [{"name": b.name} for b in courier_app_pkg.models.Branch.query.filter_by(is_active=True).all()]
             
             return jsonify({
                 "departments": courier_departments,
@@ -2612,9 +2622,24 @@ def api_courier_entries():
             if to_date:
                 q = q.filter(courier_app_pkg.models.Courier.date <= to_date)
             if budgeted:
-                q = q.filter(courier_app_pkg.models.Courier.budgeted.ilike(f'%{budgeted}%'))
-            if branch_id:
-                q = q.filter(courier_app_pkg.models.Courier.branch_id == int(branch_id))
+                q = q.filter(courier_app_pkg.models.Courier.budgeted.ilike(budgeted))
+            branch_filter = (request.args.get('branch_name', '') or request.args.get('branch_id', '')).strip()
+            if branch_filter:
+                clean_target = branch_filter.replace('_', ' ').replace(',', ' ').strip()
+                variants = set([
+                    clean_target,
+                    branch_filter,
+                    branch_filter.replace(', ', '_ '),
+                    branch_filter.replace(', ', '_'),
+                    branch_filter.replace('_ ', ', '),
+                    branch_filter.replace('_', ', ')
+                ])
+                or_conds = []
+                for v in variants:
+                    if v:
+                        or_conds.append(courier_app_pkg.models.Courier.branch_name.ilike(f'%{v}%'))
+                if or_conds:
+                    q = q.filter(courier_app_pkg.db.or_(*or_conds))
             if trans_type:
                 q = q.filter(courier_app_pkg.models.Courier.transaction_type == trans_type)
             
@@ -2625,8 +2650,7 @@ def api_courier_entries():
             for c in entries:
                 result.append({
                     "id": c.id,
-                    "branch_id": c.branch_id,
-                    "branch_name": c.branch.name if c.branch else "",
+                    "branch_name": getattr(c, 'branch_name', None) or "",
                     "date": c.date.isoformat() if c.date else "",
                     "transaction_type": c.transaction_type,
                     "sender": c.sender,
@@ -2684,18 +2708,64 @@ def _resolve_branch_id(branch_val, default=1):
                 b = Branch.query.get(branch_val)
                 if b:
                     return b.id
+                return branch_val
             elif isinstance(branch_val, str):
-                if branch_val.isdigit():
-                    b = Branch.query.get(int(branch_val))
+                s_val = branch_val.strip()
+                if s_val.isdigit():
+                    bid = int(s_val)
+                    b = Branch.query.get(bid)
                     if b:
                         return b.id
-                b = Branch.query.filter_by(name=branch_val.strip()).first()
-                if b:
-                    return b.id
+                    return bid
+                target_name = s_val
+                target_idx = None
+                if s_val.startswith('b-'):
+                    try:
+                        target_idx = int(s_val.split('-')[1])
+                        from database import get_branches_locations_setting
+                        bl_settings = get_branches_locations_setting()
+                        bl_branches = bl_settings.get('branches', [])
+                        if 0 <= target_idx - 1 < len(bl_branches):
+                            target_name = bl_branches[target_idx - 1].get('name', s_val)
+                    except Exception:
+                        pass
+
+                if target_idx is not None:
+                    b_by_id = Branch.query.get(target_idx)
+                    if b_by_id:
+                        return b_by_id.id
+
+                norm_name = target_name.replace('_', ' ').replace(',', ' ').strip()
+                branches_all = Branch.query.all()
+                for b in branches_all:
+                    b_norm = (b.name or '').replace('_', ' ').replace(',', ' ').strip()
+                    if b_norm.lower() == norm_name.lower():
+                        return b.id
+                    if b.code and b.code.lower() == s_val.lower():
+                        return b.id
+
+                low_target = target_name.lower()
+                for b in branches_all:
+                    b_code = (b.code or '').lower()
+                    b_name = (b.name or '').lower()
+                    if 'dst' in low_target and ('dst' in b_code or 'dst' in b_name or 'doctor' in b_name):
+                        if 'karur' in low_target and 'krr' in b_code:
+                            return b.id
+                        elif 'karur' not in low_target and ('ho' in b_code or 'ho' in b_name or 'head' in b_name):
+                            return b.id
+                    elif 'vengamedu' in low_target and ('vng' in b_code or 'vengamedu' in b_name):
+                        return b.id
+                    elif 'karur' in low_target and ('krr' in b_code or 'karur' in b_name):
+                        return b.id
+                    elif ('cccd' in low_target or 'cotton' in low_target) and ('cccd' in b_code or 'ho' in b_code or 'cotton' in b_name):
+                        if 'vengamedu' not in low_target and 'karur' not in low_target:
+                            return b.id
+
+                if target_idx is not None:
+                    return target_idx
         
-        first_b = Branch.query.first()
-        if first_b:
-            return first_b.id
+        if default is not None:
+            return default
     except Exception:
         pass
     return default
@@ -2706,9 +2776,8 @@ def api_courier_create():
         from datetime import date
         data = request.json or {}
         with courier_app.app_context():
-            branch_id = _resolve_branch_id(data.get('branch_id'), 1)
             c = courier_app_pkg.models.Courier(
-                branch_id=branch_id,
+                branch_name=(data.get('branch_name') or data.get('branch_id') or '').strip(),
                 date=date.fromisoformat(data['date']) if data.get('date') else date.today(),
                 transaction_type=data.get('transaction_type', 'Dispatch'),
                 sender=(data.get('sender') or '').strip(),
@@ -2753,8 +2822,8 @@ def api_courier_update(entry_id):
         data = request.json or {}
         with courier_app.app_context():
             c = courier_app_pkg.models.Courier.query.get_or_404(entry_id)
-            if 'branch_id' in data and data['branch_id']:
-                c.branch_id = _resolve_branch_id(data['branch_id'], c.branch_id)
+            if 'branch_name' in data or 'branch_id' in data:
+                c.branch_name = (data.get('branch_name') or data.get('branch_id') or '').strip()
             if data.get('date'):
                 try:
                     c.date = date.fromisoformat(data['date'])

@@ -18,7 +18,6 @@ class Branch(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     users = db.relationship('User', backref='branch', lazy='dynamic')
-    couriers = db.relationship('Courier', backref='branch', lazy='dynamic')
     expenses = db.relationship('Expense', backref='branch', lazy='dynamic')
 
     def __repr__(self):
@@ -118,7 +117,7 @@ class LookupItem(db.Model):
 class Courier(db.Model):
     __tablename__ = 'couriers'
     id = db.Column(db.Integer, primary_key=True)
-    branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=False)
+    branch_name = db.Column(db.String(100))
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     creator_email = db.Column(db.String(150))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
