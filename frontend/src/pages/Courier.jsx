@@ -14,7 +14,7 @@ const formatBranch = (val) => {
 	return String(val).replace(/_\s*/g, ', ');
 };
 
-const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, variant = 'default', icon, widthClass = 'w-full', menuWidthClass, disabled = false }) => {
+const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-60', error, variant = 'default', icon, widthClass = 'w-full', menuWidthClass, disabled = false }) => {
 	const [isOpen, setIsOpen] = useState(false);
 	const ref = useRef(null);
 	useEffect(() => {
