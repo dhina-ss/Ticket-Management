@@ -804,7 +804,7 @@ def assets_route():
         try:
             from database import get_all_assets
             page = request.args.get('page', type=int)
-            limit = request.args.get('limit', type=int, default=50)
+            limit = request.args.get('limit', type=int) or request.args.get('page_size', type=int, default=20)
             search = request.args.get('search', type=str, default='')
             category = request.args.get('category', type=str, default='')
             branch = request.args.get('branch', type=str, default='')
@@ -894,7 +894,7 @@ def admin_assets_route():
         try:
             from database import get_all_admin_assets
             page = request.args.get('page', type=int)
-            limit = request.args.get('limit', type=int, default=50)
+            limit = request.args.get('limit', type=int) or request.args.get('page_size', type=int, default=20)
             search = request.args.get('search', type=str, default='')
             type_val = request.args.get('type', type=str, default='')
             branch = request.args.get('branch', type=str, default='')

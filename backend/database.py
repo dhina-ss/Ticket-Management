@@ -1821,8 +1821,10 @@ def _row_to_asset(row: dict) -> dict:
     }
 
 
-def get_all_assets(page: int = None, limit: int = 50, search: str = "", category: str = "", branch: str = "", department: str = "", condition: str = "") -> dict | list:
+def get_all_assets(page: int = None, limit: int = 20, page_size: int = None, search: str = "", category: str = "", branch: str = "", department: str = "", condition: str = "") -> dict | list:
     import math
+    if page_size is not None:
+        limit = page_size
     try:
         conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -2068,8 +2070,10 @@ def _row_to_admin_asset(row: dict) -> dict:
         "updatedAt":      row["updated_at"].strftime("%Y-%m-%d %H:%M:%S") if row.get("updated_at") else ""
     }
 
-def get_all_admin_assets(page: int = None, limit: int = 50, search: str = "", type_val: str = "", branch: str = "", department: str = "", status_val: str = "") -> dict | list:
+def get_all_admin_assets(page: int = None, limit: int = 20, page_size: int = None, search: str = "", type_val: str = "", branch: str = "", department: str = "", status_val: str = "") -> dict | list:
     import math
+    if page_size is not None:
+        limit = page_size
     try:
         conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:

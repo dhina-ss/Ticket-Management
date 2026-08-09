@@ -5346,13 +5346,14 @@ const AdminDashboard = () => {
         }
     };
 
-    const fetchAssets = async (view = activeView, page = 1, limit = 50) => {
+    const fetchAssets = async (view = activeView, page = 1, limit = 20) => {
         setAssetsLoading(true);
         try {
             const endpoint = view === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
             const params = new URLSearchParams();
             params.append('page', page);
             params.append('limit', limit);
+            params.append('page_size', limit);
             const response = await api.get(`${endpoint}?${params.toString()}`);
             if (response.data && Array.isArray(response.data.data)) {
                 setAssets(response.data.data);
