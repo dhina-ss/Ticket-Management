@@ -1048,6 +1048,8 @@ const AssetsView = ({
     const [historyLoading, setHistoryLoading] = useState(false);
     const [successModal, setSuccessModal] = useState({ show: false, type: '', id: '' });
     const [currentPage, setCurrentPage] = useState(1);
+    const [totalServerItems, setTotalServerItems] = useState(0);
+    const [totalServerPages, setTotalServerPages] = useState(1);
     const [validationErrors, setValidationErrors] = useState({});
     const ITEMS_PER_PAGE = 20;
 
@@ -1312,8 +1314,9 @@ const AssetsView = ({
         });
     }, [assets, searchQuery, categoryFilter, branchFilter, departmentFilter, conditionFilter, isDateFilterActive, dateRange, activeView]);
 
-    const totalPages = Math.max(1, Math.ceil(filteredAssets.length / ITEMS_PER_PAGE));
-    const pagedAssets = filteredAssets.slice(
+    const displayTotalCount = totalServerItems > 0 ? totalServerItems : (filteredAssets.length || 0);
+    const displayTotalPages = totalServerPages > 0 ? totalServerPages : Math.max(1, Math.ceil(displayTotalCount / ITEMS_PER_PAGE));
+    const pagedAssets = (assets.length <= ITEMS_PER_PAGE) ? filteredAssets : filteredAssets.slice(
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
@@ -1660,7 +1663,7 @@ const AssetsView = ({
                     {/* Pagination Controls */}
                     <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
                         <p className="text-sm text-slate-500 dark:text-slate-400 min-w-[240px]">
-                            Showing <span className="font-medium">{filteredAssets.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}</span> to <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, filteredAssets.length)}</span> of <span className="font-medium">{filteredAssets.length}</span> assets
+                            Showing <span className="font-medium">{displayTotalCount > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}</span> to <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, displayTotalCount)}</span> of <span className="font-medium">{displayTotalCount}</span> assets
                         </p>
                         <div className="flex justify-center flex-1">
                             {selectedAssetIds.length > 0 && (
@@ -1679,8 +1682,8 @@ const AssetsView = ({
                             >
                                 <span className="material-symbols-outlined text-[20px]">chevron_left</span>
                             </button>
-                            {Array.from({ length: totalPages }, (_, i) => i + 1)
-                                .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                            {Array.from({ length: displayTotalPages }, (_, i) => i + 1)
+                                .filter(p => p === 1 || p === displayTotalPages || Math.abs(p - currentPage) <= 1)
                                 .reduce((acc, p, idx, arr) => {
                                     if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
                                     acc.push(p);
@@ -1702,8 +1705,8 @@ const AssetsView = ({
                                 )
                             }
                             <button
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={currentPage === totalPages}
+                                onClick={() => setCurrentPage(p => Math.min(displayTotalPages, p + 1))}
+                                disabled={currentPage === displayTotalPages}
                                 className="px-1 py-1 border border-1 border-solid border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center text-slate-600 dark:text-slate-400"
                                 title="Next Page"
                             >
@@ -5346,7 +5349,7 @@ const AdminDashboard = () => {
         }
     };
 
-    const fetchAssets = async (view = activeView, page = 1, limit = 20) => {
+    const fetchAssets = async (view = activeView, page = currentPage, limit = ITEMS_PER_PAGE, search = searchQuery, catF = categoryFilter, bF = branchFilter, dF = departmentFilter, condF = conditionFilter) => {
         setAssetsLoading(true);
         try {
             const endpoint = view === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
@@ -5354,21 +5357,53 @@ const AdminDashboard = () => {
             params.append('page', page);
             params.append('limit', limit);
             params.append('page_size', limit);
+
+            if (search) params.append('search', search);
+
+            const catVal = (catF || []).join(',');
+            if (catVal && !catVal.toLowerCase().includes('all')) {
+                params.append(view === 'admin_assets' ? 'type' : 'category', catVal);
+            }
+            const bVal = (bF || []).join(',');
+            if (bVal && !bVal.toLowerCase().includes('all')) params.append('branch', bVal);
+
+            const dVal = (dF || []).join(',');
+            if (dVal && !dVal.toLowerCase().includes('all')) params.append('department', dVal);
+
+            const condVal = (condF || []).join(',');
+            if (condVal && !condVal.toLowerCase().includes('all')) {
+                params.append(view === 'admin_assets' ? 'status' : 'condition', condVal);
+            }
+
             const response = await api.get(`${endpoint}?${params.toString()}`);
             if (response.data && Array.isArray(response.data.data)) {
                 setAssets(response.data.data);
+                setTotalServerItems(response.data.total);
+                setTotalServerPages(response.data.totalPages || 1);
             } else if (Array.isArray(response.data)) {
                 setAssets(response.data);
+                setTotalServerItems(response.data.length);
+                setTotalServerPages(Math.max(1, Math.ceil(response.data.length / limit)));
             } else {
                 setAssets([]);
+                setTotalServerItems(0);
+                setTotalServerPages(1);
             }
         } catch (err) {
             console.error("Failed to fetch assets:", err);
             setAssets([]);
+            setTotalServerItems(0);
+            setTotalServerPages(1);
         } finally {
             setAssetsLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (user) {
+            fetchAssets(activeView, currentPage, ITEMS_PER_PAGE);
+        }
+    }, [currentPage]);
 
     useEffect(() => {
         if (user) {
