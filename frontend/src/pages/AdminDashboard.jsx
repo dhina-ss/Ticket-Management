@@ -1702,17 +1702,15 @@ const AssetsView = ({
                                 <span className="ml-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">{normalizeCategory(selectedAsset.category)}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                {selectedAsset.qrCode && (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleViewQR(selectedAsset)}
-                                        className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                        title="View QR Code Label"
-                                    >
-                                        <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
-                                        View QR Code
-                                    </button>
-                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => handleViewQR(selectedAsset)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    title="View QR Code Label"
+                                >
+                                    <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
+                                    Show QR Code
+                                </button>
                                 {hasEditPermission && (
                                     <button
                                         onClick={() => { handleEdit(selectedAsset); setSelectedAsset(null); }}
@@ -1723,7 +1721,7 @@ const AssetsView = ({
                                         Edit
                                     </button>
                                 )}
-                                <button onClick={() => setSelectedAsset(null)} className="hidden lg:flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-all cursor-pointer">
+                                <button onClick={() => setSelectedAsset(null)} className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-all cursor-pointer">
                                     <span className="material-symbols-outlined text-[18px]">close</span>
                                 </button>
                             </div>
@@ -1906,17 +1904,6 @@ const AssetsView = ({
                             <div>
                                 <div className="flex items-center justify-between mb-3">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Device Images</p>
-                                    {selectedAsset.qrCode && (
-                                        <button
-                                            type="button"
-                                            onClick={() => handleViewQR(selectedAsset)}
-                                            className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                            title="View QR Code Label"
-                                        >
-                                            <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
-                                            View QR Code
-                                        </button>
-                                    )}
                                 </div>
                                 {(selectedAsset.images && selectedAsset.images.length > 0) ? (
                                     <div className="flex flex-wrap gap-3">

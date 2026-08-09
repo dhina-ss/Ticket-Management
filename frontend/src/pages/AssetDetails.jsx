@@ -183,36 +183,49 @@ const AssetDetails = () => {
         return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
     };
 
+    const isGroupAdmin = (groupVal, assetName, assetId) => {
+        if (groupVal && String(groupVal).toLowerCase() === 'admin') return true;
+        if (assetName && String(assetName).trim() !== '') return true;
+        if (assetId && /^(LIT|FUR|EQU|VEH|AIR|SFT|OTH|ADM)/i.test(String(assetId).trim())) return true;
+        return false;
+    };
+
     const fetchAsset = async () => {
         setLoading(true);
         setError('');
         try {
             const response = await api.get(`/api/assets/${assetId}`);
-            setAsset(response.data);
+            const data = response.data || {};
+            const isAdm = isGroupAdmin(data.group, data.assetName, data.assetId || assetId);
+            const resolvedGroup = isAdm ? 'Admin' : (data.group || 'IT');
+            const updatedAsset = { ...data, group: resolvedGroup };
+            setAsset(updatedAsset);
             setEditForm({
-                category: response.data.category || '',
-                brand: response.data.brand || '',
-                model: response.data.model || '',
-                configuration: response.data.configuration || '',
-                serial: response.data.serial || '',
-                assignee: response.data.assignee || 'Unassigned',
-                empCode: response.data.empCode || '',
-                cug: response.data.cug || '',
-                email: response.data.email || '',
-                group: response.data.group || 'IT',
-                department: response.data.department || '',
-                branch: response.data.branch || '',
-                purchaseDate: response.data.purchaseDate || '',
-                warranty: response.data.warranty || '',
-                condition: response.data.condition || 'Good',
-                remarks: response.data.remarks || '',
-                images: response.data.images || [],
-                assetName: response.data.assetName || '',
-                location: response.data.location || '',
-                status: response.data.status || '',
-                warrantyExpiry: response.data.warrantyExpiry || '',
-                purchaseCost: response.data.purchaseCost || '',
-                brandModel: response.data.brandModel || ''
+                category: data.category || '',
+                brand: data.brand || '',
+                model: data.model || '',
+                configuration: data.configuration || '',
+                serial: data.serial || '',
+                assignee: data.assignee || 'Unassigned',
+                empCode: data.empCode || '',
+                cug: data.cug || '',
+                email: data.email || '',
+                group: resolvedGroup,
+                department: data.department || '',
+                branch: data.branch || '',
+                purchaseDate: data.purchaseDate || '',
+                warranty: data.warranty || '',
+                condition: data.condition || 'Good',
+                remarks: data.remarks || '',
+                images: data.images || [],
+                assetName: data.assetName || '',
+                location: data.location || '',
+                status: data.status || 'Active',
+                type: data.type || '',
+                quantity: data.quantity !== undefined && data.quantity !== null ? data.quantity : 1,
+                warrantyExpiry: data.warrantyExpiry || '',
+                purchaseCost: data.purchaseCost || '',
+                brandModel: data.brandModel || ''
             });
         } catch (err) {
             console.error("Error fetching asset details:", err);
@@ -317,7 +330,7 @@ const AssetDetails = () => {
             setSaving(false);
             return;
         }
-        if (editForm.group !== 'Admin') {
+        if (!isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId)) {
             if (!editForm.brand || !editForm.brand.trim()) {
                 setSaveError('Brand is a required field.');
                 setSaving(false);
@@ -367,7 +380,7 @@ const AssetDetails = () => {
         }
 
         try {
-            const apiPath = editForm.group === 'Admin' ? `/api/admin-assets/${asset.id}` : `/api/assets/${asset.id}`;
+            const apiPath = isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? `/api/admin-assets/${asset.id}` : `/api/assets/${asset.id}`;
             await api.put(apiPath, editForm);
             await fetchAsset();
             setShowEditModal(false);
@@ -479,7 +492,7 @@ const AssetDetails = () => {
                     <div>
                         <h2 className="text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 mb-4">Specifications</h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-sm">
-                            {asset.group === 'Admin' ? (
+                            {isGroupAdmin(asset.group, asset.assetName, asset.assetId) ? (
                                 <>
                                     <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
                                         <span className="text-slate-400 dark:text-slate-500 font-medium">Asset Name</span>
@@ -507,8 +520,8 @@ const AssetDetails = () => {
                                 <span className="text-slate-800 dark:text-slate-200 font-mono font-bold select-all break-all">{asset.serial || '—'}</span>
                             </div>
                             <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
-                                <span className="text-slate-400 dark:text-slate-500 font-medium">{asset.group === 'Admin' ? 'Status' : 'Condition'}</span>
-                                <span className="text-slate-800 dark:text-slate-200 font-bold uppercase">{(asset.group === 'Admin' ? asset.status : asset.condition) || '—'}</span>
+                                <span className="text-slate-400 dark:text-slate-500 font-medium">{isGroupAdmin(asset.group, asset.assetName, asset.assetId) ? 'Status' : 'Condition'}</span>
+                                <span className="text-slate-800 dark:text-slate-200 font-bold uppercase">{(isGroupAdmin(asset.group, asset.assetName, asset.assetId) ? asset.status : asset.condition) || '—'}</span>
                             </div>
                         </div>
                     </div>
@@ -529,7 +542,7 @@ const AssetDetails = () => {
                                 <span className="text-slate-400 dark:text-slate-500 font-medium">Assignee</span>
                                 <span className="text-slate-800 dark:text-slate-200 font-bold break-words">{asset.assignee || 'Unassigned'}</span>
                             </div>
-                            {asset.group === 'Admin' ? (
+                            {isGroupAdmin(asset.group, asset.assetName, asset.assetId) ? (
                                 <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
                                     <span className="text-slate-400 dark:text-slate-500 font-medium">Location</span>
                                     <span className="text-slate-800 dark:text-slate-200 font-bold">{asset.location || '—'}</span>
@@ -548,7 +561,7 @@ const AssetDetails = () => {
                                 <span className="text-slate-400 dark:text-slate-500 font-medium">Branch Location</span>
                                 <span className="text-slate-800 dark:text-slate-200 font-bold break-words">{asset.branch || '—'}</span>
                             </div>
-                            {asset.group !== 'Admin' && (
+                            {!isGroupAdmin(asset.group, asset.assetName, asset.assetId) && (
                                 <>
                                     <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5">
                                         <span className="text-slate-400 dark:text-slate-500 font-medium">CUG (SIM Number)</span>
@@ -571,7 +584,7 @@ const AssetDetails = () => {
                     <div>
                         <h2 className="text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800 pb-2 mb-4">Purchase & Warranty</h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-sm">
-                            {asset.group === 'Admin' ? (
+                            {isGroupAdmin(asset.group, asset.assetName, asset.assetId) ? (
                                 <>
                                     <div className="flex flex-col xs:flex-row xs:justify-between gap-1 border-b border-slate-50 dark:border-slate-850 pb-2.5 sm:col-span-2">
                                         <span className="text-slate-400 dark:text-slate-500 font-medium">Purchase Cost</span>
@@ -670,7 +683,7 @@ const AssetDetails = () => {
                                         ))}
                                     </select>
                                 </div>
-                                {editForm.group === 'Admin' ? (
+                                {isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? (
                                     <div>
                                         <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Asset Name <span className="text-red-500">*</span></label>
                                         <input
@@ -697,7 +710,7 @@ const AssetDetails = () => {
 
                             {/* Row 2: Model + Serial */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {editForm.group === 'Admin' ? (
+                                {isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? (
                                     <div>
                                         <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Brand/Model</label>
                                         <input
@@ -754,7 +767,7 @@ const AssetDetails = () => {
                                         className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
                                     />
                                 </div>
-                                {editForm.group === 'Admin' ? (
+                                {isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? (
                                     <div>
                                         <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Location</label>
                                         <input
@@ -777,7 +790,7 @@ const AssetDetails = () => {
                                         />
                                     </div>
                                 )}
-                                {editForm.group !== 'Admin' && (
+                                {!isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) && (
                                     <div>
                                         <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Email Address</label>
                                         <input
@@ -802,22 +815,10 @@ const AssetDetails = () => {
                                 </div>
                             </div>
 
-                            {/* Row 4.5: CUG + Department */}
+                            {/* Row 5: Department + Branch */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {editForm.group !== 'Admin' && (
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">CUG (SIM Number)</label>
-                                        <input
-                                            type="text"
-                                            value={editForm.cug}
-                                            onChange={e => setEditForm(p => ({ ...p, cug: e.target.value }))}
-                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                            placeholder="e.g. +91 98765 43210"
-                                        />
-                                    </div>
-                                )}
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Department</label>
+                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Department <span className="text-red-500">*</span></label>
                                     <select
                                         value={editForm.department}
                                         onChange={e => setEditForm(p => ({ ...p, department: e.target.value }))}
@@ -828,25 +829,23 @@ const AssetDetails = () => {
                                         ))}
                                     </select>
                                 </div>
-                            </div>
-
-                            {/* Row 5: Branch */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Branch Location <span className="text-red-500">*</span></label>
-                                <select
-                                    value={editForm.branch}
-                                    onChange={e => setEditForm(p => ({ ...p, branch: e.target.value }))}
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
-                                >
-                                    {BRANCH_OPTIONS.map((br, idx) => (
-                                        <option key={idx} value={br}>{br}</option>
-                                    ))}
-                                </select>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Branch Location <span className="text-red-500">*</span></label>
+                                    <select
+                                        value={editForm.branch}
+                                        onChange={e => setEditForm(p => ({ ...p, branch: e.target.value }))}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
+                                    >
+                                        {BRANCH_OPTIONS.map((br, idx) => (
+                                            <option key={idx} value={br}>{br}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
                             {/* Row 6: Purchase Date + Warranty Duration / Cost / Expiry */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {editForm.group === 'Admin' ? (
+                                {isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? (
                                     <>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Purchase Cost</label>
@@ -896,13 +895,13 @@ const AssetDetails = () => {
 
                             {/* Row 7: Condition / Status */}
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">{editForm.group === 'Admin' ? 'Status' : 'Condition'} <span className="text-red-500">*</span></label>
+                                <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">{isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? 'Status' : 'Condition'} <span className="text-red-500">*</span></label>
                                 <select
-                                    value={editForm.group === 'Admin' ? editForm.status : editForm.condition}
-                                    onChange={e => setEditForm(p => (editForm.group === 'Admin' ? { ...p, status: e.target.value } : { ...p, condition: e.target.value }))}
+                                    value={isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? editForm.status : editForm.condition}
+                                    onChange={e => setEditForm(p => (isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? { ...p, status: e.target.value } : { ...p, condition: e.target.value }))}
                                     className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
                                 >
-                                    {editForm.group === 'Admin' ? (
+                                    {isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? (
                                         ['Active', 'In Stock', 'Under Maintenance', 'Scrap'].map((statusOption, idx) => (
                                             <option key={idx} value={statusOption}>{statusOption}</option>
                                         ))
