@@ -923,7 +923,7 @@ const Courier = () => {
 								src="https://lottie.host/7d777bcb-69b4-47e9-aee5-6eb87b87efeb/zOJh3ZC5Jo.lottie"
 								loop
 								autoplay
-								style={{ width: 180, height: 180 }}
+								style={{ width: 120, height: 120 }}
 							/>
 							<p className="text-slate-500 text-sm mt-2">Loading shipments...</p>
 						</div>

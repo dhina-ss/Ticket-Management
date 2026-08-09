@@ -1611,7 +1611,7 @@ const AssetsView = ({
                                                     src="https://lottie.host/8953d9e4-8bb4-4343-b9b0-7005d59974be/oP4zVtlwWj.lottie"
                                                     loop
                                                     autoplay
-                                                    style={{ width: 180, height: 180 }}
+                                                    style={{ width: 120, height: 120 }}
                                                 />
                                                 <p className="text-slate-500 text-sm mt-1">Loading assets...</p>
                                             </div>
@@ -6891,7 +6891,7 @@ const AdminDashboard = () => {
                                                         src="https://lottie.host/82a2b8bf-587d-4b7f-b074-2530b79acfe7/Qj8QeUhyrq.lottie"
                                                         loop
                                                         autoplay
-                                                        style={{ width: 180, height: 180 }}
+                                                        style={{ width: 120, height: 120 }}
                                                     />
                                                     <p className="text-slate-500 text-sm mt-1">Loading tickets...</p>
                                                 </div>

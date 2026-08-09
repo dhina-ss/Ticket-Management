@@ -1031,7 +1031,7 @@ const PettyCash = () => {
 							src="https://lottie.host/a9245e26-69f1-4211-add6-92896a98c9a9/zK2zVshVzv.lottie"
 							loop
 							autoplay
-							style={{ width: 180, height: 180 }}
+							style={{ width: 120, height: 120 }}
 						/>
 						<p className="text-slate-500 text-sm mt-2">Loading transactions...</p>
 					</div>
