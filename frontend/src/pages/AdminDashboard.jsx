@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -1249,34 +1249,68 @@ const AssetsView = ({
 
 
 
-    const filteredAssets = (Array.isArray(assets) ? assets : []).filter(a => {
-        const matchesSearch = (a.assetId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (a.assignee || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (a.empCode || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (a.location || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (a.assetName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (a.category || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (normalizeCategory(a.category) || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (a.brand || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (a.brandModel || '').toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesCategory = categoryFilter.some(f => f.trim().toLowerCase() === 'all') || categoryFilter.some(f => f.trim().toLowerCase() === ((activeView === 'admin_assets' || String(a.group).toLowerCase() === 'admin' ? a.type : a.category) || '').trim().toLowerCase());
-        const matchesBranch = branchFilter.some(f => f.trim().toLowerCase() === 'all') || branchFilter.some(f => f.trim().toLowerCase() === (a.branch || '').trim().toLowerCase());
-        const matchesDepartment = departmentFilter.some(f => f.trim().toLowerCase() === 'all') || departmentFilter.some(f => f.trim().toLowerCase() === (a.department || '').trim().toLowerCase());
-        const matchesCondition = conditionFilter.some(f => f.trim().toLowerCase() === 'all') || conditionFilter.some(f => f.trim().toLowerCase() === ((activeView === 'admin_assets' || String(a.group).toLowerCase() === 'admin' ? a.status : a.condition) || '').trim().toLowerCase());
+    const filteredAssets = useMemo(() => {
+        const assetList = Array.isArray(assets) ? assets : [];
+        if (assetList.length === 0) return [];
 
-        let matchesDate = true;
-        if (isDateFilterActive && dateRange[0] && a.date) {
-            const assetDate = new Date(a.date);
-            const start = new Date(dateRange[0].startDate);
-            const end = new Date(dateRange[0].endDate);
-            assetDate.setHours(0, 0, 0, 0);
-            start.setHours(0, 0, 0, 0);
-            end.setHours(0, 0, 0, 0);
-            matchesDate = assetDate >= start && assetDate <= end;
-        }
+        const searchLower = searchQuery.trim().toLowerCase();
+        const hasSearch = searchLower.length > 0;
+        const catFilterLower = categoryFilter.map(f => f.trim().toLowerCase());
+        const isCatAll = catFilterLower.includes('all');
+        const branchFilterLower = branchFilter.map(f => f.trim().toLowerCase());
+        const isBranchAll = branchFilterLower.includes('all');
+        const deptFilterLower = departmentFilter.map(f => f.trim().toLowerCase());
+        const isDeptAll = deptFilterLower.includes('all');
+        const condFilterLower = conditionFilter.map(f => f.trim().toLowerCase());
+        const isCondAll = condFilterLower.includes('all');
 
-        return matchesSearch && matchesCategory && matchesBranch && matchesDepartment && matchesCondition && matchesDate;
-    });
+        return assetList.filter(a => {
+            if (hasSearch) {
+                const matchesSearch = (a.assetId || '').toLowerCase().includes(searchLower) ||
+                    (a.assignee || '').toLowerCase().includes(searchLower) ||
+                    (a.empCode || '').toLowerCase().includes(searchLower) ||
+                    (a.location || '').toLowerCase().includes(searchLower) ||
+                    (a.assetName || '').toLowerCase().includes(searchLower) ||
+                    (a.category || '').toLowerCase().includes(searchLower) ||
+                    (normalizeCategory(a.category) || '').toLowerCase().includes(searchLower) ||
+                    (a.brand || '').toLowerCase().includes(searchLower) ||
+                    (a.brandModel || '').toLowerCase().includes(searchLower);
+                if (!matchesSearch) return false;
+            }
+
+            if (!isCatAll) {
+                const itemCat = ((activeView === 'admin_assets' || String(a.group).toLowerCase() === 'admin' ? a.type : a.category) || '').trim().toLowerCase();
+                if (!catFilterLower.includes(itemCat)) return false;
+            }
+
+            if (!isBranchAll) {
+                const itemBranch = (a.branch || '').trim().toLowerCase();
+                if (!branchFilterLower.includes(itemBranch)) return false;
+            }
+
+            if (!isDeptAll) {
+                const itemDept = (a.department || '').trim().toLowerCase();
+                if (!deptFilterLower.includes(itemDept)) return false;
+            }
+
+            if (!isCondAll) {
+                const itemCond = ((activeView === 'admin_assets' || String(a.group).toLowerCase() === 'admin' ? a.status : a.condition) || '').trim().toLowerCase();
+                if (!condFilterLower.includes(itemCond)) return false;
+            }
+
+            if (isDateFilterActive && dateRange[0] && a.date) {
+                const assetDate = new Date(a.date);
+                const start = new Date(dateRange[0].startDate);
+                const end = new Date(dateRange[0].endDate);
+                assetDate.setHours(0, 0, 0, 0);
+                start.setHours(0, 0, 0, 0);
+                end.setHours(0, 0, 0, 0);
+                if (assetDate < start || assetDate > end) return false;
+            }
+
+            return true;
+        });
+    }, [assets, searchQuery, categoryFilter, branchFilter, departmentFilter, conditionFilter, isDateFilterActive, dateRange, activeView]);
 
     const totalPages = Math.max(1, Math.ceil(filteredAssets.length / ITEMS_PER_PAGE));
     const pagedAssets = filteredAssets.slice(
@@ -5334,15 +5368,6 @@ const AdminDashboard = () => {
     useEffect(() => {
         if (user) {
             refreshUser(); // Sync user permissions (e.g. can_send_mail) from the backend
-            // Initial load of assets and global metadata
-            const path = window.location.pathname;
-            const view = (path === '/admin-assets' || path === '/admin-assets/add') ? 'admin_assets' : 'assets';
-            fetchAssets(view);
-            fetchAssignees();
-            fetchCategories();
-            fetchDepartments();
-            fetchAssetTypes();
-            fetchUsers();
         }
     }, [user?.email]);
 

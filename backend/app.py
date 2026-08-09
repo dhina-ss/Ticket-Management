@@ -56,6 +56,27 @@ def limit_hosts():
     if req_host not in allowed:
         return jsonify({"error": "Forbidden: Access denied for this host."}), 403
 
+@app.after_request
+def compress_response(response):
+    if (
+        response.status_code == 200
+        and not response.direct_passthrough
+        and 'gzip' in request.headers.get('Accept-Encoding', '').lower()
+        and 'gzip' not in response.headers.get('Content-Encoding', '').lower()
+    ):
+        try:
+            data = response.get_data()
+            if len(data) > 500:
+                import gzip
+                compressed_data = gzip.compress(data)
+                if len(compressed_data) < len(data):
+                    response.set_data(compressed_data)
+                    response.headers['Content-Encoding'] = 'gzip'
+                    response.headers['Content-Length'] = str(len(compressed_data))
+        except Exception:
+            pass
+    return response
+
 LAST_SENT_EMAIL = None # Store the last sent email for E2E testing
 
 logging.basicConfig(
