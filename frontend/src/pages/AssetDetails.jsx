@@ -190,6 +190,28 @@ const AssetDetails = () => {
         return false;
     };
 
+    const getAdminTypeOptions = () => {
+        let opts = assetTypes?.filter(t => (t.asset_group || 'IT').split(',').includes('Admin')).map(t => t.name) || [];
+        if (opts.length === 0) {
+            opts = ['Electrical', 'Lighting', 'Furniture', 'Equipment', 'Vehicle', 'Air Conditioner', 'Software', 'Others'];
+        }
+        if (editForm.type && !opts.includes(editForm.type)) {
+            opts = [editForm.type, ...opts];
+        }
+        return opts;
+    };
+
+    const getITCategoryOptions = () => {
+        let opts = assetTypes?.filter(t => (t.asset_group || 'IT').split(',').includes('IT')).map(t => t.name) || [];
+        if (opts.length === 0) {
+            opts = CATEGORY_OPTIONS;
+        }
+        if (editForm.category && !opts.includes(editForm.category)) {
+            opts = [editForm.category, ...opts];
+        }
+        return opts;
+    };
+
     const fetchAsset = async () => {
         setLoading(true);
         setError('');
@@ -330,7 +352,28 @@ const AssetDetails = () => {
             setSaving(false);
             return;
         }
-        if (!isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId)) {
+        if (isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId)) {
+            if (!editForm.type || !editForm.type.trim()) {
+                setSaveError('Asset Type is a required field.');
+                setSaving(false);
+                return;
+            }
+            if (!editForm.assetName || !editForm.assetName.trim()) {
+                setSaveError('Asset Name is a required field.');
+                setSaving(false);
+                return;
+            }
+            if (!editForm.status || !editForm.status.trim()) {
+                setSaveError('Status is a required field.');
+                setSaving(false);
+                return;
+            }
+        } else {
+            if (!editForm.category || !editForm.category.trim()) {
+                setSaveError('Asset Type is a required field.');
+                setSaving(false);
+                return;
+            }
             if (!editForm.brand || !editForm.brand.trim()) {
                 setSaveError('Brand is a required field.');
                 setSaving(false);
@@ -348,17 +391,6 @@ const AssetDetails = () => {
             }
             if (!editForm.condition || !editForm.condition.trim()) {
                 setSaveError('Physical Condition is a required field.');
-                setSaving(false);
-                return;
-            }
-        } else {
-            if (!editForm.assetName || !editForm.assetName.trim()) {
-                setSaveError('Asset Name is a required field.');
-                setSaving(false);
-                return;
-            }
-            if (!editForm.status || !editForm.status.trim()) {
-                setSaveError('Status is a required field.');
                 setSaving(false);
                 return;
             }
@@ -669,80 +701,110 @@ const AssetDetails = () => {
                                     {saveError}
                                 </div>
                             )}
-                            {/* Row 1: Category + Brand/Asset Name */}
+                            {/* Row 1: Asset Type + Sub-type / Brand */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Asset Type <span className="text-red-500">*</span></label>
-                                    <select
-                                        value={editForm.category}
-                                        onChange={e => setEditForm(p => ({ ...p, category: e.target.value }))}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
-                                    >
-                                        {(assetTypes && assetTypes.length > 0 ? assetTypes.map(t => t.name) : CATEGORY_OPTIONS).map((cat, idx) => (
-                                            <option key={idx} value={cat}>{cat}</option>
-                                        ))}
-                                    </select>
-                                </div>
                                 {isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? (
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Asset Name <span className="text-red-500">*</span></label>
-                                        <input
-                                            type="text"
-                                            value={editForm.assetName}
-                                            onChange={e => setEditForm(p => ({ ...p, assetName: e.target.value }))}
-                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                            placeholder="e.g. Workstation Table"
-                                        />
-                                    </div>
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Asset Type <span className="text-red-500">*</span></label>
+                                            <select
+                                                value={editForm.type}
+                                                onChange={e => setEditForm(p => ({ ...p, type: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
+                                            >
+                                                {getAdminTypeOptions().map((tOption, idx) => (
+                                                    <option key={idx} value={tOption}>{tOption}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Sub-type</label>
+                                            <input
+                                                type="text"
+                                                value={editForm.category}
+                                                onChange={e => setEditForm(p => ({ ...p, category: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. Ceiling"
+                                            />
+                                        </div>
+                                    </>
                                 ) : (
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Brand <span className="text-red-500">*</span></label>
-                                        <input
-                                            type="text"
-                                            value={editForm.brand}
-                                            onChange={e => setEditForm(p => ({ ...p, brand: e.target.value }))}
-                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                            placeholder="e.g. Apple"
-                                        />
-                                    </div>
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Asset Type <span className="text-red-500">*</span></label>
+                                            <select
+                                                value={editForm.category}
+                                                onChange={e => setEditForm(p => ({ ...p, category: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
+                                            >
+                                                {getITCategoryOptions().map((cat, idx) => (
+                                                    <option key={idx} value={cat}>{cat}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Brand <span className="text-red-500">*</span></label>
+                                            <input
+                                                type="text"
+                                                value={editForm.brand}
+                                                onChange={e => setEditForm(p => ({ ...p, brand: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. Apple"
+                                            />
+                                        </div>
+                                    </>
                                 )}
                             </div>
 
-                            {/* Row 2: Model + Serial */}
+                            {/* Row 2: Asset Name / Model + Serial Number */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? (
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Brand/Model</label>
-                                        <input
-                                            type="text"
-                                            value={editForm.brandModel}
-                                            onChange={e => setEditForm(p => ({ ...p, brandModel: e.target.value }))}
-                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                            placeholder="e.g. Godrej Slim"
-                                        />
-                                    </div>
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Asset Name <span className="text-red-500">*</span></label>
+                                            <input
+                                                type="text"
+                                                value={editForm.assetName}
+                                                onChange={e => setEditForm(p => ({ ...p, assetName: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. Ceiling Lights"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Brand/Model</label>
+                                            <input
+                                                type="text"
+                                                value={editForm.brandModel}
+                                                onChange={e => setEditForm(p => ({ ...p, brandModel: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. Godrej Slim"
+                                            />
+                                        </div>
+                                    </>
                                 ) : (
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Model <span className="text-red-500">*</span></label>
-                                        <input
-                                            type="text"
-                                            value={editForm.model}
-                                            onChange={e => setEditForm(p => ({ ...p, model: e.target.value }))}
-                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
-                                            placeholder="e.g. MacBook Pro"
-                                        />
-                                    </div>
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Model <span className="text-red-500">*</span></label>
+                                            <input
+                                                type="text"
+                                                value={editForm.model}
+                                                onChange={e => setEditForm(p => ({ ...p, model: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. MacBook Pro"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Serial Number</label>
+                                            <input
+                                                type="text"
+                                                value={editForm.serial}
+                                                onChange={e => setEditForm(p => ({ ...p, serial: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium font-mono"
+                                                placeholder="Serial Number"
+                                            />
+                                        </div>
+                                    </>
                                 )}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Serial Number</label>
-                                    <input
-                                        type="text"
-                                        value={editForm.serial}
-                                        onChange={e => setEditForm(p => ({ ...p, serial: e.target.value }))}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium font-mono"
-                                        placeholder="Serial Number"
-                                    />
-                                </div>
                             </div>
 
                             {/* Row 3: Configuration (Full Width) */}
