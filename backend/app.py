@@ -803,7 +803,24 @@ def assets_route():
     else:
         try:
             from database import get_all_assets
-            return jsonify(get_all_assets()), 200
+            page = request.args.get('page', type=int)
+            limit = request.args.get('limit', type=int, default=50)
+            search = request.args.get('search', type=str, default='')
+            category = request.args.get('category', type=str, default='')
+            branch = request.args.get('branch', type=str, default='')
+            department = request.args.get('department', type=str, default='')
+            condition = request.args.get('condition', type=str, default='')
+
+            res = get_all_assets(
+                page=page,
+                limit=limit,
+                search=search,
+                category=category,
+                branch=branch,
+                department=department,
+                condition=condition
+            )
+            return jsonify(res), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -876,9 +893,96 @@ def admin_assets_route():
     else:
         try:
             from database import get_all_admin_assets
-            return jsonify(get_all_admin_assets()), 200
+            page = request.args.get('page', type=int)
+            limit = request.args.get('limit', type=int, default=50)
+            search = request.args.get('search', type=str, default='')
+            type_val = request.args.get('type', type=str, default='')
+            branch = request.args.get('branch', type=str, default='')
+            department = request.args.get('department', type=str, default='')
+            status_val = request.args.get('status', type=str, default='')
+
+            res = get_all_admin_assets(
+                page=page,
+                limit=limit,
+                search=search,
+                type_val=type_val,
+                branch=branch,
+                department=department,
+                status_val=status_val
+            )
+            return jsonify(res), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/assets/<asset_id>/image/<int:img_idx>', methods=['GET'])
+@app.route('/api/assets/<asset_id>/image', methods=['GET'])
+def get_asset_image_route(asset_id, img_idx=0):
+    """Lazy-load an image for IT assets."""
+    try:
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT images FROM assets WHERE asset_id = %s OR id::text = %s LIMIT 1;", (str(asset_id), str(asset_id)))
+            row = cur.fetchone()
+        conn.close()
+        if not row or not row[0]:
+            return jsonify({"error": "Image not found"}), 404
+        images = json.loads(row[0]) if isinstance(row[0], str) else (row[0] or [])
+        if not images or img_idx < 0 or img_idx >= len(images):
+            return jsonify({"error": "Image index out of bounds"}), 404
+        
+        img_data = images[img_idx]
+        if isinstance(img_data, str) and img_data.startswith("data:image/"):
+            header, base64_str = img_data.split(",", 1)
+            mime_type = header.split(";")[0].replace("data:", "")
+            import base64
+            from flask import Response
+            img_bytes = base64.b64decode(base64_str)
+            res = Response(img_bytes, mimetype=mime_type)
+            res.headers['Cache-Control'] = 'public, max-age=86400'
+            return res
+        elif isinstance(img_data, str) and (img_data.startswith("http://") or img_data.startswith("https://")):
+            return redirect(img_data)
+        else:
+            return jsonify({"error": "Invalid image format"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/admin-assets/<asset_id>/image/<int:img_idx>', methods=['GET'])
+@app.route('/api/admin-assets/<asset_id>/image', methods=['GET'])
+def get_admin_asset_image_route(asset_id, img_idx=0):
+    """Lazy-load an image for Admin assets."""
+    try:
+        from database import _get_conn
+        conn = _get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT images FROM admin_assets WHERE asset_id = %s OR id::text = %s LIMIT 1;", (str(asset_id), str(asset_id)))
+            row = cur.fetchone()
+        conn.close()
+        if not row or not row[0]:
+            return jsonify({"error": "Image not found"}), 404
+        images = json.loads(row[0]) if isinstance(row[0], str) else (row[0] or [])
+        if not images or img_idx < 0 or img_idx >= len(images):
+            return jsonify({"error": "Image index out of bounds"}), 404
+        
+        img_data = images[img_idx]
+        if isinstance(img_data, str) and img_data.startswith("data:image/"):
+            header, base64_str = img_data.split(",", 1)
+            mime_type = header.split(";")[0].replace("data:", "")
+            import base64
+            from flask import Response
+            img_bytes = base64.b64decode(base64_str)
+            res = Response(img_bytes, mimetype=mime_type)
+            res.headers['Cache-Control'] = 'public, max-age=86400'
+            return res
+        elif isinstance(img_data, str) and (img_data.startswith("http://") or img_data.startswith("https://")):
+            return redirect(img_data)
+        else:
+            return jsonify({"error": "Invalid image format"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/admin-assets/<int:asset_id>', methods=['PUT'])

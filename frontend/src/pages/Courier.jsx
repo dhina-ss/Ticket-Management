@@ -919,13 +919,8 @@ const Courier = () => {
 				<div className="bg-white dark:bg-[#1C212B] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[calc(100vh-10px)] max-h-[calc(100vh-10px)]">
 					{loading ? (
 						<div className="flex flex-col items-center justify-center py-16">
-							<DotLottieReact
-								src="https://lottie.host/7d777bcb-69b4-47e9-aee5-6eb87b87efeb/zOJh3ZC5Jo.lottie"
-								loop
-								autoplay
-								style={{ width: 120, height: 120 }}
-							/>
-							<p className="text-slate-500 text-sm mt-2">Loading shipments...</p>
+							<div className="h-10 w-10 rounded-full border-4 border-pink-500/20 border-t-pink-500 animate-spin mb-2"></div>
+							<p className="text-slate-500 text-sm font-medium">Loading shipments...</p>
 						</div>
 					) : entries.length === 0 ? (
 						<div className="p-20 text-center text-slate-500">

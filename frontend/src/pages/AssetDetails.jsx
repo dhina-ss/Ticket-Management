@@ -505,6 +505,7 @@ const AssetDetails = () => {
                             {asset.qrCode ? (
                                 <img
                                     src={asset.qrCode.startsWith('data:image') ? asset.qrCode : `${import.meta.env.VITE_API_URL || ''}${asset.qrCode}`}
+                                    loading="lazy"
                                     alt="Asset QR Label"
                                     className="w-full h-auto object-contain max-h-[110px] sm:max-h-[150px] rounded"
                                 />
@@ -1022,7 +1023,7 @@ const AssetDetails = () => {
                                     <div className="grid grid-cols-2 gap-3 mt-1">
                                         {editForm.images.map((img, idx) => (
                                             <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 group bg-slate-100 dark:bg-slate-900">
-                                                <img src={img.startsWith('data:image') ? img : `${import.meta.env.VITE_API_URL || ''}${img}`} alt={`Asset preview ${idx + 1}`} className="w-full h-full object-cover" />
+                                                <img src={img.startsWith('data:image') ? img : `${import.meta.env.VITE_API_URL || ''}${img}`} loading="lazy" alt={`Asset preview ${idx + 1}`} className="w-full h-full object-cover" />
                                                 <button
                                                     type="button"
                                                     onClick={() => handleRemoveImage(idx)}

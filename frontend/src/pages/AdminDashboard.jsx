@@ -1606,14 +1606,9 @@ const AssetsView = ({
                                 {assetsLoading ? (
                                     <tr>
                                         <td colSpan="9">
-                                            <div className="flex flex-col items-center justify-center py-10">
-                                                <DotLottieReact
-                                                    src="https://lottie.host/8953d9e4-8bb4-4343-b9b0-7005d59974be/oP4zVtlwWj.lottie"
-                                                    loop
-                                                    autoplay
-                                                    style={{ width: 120, height: 120 }}
-                                                />
-                                                <p className="text-slate-500 text-sm mt-1">Loading assets...</p>
+                                            <div className="flex flex-col items-center justify-center py-12">
+                                                <div className="h-10 w-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin mb-2"></div>
+                                                <p className="text-slate-500 text-sm font-medium">Loading assets...</p>
                                             </div>
                                         </td>
                                     </tr>
@@ -1947,7 +1942,7 @@ const AssetsView = ({
                                                     onClick={() => setActiveImage(img)}
                                                     className="relative w-28 h-28 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all active:scale-[0.98] group/thumb"
                                                 >
-                                                    <img src={img} alt={`Asset image ${i + 1}`} className="w-full h-full object-cover" />
+                                                    <img src={img} loading="lazy" alt={`Asset image ${i + 1}`} className="w-full h-full object-cover" />
                                                     <div className="absolute inset-0 bg-black/15 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
                                                         <span className="material-symbols-outlined text-white text-[18px] bg-slate-900/60 p-1.5 rounded-full backdrop-blur-sm border border-slate-800/50">zoom_in</span>
                                                     </div>
@@ -2547,7 +2542,7 @@ const AssetsView = ({
                                             <div className="grid grid-cols-2 gap-3 mt-1">
                                                 {newAsset.images.map((img, idx) => (
                                                     <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 group bg-slate-100 dark:bg-slate-950">
-                                                        <img src={img} alt={`Asset preview ${idx + 1}`} className="w-full h-full object-cover" />
+                                                        <img src={img} loading="lazy" alt={`Asset preview ${idx + 1}`} className="w-full h-full object-cover" />
                                                         <button
                                                             type="button"
                                                             onClick={() => handleRemoveImage(idx)}
@@ -5351,12 +5346,21 @@ const AdminDashboard = () => {
         }
     };
 
-    const fetchAssets = async (view = activeView) => {
+    const fetchAssets = async (view = activeView, page = 1, limit = 50) => {
         setAssetsLoading(true);
         try {
             const endpoint = view === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
-            const response = await api.get(endpoint);
-            setAssets(Array.isArray(response.data) ? response.data : []);
+            const params = new URLSearchParams();
+            params.append('page', page);
+            params.append('limit', limit);
+            const response = await api.get(`${endpoint}?${params.toString()}`);
+            if (response.data && Array.isArray(response.data.data)) {
+                setAssets(response.data.data);
+            } else if (Array.isArray(response.data)) {
+                setAssets(response.data);
+            } else {
+                setAssets([]);
+            }
         } catch (err) {
             console.error("Failed to fetch assets:", err);
             setAssets([]);
@@ -6886,14 +6890,9 @@ const AdminDashboard = () => {
                                     {loading ? (
                                         <tr>
                                             <td colSpan={isSuperAdmin ? "10" : "9"}>
-                                                <div className="flex flex-col items-center justify-center py-10">
-                                                    <DotLottieReact
-                                                        src="https://lottie.host/82a2b8bf-587d-4b7f-b074-2530b79acfe7/Qj8QeUhyrq.lottie"
-                                                        loop
-                                                        autoplay
-                                                        style={{ width: 120, height: 120 }}
-                                                    />
-                                                    <p className="text-slate-500 text-sm mt-1">Loading tickets...</p>
+                                                <div className="flex flex-col items-center justify-center py-12">
+                                                    <div className="h-10 w-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin mb-2"></div>
+                                                    <p className="text-slate-500 text-sm font-medium">Loading tickets...</p>
                                                 </div>
                                             </td>
                                         </tr>

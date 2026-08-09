@@ -13,6 +13,13 @@ import string
 import psycopg2
 import psycopg2.extras
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+ASSETS_COLUMNS = 'id, asset_id, category, brand, model, configuration, serial, assignee, emp_code, cug, email, department, branch, "group", purchase_date, warranty, warranty_date, warranty_label, condition, remarks, images, created_at, updated_at, asset_name, location, asset_provided_team, type, quantity, status, warranty_expiry, purchase_cost'
+
+ADMIN_ASSETS_COLUMNS = 'id, asset_id, asset_name, department, serial_number, assignee, location, "group", type, quantity, status, branch, warranty_expiry, purchase_cost, category, brand_model, remarks, created_at, updated_at'
+
+TICKETS_COLUMNS = 'id, ticket_id, created_at, full_name, mobile, category, mode, description, attachment_name, assignee, status, sub_category, admin_description, admin_manager_status, management_status, admin_manager_comments, management_comments, branch, department, support_type, is_delete, approval_request_time, resolution_comments, admin_manager_has_mail, pending_time, completed_time, in_progress_time, pending_comments, expense_amount, bill_attachment_name, user_confirmation, email, management_approvals, admin_comments, admin_manager_admin_desc, admin_manager_approvals, admin_manager_mail_time, admin_manager_status_time, management_mail_time, management_status_time'
 
 env = os.environ.get("APP_ENV", "local")
 db_pwd = "cotton123" if env == "prod" else "1234"
@@ -774,6 +781,42 @@ def init_db():
     except Exception as e:
         print(f"DEBUG: cash_add_history table error: {e}")
 
+    # ---- Database Indexes ----
+    try:
+        conn = _get_conn()
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            index_statements = [
+                "CREATE INDEX IF NOT EXISTS idx_assets_created_at ON assets (created_at DESC);",
+                "CREATE INDEX IF NOT EXISTS idx_assets_asset_id ON assets (asset_id);",
+                "CREATE INDEX IF NOT EXISTS idx_assets_category ON assets (category);",
+                "CREATE INDEX IF NOT EXISTS idx_assets_branch ON assets (branch);",
+                "CREATE INDEX IF NOT EXISTS idx_assets_department ON assets (department);",
+                "CREATE INDEX IF NOT EXISTS idx_assets_assignee ON assets (assignee);",
+                "CREATE INDEX IF NOT EXISTS idx_admin_assets_created_at ON admin_assets (created_at DESC);",
+                "CREATE INDEX IF NOT EXISTS idx_admin_assets_asset_id ON admin_assets (asset_id);",
+                "CREATE INDEX IF NOT EXISTS idx_admin_assets_type ON admin_assets (type);",
+                "CREATE INDEX IF NOT EXISTS idx_admin_assets_category ON admin_assets (category);",
+                "CREATE INDEX IF NOT EXISTS idx_admin_assets_branch ON admin_assets (branch);",
+                "CREATE INDEX IF NOT EXISTS idx_admin_assets_department ON admin_assets (department);",
+                "CREATE INDEX IF NOT EXISTS idx_admin_assets_assignee ON admin_assets (assignee);",
+                "CREATE INDEX IF NOT EXISTS idx_tickets_created_at ON tickets (created_at DESC);",
+                "CREATE INDEX IF NOT EXISTS idx_tickets_ticket_id ON tickets (ticket_id);",
+                "CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets (status);",
+                "CREATE INDEX IF NOT EXISTS idx_tickets_branch ON tickets (branch);",
+                "CREATE INDEX IF NOT EXISTS idx_tickets_support_type ON tickets (support_type);",
+                "CREATE INDEX IF NOT EXISTS idx_tickets_assignee ON tickets (assignee);"
+            ]
+            for stmt in index_statements:
+                try:
+                    cur.execute(stmt)
+                except Exception:
+                    pass
+        conn.close()
+        print("DEBUG: Database indexes ready.")
+    except Exception as ie:
+        print(f"DEBUG: database indexes error: {ie}")
+
 
 # ---------------------------------------------------------------------------
 # Warranty helpers
@@ -1072,10 +1115,32 @@ def get_ticket_by_id(ticket_id: str) -> dict | None:
     try:
         conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT * FROM tickets WHERE ticket_id = %s AND is_delete = FALSE", (ticket_id,))
+            cur.execute(f"SELECT {TICKETS_COLUMNS} FROM tickets WHERE ticket_id = %s AND is_delete = FALSE", (ticket_id,))
             row = cur.fetchone()
         conn.close()
         return _row_to_ticket(row) if row else None
+    except Exception as e:
+        return None
+
+def get_asset_by_id(id: int) -> dict:
+    try:
+        conn = _get_conn()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(f"SELECT {ASSETS_COLUMNS} FROM assets WHERE id = %s", (id,))
+            row = cur.fetchone()
+        conn.close()
+        return _row_to_asset(row) if row else None
+    except Exception as e:
+        return None
+
+def get_admin_asset_by_id(id: int) -> dict:
+    try:
+        conn = _get_conn()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(f"SELECT {ADMIN_ASSETS_COLUMNS} FROM admin_assets WHERE id = %s", (id,))
+            row = cur.fetchone()
+        conn.close()
+        return _row_to_admin_asset(row) if row else None
     except Exception as e:
         return None
 
@@ -1101,7 +1166,7 @@ def get_all_tickets(support_types: list = None, branches: list = None) -> list:
     try:
         conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            query = "SELECT * FROM tickets WHERE is_delete = FALSE"
+            query = f"SELECT {TICKETS_COLUMNS} FROM tickets WHERE is_delete = FALSE"
             params = []
 
             if support_types:
@@ -1432,11 +1497,11 @@ def get_assignees(support_type: str = None) -> list:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             if support_type:
                 cur.execute(
-                    "SELECT * FROM assignees WHERE is_delete = FALSE AND (support_type ILIKE %s OR support_type ILIKE %s) ORDER BY name ASC",
+                    "SELECT id, name, support_type, is_delete FROM assignees WHERE is_delete = FALSE AND (support_type ILIKE %s OR support_type ILIKE %s) ORDER BY name ASC",
                     (f"%{support_type}%", support_type)
                 )
             else:
-                cur.execute("SELECT * FROM assignees WHERE is_delete = FALSE ORDER BY name ASC")
+                cur.execute("SELECT id, name, support_type, is_delete FROM assignees WHERE is_delete = FALSE ORDER BY name ASC")
             rows = cur.fetchall()
         conn.close()
         return [dict(r) for r in rows]
@@ -1514,11 +1579,11 @@ def get_categories(support_type: str = None) -> list:
             if support_type:
                 # Same inclusive logic as assignees, assuming categories might be assigned to Both
                 cur.execute(
-                    "SELECT * FROM categories WHERE is_delete = FALSE AND (support_type ILIKE %s OR support_type ILIKE %s) ORDER BY name ASC",
+                    "SELECT id, name, support_type, subcategories, is_delete FROM categories WHERE is_delete = FALSE AND (support_type ILIKE %s OR support_type ILIKE %s) ORDER BY name ASC",
                     (f"%{support_type}%", support_type)
                 )
             else:
-                cur.execute("SELECT * FROM categories WHERE is_delete = FALSE ORDER BY name ASC")
+                cur.execute("SELECT id, name, support_type, subcategories, is_delete FROM categories WHERE is_delete = FALSE ORDER BY name ASC")
             rows = cur.fetchall()
         conn.close()
         return [dict(r) for r in rows]
@@ -1574,11 +1639,11 @@ def get_departments(support_type: str = None) -> list:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             if support_type:
                 cur.execute(
-                    "SELECT * FROM departments WHERE is_delete = FALSE AND (support_type ILIKE %s OR support_type ILIKE %s) ORDER BY name ASC",
+                    "SELECT id, name, support_type, is_delete FROM departments WHERE is_delete = FALSE AND (support_type ILIKE %s OR support_type ILIKE %s) ORDER BY name ASC",
                     (f"%{support_type}%", support_type)
                 )
             else:
-                cur.execute("SELECT * FROM departments WHERE is_delete = FALSE ORDER BY name ASC")
+                cur.execute("SELECT id, name, support_type, is_delete FROM departments WHERE is_delete = FALSE ORDER BY name ASC")
             rows = cur.fetchall()
         conn.close()
         return [dict(r) for r in rows]
@@ -1756,16 +1821,65 @@ def _row_to_asset(row: dict) -> dict:
     }
 
 
-def get_all_assets() -> list:
+def get_all_assets(page: int = None, limit: int = 50, search: str = "", category: str = "", branch: str = "", department: str = "", condition: str = "") -> dict | list:
+    import math
     try:
         conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT * FROM assets ORDER BY created_at DESC")
-            rows = cur.fetchall()
-        conn.close()
-        return [_row_to_asset(r) for r in rows]
+            where_clauses = []
+            params = []
+
+            if search:
+                s_pattern = f"%{search.strip().lower()}%"
+                where_clauses.append("(LOWER(asset_id) LIKE %s OR LOWER(assignee) LIKE %s OR LOWER(emp_code) LIKE %s OR LOWER(location) LIKE %s OR LOWER(asset_name) LIKE %s OR LOWER(category) LIKE %s OR LOWER(brand) LIKE %s OR LOWER(model) LIKE %s)")
+                params.extend([s_pattern] * 8)
+
+            if category and category.lower() != 'all':
+                where_clauses.append("LOWER(category) = %s")
+                params.append(category.strip().lower())
+
+            if branch and branch.lower() != 'all':
+                where_clauses.append("LOWER(branch) = %s")
+                params.append(branch.strip().lower())
+
+            if department and department.lower() != 'all':
+                where_clauses.append("LOWER(department) = %s")
+                params.append(department.strip().lower())
+
+            if condition and condition.lower() != 'all':
+                where_clauses.append("LOWER(condition) = %s")
+                params.append(condition.strip().lower())
+
+            where_str = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+            if page is not None and page > 0:
+                count_query = f"SELECT COUNT(*) FROM assets{where_str}"
+                cur.execute(count_query, params)
+                total = cur.fetchone()['count']
+
+                offset = (page - 1) * limit
+                query = f"SELECT {ASSETS_COLUMNS} FROM assets{where_str} ORDER BY created_at DESC LIMIT %s OFFSET %s"
+                cur.execute(query, params + [limit, offset])
+                rows = cur.fetchall()
+                conn.close()
+                items = [_row_to_asset(r) for r in rows]
+                total_pages = math.ceil(total / limit) if limit > 0 else 1
+                return {
+                    "data": items,
+                    "total": total,
+                    "page": page,
+                    "limit": limit,
+                    "totalPages": max(1, total_pages)
+                }
+            else:
+                query = f"SELECT {ASSETS_COLUMNS} FROM assets{where_str} ORDER BY created_at DESC"
+                cur.execute(query, params)
+                rows = cur.fetchall()
+                conn.close()
+                return [_row_to_asset(r) for r in rows]
     except Exception as e:
-        return []
+        print(f"DEBUG: get_all_assets error: {e}")
+        return {"data": [], "total": 0, "page": 1, "limit": limit, "totalPages": 1} if page is not None else []
 
 
 def create_asset(data: dict) -> dict:
@@ -1954,17 +2068,65 @@ def _row_to_admin_asset(row: dict) -> dict:
         "updatedAt":      row["updated_at"].strftime("%Y-%m-%d %H:%M:%S") if row.get("updated_at") else ""
     }
 
-def get_all_admin_assets() -> list:
+def get_all_admin_assets(page: int = None, limit: int = 50, search: str = "", type_val: str = "", branch: str = "", department: str = "", status_val: str = "") -> dict | list:
+    import math
     try:
         conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT * FROM admin_assets ORDER BY created_at DESC")
-            rows = cur.fetchall()
-        conn.close()
-        return [_row_to_admin_asset(r) for r in rows]
+            where_clauses = []
+            params = []
+
+            if search:
+                s_pattern = f"%{search.strip().lower()}%"
+                where_clauses.append("(LOWER(asset_id) LIKE %s OR LOWER(assignee) LIKE %s OR LOWER(location) LIKE %s OR LOWER(asset_name) LIKE %s OR LOWER(type) LIKE %s OR LOWER(category) LIKE %s OR LOWER(brand_model) LIKE %s)")
+                params.extend([s_pattern] * 7)
+
+            if type_val and type_val.lower() != 'all':
+                where_clauses.append("LOWER(type) = %s")
+                params.append(type_val.strip().lower())
+
+            if branch and branch.lower() != 'all':
+                where_clauses.append("LOWER(branch) = %s")
+                params.append(branch.strip().lower())
+
+            if department and department.lower() != 'all':
+                where_clauses.append("LOWER(department) = %s")
+                params.append(department.strip().lower())
+
+            if status_val and status_val.lower() != 'all':
+                where_clauses.append("LOWER(status) = %s")
+                params.append(status_val.strip().lower())
+
+            where_str = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+            if page is not None and page > 0:
+                count_query = f"SELECT COUNT(*) FROM admin_assets{where_str}"
+                cur.execute(count_query, params)
+                total = cur.fetchone()['count']
+
+                offset = (page - 1) * limit
+                query = f"SELECT {ADMIN_ASSETS_COLUMNS} FROM admin_assets{where_str} ORDER BY created_at DESC LIMIT %s OFFSET %s"
+                cur.execute(query, params + [limit, offset])
+                rows = cur.fetchall()
+                conn.close()
+                items = [_row_to_admin_asset(r) for r in rows]
+                total_pages = math.ceil(total / limit) if limit > 0 else 1
+                return {
+                    "data": items,
+                    "total": total,
+                    "page": page,
+                    "limit": limit,
+                    "totalPages": max(1, total_pages)
+                }
+            else:
+                query = f"SELECT {ADMIN_ASSETS_COLUMNS} FROM admin_assets{where_str} ORDER BY created_at DESC"
+                cur.execute(query, params)
+                rows = cur.fetchall()
+                conn.close()
+                return [_row_to_admin_asset(r) for r in rows]
     except Exception as e:
         print(f"DEBUG: get_all_admin_assets error: {e}")
-        return []
+        return {"data": [], "total": 0, "page": 1, "limit": limit, "totalPages": 1} if page is not None else []
 
 def create_admin_asset(data: dict) -> dict:
     try:

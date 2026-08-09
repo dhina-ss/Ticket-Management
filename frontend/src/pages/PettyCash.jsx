@@ -1027,13 +1027,8 @@ const PettyCash = () => {
 				<div className="bg-white dark:bg-[#1C212B] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[calc(100vh-10px)] max-h-[calc(100vh-10px)]">
 					{loading ? (
 					<div className="flex flex-col items-center justify-center py-16">
-						<DotLottieReact
-							src="https://lottie.host/a9245e26-69f1-4211-add6-92896a98c9a9/zK2zVshVzv.lottie"
-							loop
-							autoplay
-							style={{ width: 120, height: 120 }}
-						/>
-						<p className="text-slate-500 text-sm mt-2">Loading transactions...</p>
+						<div className="h-10 w-10 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin mb-2"></div>
+						<p className="text-slate-500 text-sm font-medium">Loading transactions...</p>
 					</div>
 					) : filteredExpenses.length === 0 ? (
 						<div className="p-20 text-center text-slate-500">
@@ -1737,12 +1732,7 @@ const PettyCash = () => {
 			{showSavingLoader && (
 				<div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[300] flex items-center justify-center p-4 animate-in fade-in duration-200">
 					<div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xs shadow-2xl p-8 flex flex-col items-center gap-2 animate-in zoom-in-95 duration-200">
-						<DotLottieReact
-							src="https://lottie.host/45715c14-7eeb-4328-9642-d1938ff9443e/CpjOiAmtyO.lottie"
-							loop
-							autoplay
-							style={{ width: 160, height: 160 }}
-						/>
+						<div className="h-12 w-12 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin my-2"></div>
 						<h3 className="text-base font-extrabold text-slate-900 dark:text-white mt-1">Saving Expense...</h3>
 						<p className="text-xs text-slate-500 dark:text-slate-400 text-center">Please wait while we process your entry.</p>
 					</div>
