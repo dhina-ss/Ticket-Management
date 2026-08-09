@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { DateRangePicker } from 'react-date-range';
 import 'react-date-range/dist/styles.css';
@@ -1039,7 +1039,11 @@ const AssetsView = ({
     activeView,
     hasEditPermission,
     assetsLoading = false,
-    currentBranchList = []
+    currentBranchList = [],
+    totalServerItems = 0,
+    totalServerPages = 1,
+    currentPage = 1,
+    setCurrentPage
 }) => {
     const { user } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
@@ -1047,9 +1051,6 @@ const AssetsView = ({
     const [historyLogs, setHistoryLogs] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [successModal, setSuccessModal] = useState({ show: false, type: '', id: '' });
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalServerItems, setTotalServerItems] = useState(0);
-    const [totalServerPages, setTotalServerPages] = useState(1);
     const [validationErrors, setValidationErrors] = useState({});
     const ITEMS_PER_PAGE = 20;
 
@@ -1254,16 +1255,17 @@ const AssetsView = ({
     const filteredAssets = useMemo(() => {
         const assetList = Array.isArray(assets) ? assets : [];
         if (assetList.length === 0) return [];
+        if (totalServerItems > 0) return assetList;
 
-        const searchLower = searchQuery.trim().toLowerCase();
+        const searchLower = (searchQuery || '').trim().toLowerCase();
         const hasSearch = searchLower.length > 0;
-        const catFilterLower = categoryFilter.map(f => f.trim().toLowerCase());
+        const catFilterLower = (categoryFilter || []).map(f => f.trim().toLowerCase());
         const isCatAll = catFilterLower.includes('all');
-        const branchFilterLower = branchFilter.map(f => f.trim().toLowerCase());
+        const branchFilterLower = (branchFilter || []).map(f => f.trim().toLowerCase());
         const isBranchAll = branchFilterLower.includes('all');
-        const deptFilterLower = departmentFilter.map(f => f.trim().toLowerCase());
+        const deptFilterLower = (departmentFilter || []).map(f => f.trim().toLowerCase());
         const isDeptAll = deptFilterLower.includes('all');
-        const condFilterLower = conditionFilter.map(f => f.trim().toLowerCase());
+        const condFilterLower = (conditionFilter || []).map(f => f.trim().toLowerCase());
         const isCondAll = condFilterLower.includes('all');
 
         return assetList.filter(a => {
@@ -1312,11 +1314,11 @@ const AssetsView = ({
 
             return true;
         });
-    }, [assets, searchQuery, categoryFilter, branchFilter, departmentFilter, conditionFilter, isDateFilterActive, dateRange, activeView]);
+    }, [assets, searchQuery, categoryFilter, branchFilter, departmentFilter, conditionFilter, isDateFilterActive, dateRange, activeView, totalServerItems]);
 
     const displayTotalCount = totalServerItems > 0 ? totalServerItems : (filteredAssets.length || 0);
     const displayTotalPages = totalServerPages > 0 ? totalServerPages : Math.max(1, Math.ceil(displayTotalCount / ITEMS_PER_PAGE));
-    const pagedAssets = (assets.length <= ITEMS_PER_PAGE) ? filteredAssets : filteredAssets.slice(
+    const pagedAssets = (totalServerItems > 0 || assets.length <= ITEMS_PER_PAGE) ? filteredAssets : filteredAssets.slice(
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
@@ -4858,6 +4860,29 @@ const AdminDashboard = () => {
     // Assets state
     const [assets, setAssets] = useState([]);
     const [assetsLoading, setAssetsLoading] = useState(false);
+    const [totalServerItems, setTotalServerItems] = useState(0);
+    const [totalServerPages, setTotalServerPages] = useState(1);
+
+    const [searchParams, setSearchParams] = useSearchParams();
+    const urlPage = parseInt(searchParams.get('page') || searchParams.get('offset') || '1', 10);
+    const [assetCurrentPage, setAssetCurrentPage] = useState(urlPage > 0 ? urlPage : 1);
+
+    useEffect(() => {
+        const p = parseInt(searchParams.get('page') || searchParams.get('offset') || '1', 10);
+        if (p > 0 && p !== assetCurrentPage) {
+            setAssetCurrentPage(p);
+        }
+    }, [searchParams]);
+
+    const handleAssetPageChange = (newPage) => {
+        setAssetCurrentPage(newPage);
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set('page', newPage);
+            next.set('limit', 20);
+            return next;
+        }, { replace: true });
+    };
     const [assetSearchQuery, setAssetSearchQuery] = useState('');
     const [assetCategoryFilter, setAssetCategoryFilter] = useState(['All']);
     const [assetBranchFilter, setAssetBranchFilter] = useState(['All']);
@@ -5349,7 +5374,7 @@ const AdminDashboard = () => {
         }
     };
 
-    const fetchAssets = async (view = activeView, page = currentPage, limit = ITEMS_PER_PAGE, search = searchQuery, catF = categoryFilter, bF = branchFilter, dF = departmentFilter, condF = conditionFilter) => {
+    const fetchAssets = async (view = activeView, page = assetCurrentPage, limit = ITEMS_PER_PAGE, search = assetSearchQuery, catF = assetCategoryFilter, bF = assetBranchFilter, dF = assetDepartmentFilter, condF = assetConditionFilter) => {
         setAssetsLoading(true);
         try {
             const endpoint = view === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
@@ -5401,9 +5426,9 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         if (user) {
-            fetchAssets(activeView, currentPage, ITEMS_PER_PAGE);
+            fetchAssets(activeView, assetCurrentPage, ITEMS_PER_PAGE, assetSearchQuery, assetCategoryFilter, assetBranchFilter, assetDepartmentFilter, assetConditionFilter);
         }
-    }, [currentPage]);
+    }, [assetCurrentPage, activeView, assetSearchQuery, assetCategoryFilter, assetBranchFilter, assetDepartmentFilter, assetConditionFilter]);
 
     useEffect(() => {
         if (user) {
@@ -6859,6 +6884,10 @@ const AdminDashboard = () => {
                         branchFilter={assetBranchFilter}
                         departmentFilter={assetDepartmentFilter}
                         conditionFilter={assetConditionFilter}
+                        totalServerItems={totalServerItems}
+                        totalServerPages={totalServerPages}
+                        currentPage={assetCurrentPage}
+                        setCurrentPage={handleAssetPageChange}
                         showAddModal={location.pathname === '/assets/add' || location.pathname === '/admin-assets/add' || (showAddAssetModal && isEditingAsset)}
                         setShowAddModal={(val, isEdit = false) => {
                             if (val) {
