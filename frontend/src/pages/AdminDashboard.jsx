@@ -4846,6 +4846,11 @@ const AdminDashboard = () => {
 
     const [isUpdating, setIsUpdating] = useState(false);
     const [activeView, setActiveView] = useState(() => {
+        const path = window.location.pathname;
+        if (path === '/admin-assets' || path === '/admin-assets/add') return 'admin_assets';
+        if (path === '/assets' || path === '/assets/add') return 'assets';
+        if (path === '/users') return 'users';
+        if (path === '/settings') return 'settings';
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('assetId')) {
             return 'assets';
@@ -5382,6 +5387,7 @@ const AdminDashboard = () => {
     };
 
     const fetchAssets = async (view = activeView, page = assetCurrentPage, limit = ITEMS_PER_PAGE, search = assetSearchQuery, catF = assetCategoryFilter, bF = assetBranchFilter, dF = assetDepartmentFilter, condF = assetConditionFilter) => {
+        if (view !== 'assets' && view !== 'admin_assets') return;
         setAssetsLoading(true);
         try {
             const endpoint = view === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
@@ -5408,6 +5414,7 @@ const AdminDashboard = () => {
             }
 
             const response = await api.get(`${endpoint}?${params.toString()}`);
+            if (view !== activeView) return;
             if (response.data && Array.isArray(response.data.data)) {
                 setAssets(response.data.data);
                 setTotalServerItems(response.data.total);
@@ -5423,16 +5430,20 @@ const AdminDashboard = () => {
             }
         } catch (err) {
             console.error("Failed to fetch assets:", err);
-            setAssets([]);
-            setTotalServerItems(0);
-            setTotalServerPages(1);
+            if (view === activeView) {
+                setAssets([]);
+                setTotalServerItems(0);
+                setTotalServerPages(1);
+            }
         } finally {
-            setAssetsLoading(false);
+            if (view === activeView) {
+                setAssetsLoading(false);
+            }
         }
     };
 
     useEffect(() => {
-        if (user) {
+        if (user && (activeView === 'assets' || activeView === 'admin_assets')) {
             fetchAssets(activeView, assetCurrentPage, ITEMS_PER_PAGE, assetSearchQuery, assetCategoryFilter, assetBranchFilter, assetDepartmentFilter, assetConditionFilter);
         }
     }, [assetCurrentPage, activeView, assetSearchQuery, assetCategoryFilter, assetBranchFilter, assetDepartmentFilter, assetConditionFilter]);
