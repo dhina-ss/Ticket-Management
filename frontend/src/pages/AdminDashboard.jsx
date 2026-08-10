@@ -168,7 +168,7 @@ const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onC
     );
 };
 
-const SelectDropdown = ({ label, options, value, onChange, direction = 'down', maxHeight = 'max-h-40', error, disabled = false }) => {
+const SelectDropdown = ({ label, options = [], value, onChange, direction = 'down', maxHeight = 'max-h-40', error, disabled = false }) => {
     const [isOpen, setIsOpen] = useState(false);
     const ref = useRef(null);
     useEffect(() => {
@@ -176,6 +176,13 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, []);
+
+    // Deduplicate options by value/label to avoid duplicate items & duplicate keys
+    const uniqueOptions = (options || []).filter((opt, index, self) => {
+        const val = typeof opt === 'object' && opt !== null ? (opt.value ?? opt.label) : opt;
+        return self.findIndex(o => (typeof o === 'object' && o !== null ? (o.value ?? o.label) : o) === val) === index;
+    });
+
     return (
         <div className="relative w-full" ref={ref}>
             <div
@@ -200,7 +207,7 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
                     : 'top-full mt-1.5 origin-top'
                     }`}>
                     <div className={`${maxHeight} overflow-y-auto custom-scrollbar px-1.5 py-0.5 space-y-0.5`}>
-                        {options.map(opt => (
+                        {uniqueOptions.map(opt => (
                             <div
                                 key={opt.value ?? opt}
                                 onClick={() => { onChange(opt.value ?? opt); setIsOpen(false); }}
@@ -5500,6 +5507,7 @@ const AdminDashboard = () => {
         } else if (path === '/tickets') {
             setActiveView('tickets');
             fetchTickets();
+            fetchAssignees();
         } else if (path === '/admin') {
             navigate('/tickets', { replace: true });
         }
@@ -5542,6 +5550,7 @@ const AdminDashboard = () => {
     };
 
     const handleRowClick = (ticket) => {
+        fetchAssignees();
         setSelectedTicket(ticket);
         setUpdateStatus(ticket.status || 'Not Started');
         setUpdateAssignee(ticket.assignee || '');
@@ -7632,6 +7641,7 @@ const AdminDashboard = () => {
                                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Status</label>
                                                 <SelectDropdown
                                                     label="Status"
+                                                    direction="up"
                                                     options={['Not Started', 'In Progress', 'Pending', 'Completed']}
                                                     value={updateStatus}
                                                     onChange={(val) => setUpdateStatus(val)}
@@ -7642,11 +7652,27 @@ const AdminDashboard = () => {
                                                 <div className="flex-1">
                                                     <SelectDropdown
                                                         label="Assignee"
-                                                        options={Array.isArray(assignees)
-                                                            ? assignees
-                                                                .filter(a => !selectedTicket.supportType || a.support_type.includes(selectedTicket.supportType))
-                                                                .map(a => ({ value: a.name, label: a.name }))
-                                                            : []}
+                                                        direction="up"
+                                                        options={(() => {
+                                                            let list = Array.isArray(assignees) ? [...assignees] : [];
+                                                            if (selectedTicket?.assignee && !list.some(a => a.name === selectedTicket.assignee)) {
+                                                                list.push({ name: selectedTicket.assignee, support_type: selectedTicket.supportType || '' });
+                                                            }
+                                                            if (updateAssignee && !list.some(a => a.name === updateAssignee)) {
+                                                                list.push({ name: updateAssignee, support_type: selectedTicket?.supportType || '' });
+                                                            }
+                                                            const filtered = list.filter(a => !selectedTicket?.supportType || (a.support_type || '').includes(selectedTicket.supportType) || a.name === selectedTicket?.assignee || a.name === updateAssignee);
+                                                            const seen = new Set();
+                                                            const uniqueList = [];
+                                                            for (const a of filtered) {
+                                                                const name = (a.name || '').trim();
+                                                                if (name && !seen.has(name)) {
+                                                                    seen.add(name);
+                                                                    uniqueList.push({ value: name, label: name });
+                                                                }
+                                                            }
+                                                            return uniqueList;
+                                                        })()}
                                                         value={updateAssignee}
                                                         onChange={(val) => setUpdateAssignee(val)}
                                                         disabled={['Completed', 'Resolved'].includes(selectedTicket.status) || (!isSuperAdmin && !isPowerUser && user?.name !== selectedTicket.assignee && user?.access && !user.access.includes('Edit'))}
