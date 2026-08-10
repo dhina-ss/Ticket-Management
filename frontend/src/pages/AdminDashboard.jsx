@@ -1770,7 +1770,7 @@ const AssetsView = ({
 
                         {/* Body */}
                         <div className="p-6 space-y-6">
-                            {String(selectedAsset.group).toLowerCase() === 'admin' ? (
+                            {(String(selectedAsset.group).toLowerCase() === 'admin' || activeView === 'admin_assets') ? (
                                 <>
                                     {/* Admin Asset Info */}
                                     <div>

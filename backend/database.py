@@ -2056,7 +2056,7 @@ def _row_to_admin_asset(row: dict) -> dict:
         "serial":         row.get("serial_number", ""),
         "assignee":       row.get("assignee", ""),
         "location":       row.get("location", ""),
-        "group":          row.get("group", "Admin"),
+        "group":          row.get("group") or "Admin",
         "type":           row.get("type", ""),
         "quantity":       row.get("quantity", ""),
         "status":         row.get("status", ""),
@@ -2077,8 +2077,9 @@ def get_all_admin_assets(page: int = None, limit: int = 20, page_size: int = Non
     try:
         conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            where_clauses = []
-            params = []
+            # Always filter to Admin group only
+            where_clauses = ['(LOWER("group") = %s OR "group" IS NULL OR "group" = \'\')']
+            params = ['admin']
 
             if search:
                 s_pattern = f"%{search.strip().lower()}%"
@@ -2101,7 +2102,7 @@ def get_all_admin_assets(page: int = None, limit: int = 20, page_size: int = Non
                 where_clauses.append("LOWER(status) = %s")
                 params.append(status_val.strip().lower())
 
-            where_str = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+            where_str = " WHERE " + " AND ".join(where_clauses)
 
             if page is not None and page > 0:
                 count_query = f"SELECT COUNT(*) FROM admin_assets{where_str}"
