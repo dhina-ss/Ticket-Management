@@ -289,6 +289,17 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
         setCurrentPage(1);
     }, [searchQuery]);
 
+    useEffect(() => {
+        if (showAddUser || userToDelete) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [showAddUser, userToDelete]);
+
     const totalPages = Math.max(1, Math.ceil(users.length / ITEMS_PER_PAGE));
     const paginatedUsers = users.slice(
         (currentPage - 1) * ITEMS_PER_PAGE,
@@ -515,12 +526,12 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
         <div className="flex-1 flex flex-col overflow-hidden px-20 pb-8 pt-0">
             {/* ── Add User Modal ── */}
             {showAddUser && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
                     {/* Backdrop */}
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
+                    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
                     {/* Panel */}
                     <form onSubmit={handleSaveUser}
-                        className="relative z-10 w-full max-w-[60%] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-8">
+                        className="relative z-10 w-full max-w-[60%] max-h-[90vh] overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8">
                         {/* Header */}
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-3">
