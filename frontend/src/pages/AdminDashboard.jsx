@@ -256,7 +256,7 @@ const parseUserBranches = (rawBranch, availableBranchOptions = []) => {
     return fallback.length > 0 ? fallback : ['All'];
 };
 
-const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission, currentUser, refreshUser, fetchUsers, departments = [], branchOptions = ['All'] }) => {
+const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, setShowAddUser, searchQuery, hasEditPermission, currentUser, refreshUser, fetchUsers, fetchDepartments, departments = [], branchOptions = ['All'] }) => {
     const [newUser, setNewUser] = useState({
         name: '', email: '', password: '',
         access: ['View'],
@@ -282,6 +282,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
 
     useEffect(() => {
         if (fetchUsers) fetchUsers();
+        if (fetchDepartments) fetchDepartments();
     }, []);
 
     useEffect(() => {
@@ -439,8 +440,8 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
             const courierUsersString = expandedCourierUsers.join(',');
 
             const deptList = (departments && departments.length > 0)
-                ? departments.map(d => typeof d === 'string' ? d : d.name)
-                : ['Admin', 'HR', 'Finance', 'Sales', 'Production', 'Logistics', 'Courier', 'IT'];
+                ? departments.map(d => typeof d === 'string' ? d : d.name).filter(Boolean)
+                : [];
             const userDept = newUser.department || ((newUser.allowed_menus.includes('Courier') || newUser.allowed_menus.includes('All')) ? deptList[0] || '' : '');
 
             const payload = {
@@ -672,8 +673,8 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                                         .filter(u => (!u.role || u.role.toLowerCase() === 'user') && u.name !== newUser.name && u.email !== newUser.email)
                                         .map(u => u.name);
                                     const deptList = (departments && departments.length > 0)
-                                        ? departments.map(d => typeof d === 'string' ? d : d.name)
-                                        : ['Admin', 'HR', 'Finance', 'Sales', 'Production', 'Logistics', 'Courier', 'IT'];
+                                        ? departments.map(d => typeof d === 'string' ? d : d.name).filter(Boolean)
+                                        : [];
                                     return (
                                         <>
                                             <div>
@@ -2398,7 +2399,7 @@ const AssetsView = ({
                                                             setNewAsset(p => ({ ...p, department: v }));
                                                             setValidationErrors(prev => ({ ...prev, department: false }));
                                                         }}
-                                                        options={departments?.length > 0 ? departments.map(d => d.name) : ['Admin', 'HR', 'Finance', 'Sales', 'Production', 'Logistics']}
+                                                        options={(departments || []).map(d => typeof d === 'string' ? d : d.name).filter(Boolean)}
                                                         maxHeight="max-h-20"
                                                         error={validationErrors.department}
                                                     />
@@ -2466,7 +2467,7 @@ const AssetsView = ({
                                                     <SelectDropdown
                                                         value={newAsset.department || 'IT'}
                                                         onChange={v => setNewAsset(p => ({ ...p, department: v }))}
-                                                        options={departments?.length > 0 ? departments.map(d => d.name) : ['IT', 'HR', 'Finance', 'Sales', 'Production', 'Logistics']}
+                                                        options={(departments || []).map(d => typeof d === 'string' ? d : d.name).filter(Boolean)}
                                                         maxHeight="max-h-35"
                                                     />
                                                 </div>
@@ -5509,6 +5510,7 @@ const AdminDashboard = () => {
         } else if (path === '/users') {
             setActiveView('users');
             fetchUsers();
+            fetchDepartments();
         } else if (path === '/settings') {
             setActiveView('settings');
             fetchAssignees();
@@ -6833,6 +6835,7 @@ const AdminDashboard = () => {
                         currentUser={user}
                         refreshUser={refreshUser}
                         fetchUsers={fetchUsers}
+                        fetchDepartments={fetchDepartments}
                         departments={departments}
                         branchOptions={currentBranchList}
                     />
