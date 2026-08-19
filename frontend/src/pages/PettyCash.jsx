@@ -588,6 +588,7 @@ const PettyCash = () => {
 			'Category': exp.category,
 			'Subcategory': exp.subcategory || '',
 			'Remarks': exp.sub_remarks || '',
+			'Purpose': exp.type === 'credit' ? '-' : (exp.purpose || (exp.submitted_by === 'Management' ? 'Management' : 'Admin')),
 			'Submitted By': exp.submitted_by,
 			'Approved By': exp.approved_by || '-',
 			'Debit (INR)': exp.type !== 'credit' ? exp.amount : 0,
@@ -617,6 +618,7 @@ const PettyCash = () => {
 			textContent += `[${index + 1}] Date: ${exp.date ? exp.date.split('-').reverse().join('-') : ''} | `;
 			textContent += `Category: ${exp.category} | `;
 			textContent += `Subcategory: ${exp.subcategory || ''} | `;
+			textContent += `Purpose: ${exp.purpose || (exp.submitted_by === 'Management' ? 'Management' : 'Admin')} | `;
 			textContent += `Submitted By: ${exp.submitted_by} | `;
 			textContent += `Debit: ${exp.type !== 'credit' ? exp.amount : 0} | `;
 			textContent += `Credit: ${exp.type === 'credit' ? exp.amount : 0} | `;
@@ -1069,7 +1071,7 @@ const PettyCash = () => {
 														</div>
 													</div>
 												</td>
-												<td className="px-4 py-3 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : exp.submitted_by}</td>
+												<td className="px-4 py-3 text-slate-600 dark:text-slate-300 capitalize">{exp.type === 'credit' ? '-' : (exp.purpose || (exp.submitted_by === 'Management' ? 'Management' : 'Admin'))}</td>
 												<td className="px-4 py-3 max-w-[320px] truncate" title={exp.description}>{exp.description}</td>
 												<td className="px-4 py-3 font-bold text-[#ec1d22] text-right whitespace-nowrap">{exp.type !== 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
 												<td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400 text-right whitespace-nowrap">{exp.type === 'credit' ? `${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</td>
@@ -1576,6 +1578,10 @@ const PettyCash = () => {
 								<div>
 									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Approved By</label>
 									<p className="font-medium text-sm text-slate-800 dark:text-slate-200">{selectedExpense.approved_by || '-'}</p>
+								</div>
+								<div>
+									<label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Purpose</label>
+									<p className="font-medium text-sm text-slate-800 dark:text-slate-200">{selectedExpense.purpose || 'Admin'}</p>
 								</div>
 							</div>
 

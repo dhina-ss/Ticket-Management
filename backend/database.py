@@ -701,7 +701,8 @@ def init_db():
                     "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS user_name TEXT;",
                     "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS receiver_name TEXT;",
                     "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS verified_by TEXT;",
-                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS branch TEXT DEFAULT 'Cotton Concepts HO_ Coimbatore';"
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS branch TEXT DEFAULT 'Cotton Concepts HO_ Coimbatore';",
+                    "ALTER TABLE pettycash ADD COLUMN IF NOT EXISTS purpose TEXT DEFAULT 'Admin';"
                 ]
                 for stmt in alter_pettycash:
                     cur.execute(stmt)

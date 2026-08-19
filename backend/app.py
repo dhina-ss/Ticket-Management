@@ -3195,8 +3195,8 @@ def api_petty_cash_expenses():
         status_f = request.args.get('status', '')
         branch_f = request.args.get('branch', '')
         
-        query_expenses = "SELECT 'expense' as type, id, date, category, sub_category, sub_remarks, expense_amount, description, status, user_name, approved_by, approved_at, manager_notes, created_at, receiver_name, verified_by, branch FROM pettycash WHERE 1=1"
-        query_credit = "SELECT 'credit' as type, id, date, 'Added Cash' as category, '' as sub_category, '' as sub_remarks, amount as expense_amount, description, 'approved' as status, user_name, user_name as approved_by, created_at as approved_at, '' as manager_notes, created_at, '' as receiver_name, '' as verified_by, '' as branch FROM cash_add_history WHERE 1=1"
+        query_expenses = "SELECT 'expense' as type, id, date, category, sub_category, sub_remarks, expense_amount, description, status, user_name, approved_by, approved_at, manager_notes, created_at, receiver_name, verified_by, branch, COALESCE(NULLIF(purpose, ''), CASE WHEN user_name IN ('Admin', 'Management') THEN user_name ELSE 'Admin' END) as purpose FROM pettycash WHERE 1=1"
+        query_credit = "SELECT 'credit' as type, id, date, 'Added Cash' as category, '' as sub_category, '' as sub_remarks, amount as expense_amount, description, 'approved' as status, user_name, user_name as approved_by, created_at as approved_at, '' as manager_notes, created_at, '' as receiver_name, '' as verified_by, '' as branch, '' as purpose FROM cash_add_history WHERE 1=1"
         
         params_expenses = []
         params_credit = []
@@ -3223,10 +3223,9 @@ def api_petty_cash_expenses():
             params_expenses.append(subcategory)
             query_credit += " AND 1=0"
         if purpose and purpose not in ('null', 'undefined'):
-            query_expenses += " AND LOWER(user_name) = LOWER(%s)"
+            query_expenses += " AND LOWER(COALESCE(NULLIF(purpose, ''), CASE WHEN user_name IN ('Admin', 'Management') THEN user_name ELSE 'Admin' END)) = LOWER(%s)"
             params_expenses.append(purpose)
-            query_credit += " AND LOWER(user_name) = LOWER(%s)"
-            params_credit.append(purpose)
+            query_credit += " AND 1=0"
         if branch_f and branch_f not in ('null', 'undefined'):
             query_expenses += " AND branch = %s"
             params_expenses.append(branch_f)
@@ -3263,7 +3262,8 @@ def api_petty_cash_expenses():
                     "manager_notes": r[12] or "",
                     "receiver_name": r[14] or "",
                     "verified_by": r[15] or "",
-                    "branch": r[16] or "Cotton Concepts HO_ Coimbatore"
+                    "branch": r[16] or "Cotton Concepts HO_ Coimbatore",
+                    "purpose": r[17] if len(r) > 17 and r[17] else ("Management" if r[9] == "Management" else "Admin")
                 })
         conn.close()
         return jsonify(result), 200
@@ -3285,6 +3285,7 @@ def api_petty_cash_add():
         data = request.json
         user_name = data.get('submitted_by', 'admin')
         is_manager = data.get('is_manager', False)
+        purpose_val = data.get('purpose', 'Admin')
         
         from database import _get_conn
         conn = _get_conn()
@@ -3297,8 +3298,8 @@ def api_petty_cash_add():
                 amount_val = 0
             
             cur.execute("""
-                INSERT INTO pettycash (date, category, sub_category, sub_remarks, expense_amount, description, user_name, status, approved_by, approved_at, receiver_name, verified_by, branch)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, %s, %s)
+                INSERT INTO pettycash (date, category, sub_category, sub_remarks, expense_amount, description, user_name, status, approved_by, approved_at, receiver_name, verified_by, branch, purpose)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, %s, %s, %s)
             """, (
                 data.get('date'),
                 data.get('category'),
@@ -3311,7 +3312,8 @@ def api_petty_cash_add():
                 approved_by,
                 data.get('receiver_name'),
                 data.get('verified_by'),
-                data.get('branch', 'Cotton Concepts HO_ Coimbatore')
+                data.get('branch', 'Cotton Concepts HO_ Coimbatore'),
+                purpose_val
             ))
             rebuild_ledger_balances(conn)
             conn.commit()
@@ -3357,6 +3359,7 @@ def api_petty_cash_reject(eid):
 def api_petty_cash_update(eid):
     try:
         data = request.json
+        purpose_val = data.get('purpose', 'Admin')
         from database import _get_conn
         conn = _get_conn()
         with conn.cursor() as cur:
@@ -3366,13 +3369,13 @@ def api_petty_cash_update(eid):
                 
             cur.execute("""
                 UPDATE pettycash 
-                SET date=%s, category=%s, sub_category=%s, sub_remarks=%s, expense_amount=%s, description=%s, user_name=%s, approved_by=%s, receiver_name=%s, verified_by=%s, branch=%s
+                SET date=%s, category=%s, sub_category=%s, sub_remarks=%s, expense_amount=%s, description=%s, user_name=%s, approved_by=%s, receiver_name=%s, verified_by=%s, branch=%s, purpose=%s
                 WHERE id=%s
             """, (
                 data.get('date'), data.get('category'), data.get('subcategory'),
                 data.get('sub_remarks'), amount_val, data.get('description'),
                 data.get('submitted_by'), data.get('approved_by'), data.get('receiver_name'), data.get('verified_by'),
-                data.get('branch', 'Cotton Concepts HO_ Coimbatore'), eid
+                data.get('branch', 'Cotton Concepts HO_ Coimbatore'), purpose_val, eid
             ))
             rebuild_ledger_balances(conn)
             conn.commit()
