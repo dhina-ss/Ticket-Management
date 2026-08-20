@@ -200,7 +200,8 @@ const BranchWithFlyoutDropdown = ({ label, branches = [], locations = [], value,
 const Courier = () => {
 	const navigate = useNavigate();
 	const { user, isAuthenticated, logout } = useAuth();
-	const isAdmin = user?.email === 'admin@support.com' || user?.role === 'Super admin' || user?.role === 'admin';
+	const isSuperAdmin = user?.email === 'admin@support.com' || user?.role === 'Super admin';
+	const isAdmin = isSuperAdmin || user?.role === 'admin';
 	const hasAddPermission = isAdmin || (typeof user?.access === 'string' ? (user.access.includes('View') || user.access.includes('Edit') || user.access.includes('Add')) : Array.isArray(user?.access) ? (user.access.includes('View') || user.access.includes('Edit') || user.access.includes('Add')) : true);
 	const hasEditPermission = isAdmin || (typeof user?.access === 'string' ? user.access.includes('Edit') : Array.isArray(user?.access) ? user.access.includes('Edit') : user?.access === 'Edit');
 	const hasDeletePermission = isAdmin || (typeof user?.access === 'string' ? user.access.includes('Delete') : Array.isArray(user?.access) ? user.access.includes('Delete') : user?.access === 'Delete');
@@ -270,23 +271,24 @@ const Courier = () => {
 
 	const allowedBranches = React.useMemo(() => {
 		const allBranches = lookups.branches || [];
-		if (isAdmin || !user?.branch || user.branch === 'All') {
+		if (isSuperAdmin || !user?.branch || user.branch === 'All') {
 			return allBranches;
 		}
-		const userBranches = (user.branch || '').includes('|')
-			? user.branch.split('|').map(b => formatBranch(b.trim())).filter(Boolean)
-			: user.branch.split(',').map(b => formatBranch(b.trim())).filter(Boolean);
+		const rawBranchStr = user.branch || '';
+		const userBranches = rawBranchStr.includes('|')
+			? rawBranchStr.split('|').map(b => formatBranch(b.trim())).filter(Boolean)
+			: [formatBranch(rawBranchStr.trim())].filter(Boolean);
 
 		const matched = allBranches.filter(b => {
-			const bName = formatBranch(b.name).toLowerCase();
+			const bName = formatBranch(b?.name || b).toLowerCase().trim();
 			return userBranches.some(ub => {
-				const ubName = ub.toLowerCase();
+				const ubName = formatBranch(ub).toLowerCase().trim();
 				return bName === ubName || bName.includes(ubName) || ubName.includes(bName);
 			});
 		});
 
-		return matched.length > 0 ? matched : allBranches;
-	}, [user?.branch, isAdmin, lookups.branches]);
+		return matched.length > 0 ? matched : userBranches.map(ub => ({ id: ub, name: ub }));
+	}, [user?.branch, isSuperAdmin, lookups.branches]);
 
 	const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 	const [selectedCourier, setSelectedCourier] = useState(null);
@@ -787,18 +789,33 @@ const Courier = () => {
 
 					<div className="flex items-center gap-2 mx-4 flex-wrap justify-end">
 						{/* Branch */}
-						<SelectDropdown
-							variant="filter"
-							icon="domain"
-							widthClass="w-50"
-							label="All Branches"
-							value={filters.branch_name || filters.branch_id}
-							onChange={val => setFilters(prev => ({ ...prev, branch_name: val, branch_id: val }))}
-							options={[
-								{ label: 'All Branches', value: '' },
-								...allowedBranches.map(b => ({ label: formatBranch(b.name), value: formatBranch(b.name) }))
-							]}
-						/>
+						{allowedBranches.length > 1 ? (
+							<SelectDropdown
+								variant="filter"
+								icon="domain"
+								widthClass="w-50"
+								label="All Branches"
+								value={filters.branch_name || filters.branch_id}
+								onChange={val => setFilters(prev => ({ ...prev, branch_name: val, branch_id: val }))}
+								options={[
+									{ label: 'All Branches', value: '' },
+									...allowedBranches.map(b => ({ label: formatBranch(b.name || b), value: formatBranch(b.name || b) }))
+								]}
+							/>
+						) : allowedBranches.length === 1 ? (
+							<SelectDropdown
+								variant="filter"
+								icon="domain"
+								widthClass="w-50"
+								label={formatBranch(allowedBranches[0].name || allowedBranches[0])}
+								value={formatBranch(allowedBranches[0].name || allowedBranches[0])}
+								onChange={() => {}}
+								options={[
+									{ label: formatBranch(allowedBranches[0].name || allowedBranches[0]), value: formatBranch(allowedBranches[0].name || allowedBranches[0]) }
+								]}
+								disabled={true}
+							/>
+						) : null}
 
 						{/* Transaction Type */}
 						<SelectDropdown
@@ -1187,6 +1204,7 @@ const Courier = () => {
 											const match = (lookups.branches || []).find(b => formatBranch(b.name) === val || b.name === val);
 											setFormData(prev => ({ ...prev, branch_name: val, branch_id: match?.id || prev.branch_id }));
 										}}
+										disabled={allowedBranches.length === 1}
 									/>
 								</div>
 							</div>

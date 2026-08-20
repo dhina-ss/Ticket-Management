@@ -241,17 +241,31 @@ const PettyCash = () => {
 
 	const ALL_BRANCH_OPTIONS = dynamicBranches;
 
+	const formatBranchName = (val) => {
+		if (!val) return '';
+		return String(val).replace(/_\s*/g, ', ');
+	};
+
 	const allowedBranches = React.useMemo(() => {
-		if (!user?.branch || user.branch === 'All' || user.email === 'admin@support.com') {
+		const isSuperAdmin = user?.email === 'admin@support.com' || user?.role === 'Super admin';
+		if (!user?.branch || user.branch === 'All' || isSuperAdmin) {
 			return ALL_BRANCH_OPTIONS;
 		}
-		// Split by | (new separator), fallback to , for old data
-		const userBranches = (user.branch || '').includes('|')
-			? user.branch.split('|').map(b => b.trim()).filter(Boolean)
-			: user.branch.split(',').map(b => b.trim()).filter(Boolean);
-		const matched = ALL_BRANCH_OPTIONS.filter(b => userBranches.includes(b));
-		return matched.length > 0 ? matched : ALL_BRANCH_OPTIONS;
-	}, [user?.branch, user?.email, ALL_BRANCH_OPTIONS]);
+		const rawBranchStr = user.branch || '';
+		const userBranches = rawBranchStr.includes('|')
+			? rawBranchStr.split('|').map(b => formatBranchName(b.trim())).filter(Boolean)
+			: [formatBranchName(rawBranchStr.trim())].filter(Boolean);
+
+		const matched = ALL_BRANCH_OPTIONS.filter(b => {
+			const bFormatted = formatBranchName(b).toLowerCase().trim();
+			return userBranches.some(ub => {
+				const ubFormatted = formatBranchName(ub).toLowerCase().trim();
+				return bFormatted === ubFormatted || bFormatted.includes(ubFormatted) || ubFormatted.includes(bFormatted);
+			});
+		});
+
+		return matched.length > 0 ? matched : userBranches;
+	}, [user?.branch, user?.email, user?.role, ALL_BRANCH_OPTIONS]);
 
 	const handleOpenAdd = () => {
 		setEditingExpense(null);
@@ -638,6 +652,32 @@ const PettyCash = () => {
 	const filteredExpenses = expenses.filter(exp => {
 		const matchesBranchFilter = !filters.branch || exp.branch === filters.branch;
 		const isUserAllowedBranch = !user?.branch || user.branch === 'All' || user.email === 'admin@support.com' || allowedBranches.includes(exp.branch);
+		
+		const isSuperAdminOrManager = (
+			user?.email === 'admin@support.com' ||
+			user?.role === 'Super admin' ||
+			user?.role === 'admin' ||
+			user?.role === 'Manager' ||
+			user?.receiver_position === 'Manager' ||
+			!user?.branch ||
+			user.branch === 'All'
+		);
+
+		let matchesUserCreated = true;
+		if (!isSuperAdminOrManager) {
+			const submittedBy = (exp.submitted_by || exp.user_name || '').toLowerCase().trim();
+			const uName = (user?.name || '').toLowerCase().trim();
+			const uEmail = (user?.email || '').toLowerCase().trim();
+			const uUsername = (user?.username || (uEmail ? uEmail.split('@')[0] : '')).toLowerCase().trim();
+
+			matchesUserCreated = Boolean(
+				(uName && submittedBy === uName) ||
+				(uEmail && submittedBy === uEmail) ||
+				(uUsername && submittedBy === uUsername) ||
+				(uEmail && submittedBy === uEmail.split('@')[0])
+			);
+		}
+
 		const matchesSearch = !searchQuery ||
 			(exp.description && exp.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
 			(exp.category && exp.category.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -645,7 +685,7 @@ const PettyCash = () => {
 			(exp.submitted_by && exp.submitted_by.toLowerCase().includes(searchQuery.toLowerCase())) ||
 			(exp.amount && exp.amount.toString().includes(searchQuery));
 
-		return matchesBranchFilter && isUserAllowedBranch && matchesSearch;
+		return matchesBranchFilter && isUserAllowedBranch && matchesUserCreated && matchesSearch;
 	});
 
 	const pagedExpenses = filteredExpenses.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
@@ -892,7 +932,7 @@ const PettyCash = () => {
 						/>
 
 						{/* Branch */}
-						{allowedBranches.length > 1 && (
+						{allowedBranches.length > 1 ? (
 							<SelectDropdown
 								variant="filter"
 								icon="store"
@@ -905,7 +945,20 @@ const PettyCash = () => {
 									...allowedBranches.map(b => ({ label: b, value: b }))
 								]}
 							/>
-						)}
+						) : allowedBranches.length === 1 ? (
+							<SelectDropdown
+								variant="filter"
+								icon="store"
+								widthClass="w-52"
+								label={allowedBranches[0]}
+								value={allowedBranches[0]}
+								onChange={() => {}}
+								options={[
+									{ label: allowedBranches[0], value: allowedBranches[0] }
+								]}
+								disabled={true}
+							/>
+						) : null}
 
 						{/* Date Range */}
 						<div className="relative" ref={datePickerRef}>
