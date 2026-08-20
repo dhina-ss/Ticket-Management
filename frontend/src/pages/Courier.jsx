@@ -201,19 +201,16 @@ const Courier = () => {
 	const navigate = useNavigate();
 	const { user, isAuthenticated, logout } = useAuth();
 	const isAdmin = user?.email === 'admin@support.com' || user?.role === 'Super admin' || user?.role === 'admin';
+	const hasAddPermission = isAdmin || (typeof user?.access === 'string' ? (user.access.includes('View') || user.access.includes('Edit') || user.access.includes('Add')) : Array.isArray(user?.access) ? (user.access.includes('View') || user.access.includes('Edit') || user.access.includes('Add')) : true);
 	const hasEditPermission = isAdmin || (typeof user?.access === 'string' ? user.access.includes('Edit') : Array.isArray(user?.access) ? user.access.includes('Edit') : user?.access === 'Edit');
 	const hasDeletePermission = isAdmin || (typeof user?.access === 'string' ? user.access.includes('Delete') : Array.isArray(user?.access) ? user.access.includes('Delete') : user?.access === 'Delete');
 
 	const canEditEntry = (entry) => {
-		if (hasEditPermission) return true;
-		if (entry?.creator_email && user?.email && entry.creator_email === user?.email) return true;
-		return false;
+		return hasEditPermission;
 	};
 
 	const canDeleteEntry = (entry) => {
-		if (hasDeletePermission) return true;
-		if (entry?.creator_email && user?.email && entry.creator_email === user?.email) return true;
-		return false;
+		return hasDeletePermission;
 	};
 
 	// Dark mode state
@@ -270,6 +267,26 @@ const Courier = () => {
 		from_locations: [],
 		to_locations: []
 	});
+
+	const allowedBranches = React.useMemo(() => {
+		const allBranches = lookups.branches || [];
+		if (isAdmin || !user?.branch || user.branch === 'All') {
+			return allBranches;
+		}
+		const userBranches = (user.branch || '').includes('|')
+			? user.branch.split('|').map(b => formatBranch(b.trim())).filter(Boolean)
+			: user.branch.split(',').map(b => formatBranch(b.trim())).filter(Boolean);
+
+		const matched = allBranches.filter(b => {
+			const bName = formatBranch(b.name).toLowerCase();
+			return userBranches.some(ub => {
+				const ubName = ub.toLowerCase();
+				return bName === ubName || bName.includes(ubName) || ubName.includes(bName);
+			});
+		});
+
+		return matched.length > 0 ? matched : allBranches;
+	}, [user?.branch, isAdmin, lookups.branches]);
 
 	const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 	const [selectedCourier, setSelectedCourier] = useState(null);
@@ -371,6 +388,14 @@ const Courier = () => {
 		item: '',
 		ref_type: 'PI'
 	});
+
+	const branchOptions = React.useMemo(() => {
+		const list = allowedBranches.map(b => ({ label: formatBranch(b.name), value: formatBranch(b.name) }));
+		if (formData.branch_name && !list.some(o => o.value === formatBranch(formData.branch_name))) {
+			list.unshift({ label: formatBranch(formData.branch_name), value: formatBranch(formData.branch_name) });
+		}
+		return list;
+	}, [allowedBranches, formData.branch_name]);
 
 	// Load Lookup Data
 	useEffect(() => {
@@ -491,6 +516,7 @@ const Courier = () => {
 	const handleOpenAdd = () => {
 		setEditingEntry(null);
 		setFormErrors({});
+		const defaultBranchName = allowedBranches[0]?.name ? formatBranch(allowedBranches[0].name) : (lookups.branches[0]?.name ? formatBranch(lookups.branches[0].name) : '');
 		setFormData({
 			date: new Date().toISOString().split('T')[0],
 			transaction_type: 'Dispatch',
@@ -516,8 +542,8 @@ const Courier = () => {
 			courier_cost: 0,
 			payment_mode: '',
 			remarks: '',
-			branch_id: lookups.branches[0]?.name || '',
-			branch_name: lookups.branches[0]?.name || '',
+			branch_id: defaultBranchName,
+			branch_name: defaultBranchName,
 			item: '',
 			ref_type: 'PI'
 		});
@@ -533,6 +559,8 @@ const Courier = () => {
 	const handleOpenEdit = (entry) => {
 		setEditingEntry(entry);
 		setFormErrors({});
+		const formattedEntryBranch = formatBranch(entry.branch_name || entry.branch_id);
+		const defaultBranchName = formattedEntryBranch || (allowedBranches[0]?.name ? formatBranch(allowedBranches[0].name) : (lookups.branches[0]?.name ? formatBranch(lookups.branches[0].name) : ''));
 		setFormData({
 			date: entry.date,
 			transaction_type: entry.transaction_type,
@@ -558,8 +586,8 @@ const Courier = () => {
 			courier_cost: entry.courier_cost || 0,
 			payment_mode: entry.payment_mode || '',
 			remarks: entry.remarks || '',
-			branch_id: entry.branch_name || entry.branch_id || (lookups.branches[0]?.name || ''),
-			branch_name: entry.branch_name || (lookups.branches || []).find(b => b.id === entry.branch_id || b.name === entry.branch_name)?.name || lookups.branches?.[0]?.name || '',
+			branch_id: defaultBranchName,
+			branch_name: defaultBranchName,
 			item: entry.item || '',
 			ref_type: entry.ref_type || 'PI'
 		});
@@ -643,13 +671,15 @@ const Courier = () => {
 				</div>
 
 				<div className="flex items-center gap-4">
-					<button
-						onClick={handleOpenAdd}
-						className="flex items-center gap-2 px-4 py-2.5 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer border-0 text-sm"
-					>
-						<span className="material-symbols-outlined text-lg">add</span>
-						Add Courier
-					</button>
+					{hasAddPermission && (
+						<button
+							onClick={handleOpenAdd}
+							className="flex items-center gap-2 px-4 py-2.5 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer border-0 text-sm"
+						>
+							<span className="material-symbols-outlined text-lg">add</span>
+							Add Courier
+						</button>
+					)}
 
 					<div className="relative flex items-center" ref={userPopupRef}>
 						{/* User Avatar Button */}
@@ -766,7 +796,7 @@ const Courier = () => {
 							onChange={val => setFilters(prev => ({ ...prev, branch_name: val, branch_id: val }))}
 							options={[
 								{ label: 'All Branches', value: '' },
-								...lookups.branches.map(b => ({ label: formatBranch(b.name), value: formatBranch(b.name) }))
+								...allowedBranches.map(b => ({ label: formatBranch(b.name), value: formatBranch(b.name) }))
 							]}
 						/>
 
@@ -1151,7 +1181,7 @@ const Courier = () => {
 									<label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Branch <span className="text-red-500">*</span></label>
 									<SelectDropdown
 										label="Select Branch"
-										options={(lookups.branches || []).map(b => ({ label: formatBranch(b.name), value: formatBranch(b.name) }))}
+										options={branchOptions}
 										value={formatBranch(formData.branch_name)}
 										onChange={val => {
 											const match = (lookups.branches || []).find(b => formatBranch(b.name) === val || b.name === val);

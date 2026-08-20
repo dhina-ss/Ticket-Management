@@ -106,6 +106,7 @@ const PettyCash = () => {
 	const isManager = user?.email === 'admin@support.com' || user?.role === 'Manager' || user?.receiver_position === 'Manager' || user?.access?.includes('Edit');
 	const isAdmin = user?.email === 'admin@support.com';
 	const hasEditPermission = user?.email === 'admin@support.com' || user?.access?.includes('Edit');
+	const hasAddPermission = user?.email === 'admin@support.com' || user?.access?.includes('Edit') || user?.access?.includes('View') || user?.access?.includes('Add') || !user?.access;
 	const hasDeletePermission = user?.email === 'admin@support.com' || user?.access?.includes('Delete');
 	const hasActionPermission = hasEditPermission || hasDeletePermission;
 	const hasExportPermission = user?.email === 'admin@support.com' || user?.access?.includes('Export');
@@ -697,7 +698,7 @@ const PettyCash = () => {
 						</button>
 					)}
 
-					{hasEditPermission && (
+					{hasAddPermission && (
 					<button
 						onClick={handleOpenAdd}
 						className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer border-0 text-sm"
