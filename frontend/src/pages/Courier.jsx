@@ -27,8 +27,8 @@ const SelectDropdown = ({ label, options, value, onChange, direction = 'down', m
 			<div
 				onClick={() => !disabled && setIsOpen(o => !o)}
 				className={variant === 'filter'
-					? `flex items-center justify-between gap-2 px-3 py-2 bg-[#eceef0] dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all outline-none focus:outline-none focus:ring-0 ${widthClass} ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer'} ${isOpen ? 'bg-white dark:bg-slate-900 shadow-sm' : ''}`
-					: `flex items-center justify-between ${widthClass} px-3 py-2 text-sm rounded-xl border-none transition-all bg-slate-50 dark:bg-slate-800 font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/20' : ''} ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : 'cursor-pointer'}`
+					? `flex items-center justify-between gap-2 px-3 py-2 bg-[#eceef0] dark:bg-slate-800 border border-transparent rounded-lg text-sm transition-all outline-none focus:outline-none focus:ring-0 ${widthClass} ${isOpen ? 'bg-white dark:bg-slate-900 shadow-sm' : ''} ${disabled ? 'opacity-50 cursor-not-allowed hover:bg-[#eceef0] dark:hover:bg-slate-800' : 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700'}`
+					: `flex items-center justify-between ${widthClass} h-11 px-3 text-sm rounded-xl border-none transition-all bg-slate-50 dark:bg-slate-800 font-medium outline-none focus:outline-none focus:ring-0 ${error ? 'ring-2 ring-red-500/20' : ''} ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : 'cursor-pointer'}`
 				}
 			>
 				<div className="flex items-center gap-2 truncate">
