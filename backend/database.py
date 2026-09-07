@@ -232,14 +232,14 @@ def init_db():
                         email      TEXT UNIQUE NOT NULL,
                         password   TEXT NOT NULL,
                         access     TEXT DEFAULT 'View',
-                        support_type TEXT DEFAULT 'IT Support,Admin Support',
+                        support_type TEXT DEFAULT 'IT Support,Admin Support,HR Support',
                         created_at TIMESTAMPTZ DEFAULT NOW()
                     );
                 """)
                 # Add access column to existing table if missing
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS access TEXT DEFAULT 'View';")
                 # Add support_type column to existing table if missing
-                cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS support_type TEXT DEFAULT 'IT Support,Admin Support';")
+                cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS support_type TEXT DEFAULT 'IT Support,Admin Support,HR Support';")
                 # Add allowed_menus column to existing table if missing
                 cur.execute("ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS allowed_menus TEXT DEFAULT '';")
                 # Add is_first_login column
@@ -275,7 +275,7 @@ def init_db():
                 if cur.fetchone()[0] == 0:
                     cur.execute(
                         "INSERT INTO admin_users (name, email, password, access, support_type, branch, allowed_menus, role) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                        ("Admin User", "admin@support.com", "Admin@123", "View,Edit,Export", "IT Support,Admin Support", "All", "", "Super admin")
+                        ("Admin User", "admin@support.com", "Admin@123", "View,Edit,Export", "IT Support,Admin Support,HR Support", "All", "", "Super admin")
                     )
                 # Using unconditional REPLACE (safe — REPLACE is a no-op when the substring is absent)
                 for tbl in ['tickets', 'admin_users', 'assets', 'admin_assets', 'pettycash']:
@@ -306,14 +306,14 @@ def init_db():
                     CREATE TABLE IF NOT EXISTS assignees (
                         id           SERIAL PRIMARY KEY,
                         name         TEXT NOT NULL,
-                        support_type TEXT NOT NULL DEFAULT 'IT Support,Admin Support',
+                        support_type TEXT NOT NULL DEFAULT 'IT Support,Admin Support,HR Support',
                         is_delete    BOOLEAN DEFAULT FALSE,
                         created_at   TIMESTAMPTZ DEFAULT NOW()
                     );
                 """)
                 cur.execute("ALTER TABLE assignees ADD COLUMN IF NOT EXISTS is_delete BOOLEAN DEFAULT FALSE;")
                 cur.execute("ALTER TABLE assignees ADD COLUMN IF NOT EXISTS name TEXT;")
-                cur.execute("ALTER TABLE assignees ADD COLUMN IF NOT EXISTS support_type TEXT NOT NULL DEFAULT 'IT Support,Admin Support';")
+                cur.execute("ALTER TABLE assignees ADD COLUMN IF NOT EXISTS support_type TEXT NOT NULL DEFAULT 'IT Support,Admin Support,HR Support';")
                 cur.execute("ALTER TABLE assignees ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();")
         conn.close()
         print("DEBUG: assignees table ready.")
@@ -349,7 +349,7 @@ def init_db():
                         ("Visual Merchandising", "Admin Support"),
                         ("BIU", "Admin Support"),
                         ("Merchandising", "Admin Support"),
-                        ("HR", "Admin Support"),
+                        ("HR", "HR Support"),
                         ("Admin & IT", "IT Support,Admin Support"),
                         ("Accounts", "Admin Support"),
                         ("Documentation", "Admin Support"),

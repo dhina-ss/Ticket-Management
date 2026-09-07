@@ -629,7 +629,7 @@ def create_user():
         email = data.get("email", "").strip()
         password = data.get("password", "").strip()
         access = data.get("access", "View").strip()
-        support_type = data.get("support_type", "IT Support,Admin Support").strip()
+        support_type = data.get("support_type", "IT Support,Admin Support,HR Support").strip()
         can_receive_mail = data.get("can_receive_mail", False)
         can_send_mail = data.get("can_send_mail", False)
         receiver_position = data.get("receiver_position", "").strip() or None
@@ -669,7 +669,7 @@ def edit_user(user_id):
         email = data.get("email", "").strip()
         password = data.get("password", "").strip()
         access = data.get("access", "View").strip()
-        support_type = data.get("support_type", "IT Support,Admin Support").strip()
+        support_type = data.get("support_type", "IT Support,Admin Support,HR Support").strip()
         can_receive_mail = data.get("can_receive_mail", False)
         can_send_mail = data.get("can_send_mail", False)
         receiver_position = data.get("receiver_position", "").strip() or None

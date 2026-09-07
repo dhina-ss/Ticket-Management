@@ -232,7 +232,8 @@ const TicketForm = () => {
                                         placeholder="Select support type"
                                         options={[
                                             { value: 'IT Support', label: 'IT Support' },
-                                            { value: 'Admin Support', label: 'Admin Support' }
+                                            { value: 'Admin Support', label: 'Admin Support' },
+                                            { value: 'HR Support', label: 'HR Support' }
                                         ]}
                                         value={formData.supportType}
                                         onChange={(val) => setFormData(prev => ({ ...prev, supportType: val, category: '', subCategory: '', mode: '', department: '' }))}

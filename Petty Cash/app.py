@@ -966,42 +966,111 @@ def init_db():
     with app.app_context():
         db.create_all()
 
-        # Add new columns if they don't exist (SQLite migration)
         inspector = sa_inspect(db.engine)
-        existing_cols = [c['name'] for c in inspector.get_columns('expenses')]
-        with db.engine.connect() as conn:
-            if 'subcategory' not in existing_cols:
-                conn.execute(text("ALTER TABLE expenses ADD COLUMN subcategory VARCHAR(100) DEFAULT ''"))
-                conn.commit()
-            if 'sub_remarks' not in existing_cols:
-                conn.execute(text("ALTER TABLE expenses ADD COLUMN sub_remarks VARCHAR(500) DEFAULT ''"))
-                conn.commit()
+        table_names = inspector.get_table_names()
 
-        # Rename old category values to new names
+        # 1. Ensure all columns exist for 'users' table
+        if 'users' in table_names:
+            user_cols = [c['name'] for c in inspector.get_columns('users')]
+            user_cols_to_add = {
+                'username': "VARCHAR(80) DEFAULT ''",
+                'full_name': "VARCHAR(120) DEFAULT ''",
+                'password_hash': "VARCHAR(256) DEFAULT ''",
+                'role': "VARCHAR(20) DEFAULT 'staff'",
+                'department': "VARCHAR(100) DEFAULT ''",
+                'is_active': "BOOLEAN DEFAULT TRUE",
+                'created_at': "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                'last_login': "TIMESTAMP"
+            }
+            with db.engine.connect() as conn:
+                for col_name, col_def in user_cols_to_add.items():
+                    if col_name not in user_cols:
+                        try:
+                            conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}"))
+                            conn.commit()
+                        except Exception as e:
+                            print(f"DEBUG: users table migration note for {col_name}: {e}")
+
+        # 2. Ensure all columns exist for 'expenses' table
+        if 'expenses' in table_names:
+            expense_cols = [c['name'] for c in inspector.get_columns('expenses')]
+            expense_cols_to_add = {
+                'date': "DATE DEFAULT CURRENT_DATE",
+                'category': "VARCHAR(100) DEFAULT ''",
+                'subcategory': "VARCHAR(100) DEFAULT ''",
+                'sub_remarks': "VARCHAR(500) DEFAULT ''",
+                'amount': "DOUBLE PRECISION DEFAULT 0",
+                'description': "VARCHAR(500) DEFAULT ''",
+                'submitted_by_id': "INTEGER",
+                'status': "VARCHAR(20) DEFAULT 'pending'",
+                'approved_by_id': "INTEGER",
+                'approved_at': "TIMESTAMP",
+                'manager_notes': "VARCHAR(500) DEFAULT ''",
+                'created_at': "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            }
+            with db.engine.connect() as conn:
+                for col_name, col_def in expense_cols_to_add.items():
+                    if col_name not in expense_cols:
+                        try:
+                            conn.execute(text(f"ALTER TABLE expenses ADD COLUMN {col_name} {col_def}"))
+                            conn.commit()
+                        except Exception as e:
+                            print(f"DEBUG: expenses table migration note for {col_name}: {e}")
+
+        # 3. Ensure all columns exist for 'day_ledger' table
+        if 'day_ledger' in table_names:
+            ledger_cols = [c['name'] for c in inspector.get_columns('day_ledger')]
+            ledger_cols_to_add = {
+                'date': "DATE",
+                'opening_balance': "DOUBLE PRECISION DEFAULT 0",
+                'added_cash': "DOUBLE PRECISION DEFAULT 0",
+                'total_expenses': "DOUBLE PRECISION DEFAULT 0",
+                'closing_balance': "DOUBLE PRECISION DEFAULT 0",
+                'notes': "VARCHAR(500) DEFAULT ''",
+                'is_closed': "BOOLEAN DEFAULT FALSE",
+                'closed_by_id': "INTEGER",
+                'closed_at': "TIMESTAMP"
+            }
+            with db.engine.connect() as conn:
+                for col_name, col_def in ledger_cols_to_add.items():
+                    if col_name not in ledger_cols:
+                        try:
+                            conn.execute(text(f"ALTER TABLE day_ledger ADD COLUMN {col_name} {col_def}"))
+                            conn.commit()
+                        except Exception as e:
+                            print(f"DEBUG: day_ledger table migration note for {col_name}: {e}")
+
+        # 4. Rename old category values to new names
         with db.engine.connect() as conn:
             for old_name, new_name in _CATEGORY_RENAMES.items():
-                conn.execute(
-                    text("UPDATE expenses SET category = :new WHERE category = :old"),
-                    {'new': new_name, 'old': old_name}
-                )
-            conn.commit()
+                try:
+                    conn.execute(
+                        text("UPDATE expenses SET category = :new WHERE category = :old"),
+                        {'new': new_name, 'old': old_name}
+                    )
+                    conn.commit()
+                except Exception as e:
+                    print(f"DEBUG: Category update note: {e}")
 
-        if not User.query.first():
-            defaults = [
-                ('admin', 'System Administrator', 'admin', 'Administration', 'admin123'),
-                ('manager', 'Accounts Manager', 'manager', 'Accounts', 'manager123'),
-                ('cashier', 'Petty Cashier', 'staff', 'Operations', 'cash123'),
-            ]
-            for username, full_name, role, dept, pw in defaults:
-                u = User(username=username, full_name=full_name,
-                         role=role, department=dept)
-                u.set_password(pw)
-                db.session.add(u)
-            db.session.commit()
-            print("\n[OK] Default accounts created:")
-            print("  admin / admin123  (Administrator)")
-            print("  manager / manager123  (Manager)")
-            print("  cashier / cash123  (Staff)\n")
+        try:
+            if not User.query.first():
+                defaults = [
+                    ('admin', 'System Administrator', 'admin', 'Administration', 'admin123'),
+                    ('manager', 'Accounts Manager', 'manager', 'Accounts', 'manager123'),
+                    ('cashier', 'Petty Cashier', 'staff', 'Operations', 'cash123'),
+                ]
+                for username, full_name, role, dept, pw in defaults:
+                    u = User(username=username, full_name=full_name,
+                             role=role, department=dept)
+                    u.set_password(pw)
+                    db.session.add(u)
+                db.session.commit()
+                print("\n[OK] Default accounts created:")
+                print("  admin / admin123  (Administrator)")
+                print("  manager / manager123  (Manager)")
+                print("  cashier / cash123  (Staff)\n")
+        except Exception as e:
+            print(f"DEBUG: Default user creation note: {e}")
 
 
 if __name__ == '__main__':

@@ -51,10 +51,11 @@ const accessBadgeColor = (perm) => {
 const supportBadgeColor = (type) => {
     if (type === 'IT Support') return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300';
     if (type === 'Admin Support') return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
+    if (type === 'HR Support') return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300';
     return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300';
 };
 
-const SUPPORT_TYPE_OPTIONS = ['IT Support', 'Admin Support'];
+const SUPPORT_TYPE_OPTIONS = ['IT Support', 'Admin Support', 'HR Support'];
 
 const MENU_OPTIONS = ['Tickets', 'IT Assets', 'Admin Assets', 'Courier', 'Petty Cash', 'Users', 'Settings'];
 
@@ -260,7 +261,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
     const [newUser, setNewUser] = useState({
         name: '', email: '', password: '',
         access: ['View'],
-        support_type: ['IT Support', 'Admin Support'],
+        support_type: ['IT Support', 'Admin Support', 'HR Support'],
         allowed_menus: [],
         branch: ['All'],
         courier_users: [],
@@ -383,7 +384,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
         setNewUser({
             name: '', email: '', password: '',
             access: ['View'],
-            support_type: ['IT Support', 'Admin Support'],
+            support_type: ['IT Support', 'Admin Support', 'HR Support'],
             allowed_menus: [],
             branch: ['All'],
             courier_users: [],
@@ -411,7 +412,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
             email: user.email,
             password: '', // Leave blank to not change
             access: (user.access || 'View').split(',').map(s => s.trim()),
-            support_type: (user.support_type || 'IT Support,Admin Support').split(',').map(s => s.trim()),
+            support_type: (user.support_type || 'IT Support,Admin Support,HR Support').split(',').map(s => s.trim()),
             allowed_menus: (user.allowed_menus || '').split(',').map(s => s.trim()).filter(Boolean),
             courier_users: mappedCourierUsers,
             department: user.department || '',
@@ -906,7 +907,7 @@ const UsersView = ({ allUsers = [], users, setUsers, usersLoading, showAddUser, 
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex gap-1.5 flex-wrap">
-                                            {(user.support_type || 'IT Support,Admin Support').split(',').map(p => (
+                                            {(user.support_type || 'IT Support,Admin Support,HR Support').split(',').map(p => (
                                                 <span key={p} className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${supportBadgeColor(p.trim())}`}>
                                                     {p.trim()}
                                                 </span>
@@ -2877,8 +2878,8 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
                                                     <div className="text-xs text-slate-400">Added {formatCreatedAt(a.created_at)}</div>
                                                 </td>
                                                 <td className={`px-6 py-4 ${hasEditPermission ? 'w-[25%]' : 'w-[30%]'}`}>
-                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${a.support_type === 'IT Support' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : a.support_type === 'Admin Support' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300'}`}>
-                                                        {a.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : a.support_type}
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${a.support_type === 'IT Support' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : a.support_type === 'Admin Support' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300' : a.support_type === 'HR Support' ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300'}`}>
+                                                        {a.support_type === 'IT Support,Admin Support,HR Support' ? 'All Support Types' : a.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : a.support_type}
                                                     </span>
                                                 </td>
                                                 {hasEditPermission && (
@@ -2982,7 +2983,7 @@ const AssigneesView = ({ assignees, setAssignees, assigneesLoading, isExpanded, 
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Support Type</label>
                                 <MultiSelectFormDropdown
                                     label="Support Type"
-                                    options={['IT Support', 'Admin Support', 'Courier']}
+                                    options={['IT Support', 'Admin Support', 'HR Support', 'Courier']}
                                     selected={supportType}
                                     onChange={toggleSupportType}
                                 />
@@ -3382,7 +3383,7 @@ const PRESET_GIFS = [
     }
 ];
 
-const SUPPORT_TYPES = ['IT Support', 'Admin Support'];
+const SUPPORT_TYPES = ['IT Support', 'Admin Support', 'HR Support'];
 
 const GifPickerModal = ({ value, onSelect, onClose, title }) => {
     const [tab, setTab] = useState('preset'); // 'preset' | 'url'
@@ -4322,6 +4323,8 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
                                                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
                                                     c.support_type === 'IT Support' 
                                                     ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' 
+                                                    : c.support_type === 'HR Support'
+                                                    ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-300'
                                                     : c.support_type === 'Petty Cash'
                                                     ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300'
                                                     : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'
@@ -4429,7 +4432,7 @@ const CategoriesView = ({ categories, setCategories, categoriesLoading, isExpand
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Support Type</label>
                                 <MultiSelectFormDropdown
                                     label="Support Type"
-                                    options={['IT Support', 'Admin Support', 'Petty Cash', 'Courier']}
+                                    options={['IT Support', 'Admin Support', 'HR Support', 'Petty Cash', 'Courier']}
                                     selected={supportType}
                                     onChange={toggleSupportType}
                                 />
@@ -4621,8 +4624,8 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
                                                 <div className="text-xs text-slate-400">Added {formatCreatedAt(d.created_at)}</div>
                                             </td>
                                             <td className={`px-6 py-4 ${hasEditPermission ? 'w-[25%]' : 'w-[30%]'}`}>
-                                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${d.support_type?.includes('IT Support') ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'}`}>
-                                                    {d.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : d.support_type}
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${d.support_type?.includes('IT Support') ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300' : d.support_type?.includes('HR Support') ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-300' : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300'}`}>
+                                                    {d.support_type === 'IT Support,Admin Support,HR Support' ? 'All Support Types' : d.support_type === 'IT Support,Admin Support' ? 'Both (IT & Admin)' : d.support_type}
                                                 </span>
                                             </td>
                                             {hasEditPermission && (
@@ -4703,7 +4706,7 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Support Type</label>
                                 <MultiSelectFormDropdown
                                     label="Support Type"
-                                    options={['IT Support', 'Admin Support', 'Courier']}
+                                    options={['IT Support', 'Admin Support', 'HR Support', 'Courier']}
                                     selected={supportType}
                                     onChange={toggleSupportType}
                                 />
@@ -7720,7 +7723,7 @@ const AdminDashboard = () => {
                                             </div>
                                         </div>
                                         {/* Request Approval section — allowed if user has send mail access, or for specific request types */}
-                                        {(user?.can_send_mail || isSuperAdmin || selectedTicket.category === 'Material request' || selectedTicket.supportType?.includes('Admin Support') || selectedTicket.supportType?.includes('IT Support')) && (
+                                        {(user?.can_send_mail || isSuperAdmin || selectedTicket.category === 'Material request' || selectedTicket.supportType?.includes('Admin Support') || selectedTicket.supportType?.includes('IT Support') || selectedTicket.supportType?.includes('HR Support')) && (
                                             <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                                                 {/* Toggle button — disabled until status & assignee chosen */}
                                                 {/* Compute whether all members have responded */}
