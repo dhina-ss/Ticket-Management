@@ -4725,7 +4725,7 @@ const DepartmentsView = ({ departments, setDepartments, departmentsLoading, isEx
     );
 };
 
-const MultiSelectFilter = ({ label, icon, options, selected, onChange, widthClass = '' }) => {
+const MultiSelectFilter = ({ label, icon, options = [], selected = ['All'], onChange, widthClass = '' }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -4739,24 +4739,27 @@ const MultiSelectFilter = ({ label, icon, options, selected, onChange, widthClas
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const safeSelected = Array.isArray(selected) ? selected : (selected ? [selected] : ['All']);
+    const cleanOptions = Array.from(new Set(options || []));
+
     const toggleOption = (option) => {
         if (option === 'All') {
             onChange(['All']);
         } else {
-            let next = selected.includes(option)
-                ? selected.filter(o => o !== option)
-                : [...selected.filter(o => o !== 'All'), option];
+            let next = safeSelected.includes(option)
+                ? safeSelected.filter(o => o !== option)
+                : [...safeSelected.filter(o => o !== 'All'), option];
             if (next.length === 0) next = ['All'];
             onChange(next);
         }
     };
 
-    const isSelected = (option) => selected.includes(option);
+    const isSelected = (option) => safeSelected.includes(option);
 
     const getDisplayValue = () => {
-        if (selected.includes('All')) return `All ${label}`;
-        if (selected.length === 1) return selected[0];
-        return `${selected.length} Selected`;
+        if (safeSelected.includes('All')) return `All ${label}`;
+        if (safeSelected.length === 1) return safeSelected[0];
+        return `${safeSelected.length} Selected`;
     };
 
     return (
@@ -4767,7 +4770,7 @@ const MultiSelectFilter = ({ label, icon, options, selected, onChange, widthClas
             >
                 <div className="flex items-center gap-2 truncate">
                     {icon && <span className="material-symbols-outlined text-slate-400 text-lg">{icon}</span>}
-                    <span className={`truncate max-w-[120px] font-medium ${selected.includes('All') ? 'text-slate-500 dark:text-slate-400' : 'text-primary'}`}>
+                    <span className={`truncate max-w-[130px] font-medium ${safeSelected.includes('All') ? 'text-slate-500 dark:text-slate-400' : 'text-primary'}`}>
                         {getDisplayValue()}
                     </span>
                 </div>
@@ -4777,7 +4780,7 @@ const MultiSelectFilter = ({ label, icon, options, selected, onChange, widthClas
             {isOpen && (
                 <div className="absolute top-full left-0 mt-2 min-w-full w-max max-w-[360px] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[60] py-2 overflow-hidden animate-in fade-in zoom-in duration-150">
                     <div className="max-h-72 overflow-y-auto custom-scrollbar">
-                        {options.map((option) => (
+                        {cleanOptions.map((option) => (
                             <label
                                 key={option}
                                 className={`flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer group ${isSelected(option) ? 'bg-primary/5' : ''}`}
@@ -4797,7 +4800,7 @@ const MultiSelectFilter = ({ label, icon, options, selected, onChange, widthClas
                             </label>
                         ))}
                     </div>
-                    {selected.length > 0 && !selected.includes('All') && (
+                    {safeSelected.length > 0 && !safeSelected.includes('All') && (
                         <div className="border-t border-slate-100 dark:border-slate-800 mt-1 pt-1 px-2">
                             <button
                                 onClick={() => onChange(['All'])}
@@ -4889,6 +4892,18 @@ const AdminDashboard = () => {
     const [assetsLoading, setAssetsLoading] = useState(false);
     const [totalServerItems, setTotalServerItems] = useState(0);
     const [totalServerPages, setTotalServerPages] = useState(1);
+    const [adminAssetFilterOptions, setAdminAssetFilterOptions] = useState({
+        types: [],
+        departments: [],
+        branches: [],
+        statuses: []
+    });
+    const [itAssetFilterOptions, setItAssetFilterOptions] = useState({
+        categories: [],
+        departments: [],
+        branches: [],
+        conditions: []
+    });
 
     const [searchParams, setSearchParams] = useSearchParams();
     const urlPage = parseInt(searchParams.get('page') || searchParams.get('offset') || '1', 10);
@@ -5413,17 +5428,17 @@ const AdminDashboard = () => {
 
             if (search) params.append('search', search);
 
-            const catVal = (catF || []).join(',');
+            const catVal = (catF || []).join('|');
             if (catVal && !catVal.toLowerCase().includes('all')) {
                 params.append(view === 'admin_assets' ? 'type' : 'category', catVal);
             }
-            const bVal = (bF || []).join(',');
+            const bVal = (bF || []).join('|');
             if (bVal && !bVal.toLowerCase().includes('all')) params.append('branch', bVal);
 
-            const dVal = (dF || []).join(',');
+            const dVal = (dF || []).join('|');
             if (dVal && !dVal.toLowerCase().includes('all')) params.append('department', dVal);
 
-            const condVal = (condF || []).join(',');
+            const condVal = (condF || []).join('|');
             if (condVal && !condVal.toLowerCase().includes('all')) {
                 params.append(view === 'admin_assets' ? 'status' : 'condition', condVal);
             }
@@ -5434,6 +5449,23 @@ const AdminDashboard = () => {
                 setAssets(response.data.data);
                 setTotalServerItems(response.data.total);
                 setTotalServerPages(response.data.totalPages || 1);
+                if (response.data.filter_options) {
+                    if (view === 'admin_assets') {
+                        setAdminAssetFilterOptions(prev => ({
+                            types: Array.from(new Set([...(prev.types || []), ...(response.data.filter_options.types || [])])),
+                            departments: Array.from(new Set([...(prev.departments || []), ...(response.data.filter_options.departments || [])])),
+                            branches: Array.from(new Set([...(prev.branches || []), ...(response.data.filter_options.branches || [])])),
+                            statuses: Array.from(new Set([...(prev.statuses || []), ...(response.data.filter_options.statuses || [])]))
+                        }));
+                    } else {
+                        setItAssetFilterOptions(prev => ({
+                            categories: Array.from(new Set([...(prev.categories || []), ...(response.data.filter_options.categories || [])])),
+                            departments: Array.from(new Set([...(prev.departments || []), ...(response.data.filter_options.departments || [])])),
+                            branches: Array.from(new Set([...(prev.branches || []), ...(response.data.filter_options.branches || [])])),
+                            conditions: Array.from(new Set([...(prev.conditions || []), ...(response.data.filter_options.conditions || [])]))
+                        }));
+                    }
+                }
             } else if (Array.isArray(response.data)) {
                 setAssets(response.data);
                 setTotalServerItems(response.data.length);
@@ -5462,6 +5494,10 @@ const AdminDashboard = () => {
             fetchAssets(activeView, assetCurrentPage, ITEMS_PER_PAGE, assetSearchQuery, assetCategoryFilter, assetBranchFilter, assetDepartmentFilter, assetConditionFilter);
         }
     }, [assetCurrentPage, activeView, assetSearchQuery, assetCategoryFilter, assetBranchFilter, assetDepartmentFilter, assetConditionFilter]);
+
+    useEffect(() => {
+        setAssetCurrentPage(1);
+    }, [assetCategoryFilter, assetBranchFilter, assetDepartmentFilter, assetConditionFilter, assetSearchQuery]);
 
     useEffect(() => {
         if (user) {
@@ -6129,7 +6165,15 @@ const AdminDashboard = () => {
     };
 
     const filteredTickets = baseFilteredTickets
-        .filter(ticket => statusFilter.includes('All') || statusFilter.includes(ticket.status))
+        .filter(ticket => {
+            if (statusFilter.includes('All')) return true;
+            const tStatus = (ticket.status || '').toLowerCase().trim();
+            return statusFilter.some(sf => {
+                const sfLower = sf.toLowerCase().trim();
+                if (sfLower === 'completed' && (tStatus === 'completed' || tStatus === 'resolved')) return true;
+                return sfLower === tStatus;
+            });
+        })
         .filter(ticket => mailApprovalFilter.includes('All') || mailApprovalFilter.includes(getMailApprovalStatus(ticket)));
 
     // Calculate Summary Stats based on current base filters (date, search, etc.)
@@ -6165,10 +6209,87 @@ const AdminDashboard = () => {
     const uniqueDepartments = ['All', ...new Set(tickets.map(t => t.department).filter(Boolean))];
     const uniqueCategories = ['All', ...new Set(tickets.map(t => t.category).filter(Boolean))];
     const uniqueAssignees = ['All', ...new Set(tickets.map(t => t.assignee).filter(Boolean))];
-    const uniqueAssetBranches = ['All', ...new Set([...currentBranchList, ...(assets || []).map(a => a.branch).filter(Boolean)])];
-    const uniqueAssetDepartments = ['All', ...new Set((assets || []).map(a => a.department).filter(Boolean).sort((a, b) => a.localeCompare(b)))];
-    const uniqueAssetTypes = ['All', ...new Set((assets || []).map(a => activeView === 'admin_assets' ? a.type : a.category).filter(Boolean).sort((a, b) => a.localeCompare(b)))];
-    const uniqueAssetConditions = ['All', ...new Set((assets || []).map(a => activeView === 'admin_assets' ? a.status : a.condition).filter(Boolean).sort((a, b) => a.localeCompare(b)))];
+    useEffect(() => {
+        if (assets && assets.length > 0) {
+            if (activeView === 'admin_assets') {
+                const types = assets.map(a => a.type).filter(Boolean);
+                const depts = assets.map(a => a.department).filter(Boolean);
+                const branches = assets.map(a => a.branch).filter(Boolean);
+                const statuses = assets.map(a => a.status).filter(Boolean);
+                if (types.length > 0 || depts.length > 0 || branches.length > 0 || statuses.length > 0) {
+                    setAdminAssetFilterOptions(prev => ({
+                        types: Array.from(new Set([...(prev.types || []), ...types])),
+                        departments: Array.from(new Set([...(prev.departments || []), ...depts])),
+                        branches: Array.from(new Set([...(prev.branches || []), ...branches])),
+                        statuses: Array.from(new Set([...(prev.statuses || []), ...statuses]))
+                    }));
+                }
+            } else if (activeView === 'assets') {
+                const cats = assets.map(a => a.category).filter(Boolean);
+                const depts = assets.map(a => a.department).filter(Boolean);
+                const branches = assets.map(a => a.branch).filter(Boolean);
+                const conds = assets.map(a => a.condition).filter(Boolean);
+                if (cats.length > 0 || depts.length > 0 || branches.length > 0 || conds.length > 0) {
+                    setItAssetFilterOptions(prev => ({
+                        categories: Array.from(new Set([...(prev.categories || []), ...cats])),
+                        departments: Array.from(new Set([...(prev.departments || []), ...depts])),
+                        branches: Array.from(new Set([...(prev.branches || []), ...branches])),
+                        conditions: Array.from(new Set([...(prev.conditions || []), ...conds]))
+                    }));
+                }
+            }
+        }
+    }, [assets, activeView]);
+
+    const uniqueAssetBranches = useMemo(() => {
+        const backendOpts = activeView === 'admin_assets' ? adminAssetFilterOptions.branches : itAssetFilterOptions.branches;
+        const set = new Set([
+            ...currentBranchList,
+            ...(backendOpts || []),
+            ...(assets || []).map(a => a.branch).filter(Boolean),
+            ...assetBranchFilter.filter(b => b && b !== 'All')
+        ]);
+        const cleanBranches = Array.from(set).filter(b => Boolean(b) && b !== 'All');
+        return ['All', ...cleanBranches.sort((a, b) => a.localeCompare(b))];
+    }, [activeView, currentBranchList, adminAssetFilterOptions.branches, itAssetFilterOptions.branches, assets, assetBranchFilter]);
+
+    const uniqueAssetDepartments = useMemo(() => {
+        const backendOpts = activeView === 'admin_assets' ? adminAssetFilterOptions.departments : itAssetFilterOptions.departments;
+        const set = new Set([
+            ...(departments || []).map(d => d.name).filter(Boolean),
+            ...(backendOpts || []),
+            ...(assets || []).map(a => a.department).filter(Boolean),
+            ...assetDepartmentFilter.filter(d => d && d !== 'All')
+        ]);
+        const cleanDepts = Array.from(set).filter(d => Boolean(d) && d !== 'All');
+        return ['All', ...cleanDepts.sort((a, b) => a.localeCompare(b))];
+    }, [activeView, departments, adminAssetFilterOptions.departments, itAssetFilterOptions.departments, assets, assetDepartmentFilter]);
+
+    const uniqueAssetTypes = useMemo(() => {
+        const backendOpts = activeView === 'admin_assets' ? adminAssetFilterOptions.types : itAssetFilterOptions.categories;
+        const set = new Set([
+            ...(backendOpts || []),
+            ...(assets || []).map(a => activeView === 'admin_assets' ? a.type : a.category).filter(Boolean),
+            ...assetCategoryFilter.filter(t => t && t !== 'All')
+        ]);
+        const cleanTypes = Array.from(set).filter(t => Boolean(t) && t !== 'All');
+        return ['All', ...cleanTypes.sort((a, b) => a.localeCompare(b))];
+    }, [activeView, adminAssetFilterOptions.types, itAssetFilterOptions.categories, assets, assetCategoryFilter]);
+
+    const uniqueAssetConditions = useMemo(() => {
+        const defaultAdminStatuses = ['Active', 'In Stock', 'Under Maintenance', 'Scrap'];
+        const defaultItConditions = ['Good', 'Fair', 'Poor', 'Damaged', 'Scrap'];
+        const defaults = activeView === 'admin_assets' ? defaultAdminStatuses : defaultItConditions;
+        const backendOpts = activeView === 'admin_assets' ? adminAssetFilterOptions.statuses : itAssetFilterOptions.conditions;
+        const set = new Set([
+            ...defaults,
+            ...(backendOpts || []),
+            ...(assets || []).map(a => activeView === 'admin_assets' ? a.status : a.condition).filter(Boolean),
+            ...assetConditionFilter.filter(c => c && c !== 'All')
+        ]);
+        const cleanConds = Array.from(set).filter(c => Boolean(c) && c !== 'All');
+        return ['All', ...cleanConds.sort((a, b) => a.localeCompare(b))];
+    }, [activeView, adminAssetFilterOptions.statuses, itAssetFilterOptions.conditions, assets, assetConditionFilter]);
 
     if (isMobile) {
         return (
@@ -6492,7 +6613,7 @@ const AdminDashboard = () => {
                                     options={uniqueAssetTypes}
                                     selected={assetCategoryFilter}
                                     onChange={setAssetCategoryFilter}
-                                    widthClass="w-38"
+                                    widthClass="min-w-[140px]"
                                 />
                                 <MultiSelectFilter
                                     label="Branch"
@@ -6500,7 +6621,7 @@ const AdminDashboard = () => {
                                     options={uniqueAssetBranches}
                                     selected={assetBranchFilter}
                                     onChange={setAssetBranchFilter}
-                                    widthClass="w-38"
+                                    widthClass="min-w-[140px]"
                                 />
                                 <MultiSelectFilter
                                     label="Dept"
@@ -6508,7 +6629,7 @@ const AdminDashboard = () => {
                                     options={uniqueAssetDepartments}
                                     selected={assetDepartmentFilter}
                                     onChange={setAssetDepartmentFilter}
-                                    widthClass="w-38"
+                                    widthClass="min-w-[140px]"
                                 />
                                 <MultiSelectFilter
                                     label={activeView === 'admin_assets' ? 'Status' : 'Condition'}
@@ -6516,7 +6637,7 @@ const AdminDashboard = () => {
                                     options={uniqueAssetConditions}
                                     selected={assetConditionFilter}
                                     onChange={setAssetConditionFilter}
-                                    widthClass="w-38"
+                                    widthClass="min-w-[140px]"
                                 />
                                 <div className="relative flex items-center gap-2">
                                     <button

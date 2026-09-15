@@ -56,6 +56,34 @@ def get_cached_manager_name():
         _MANAGER_NAME_CACHE = "Manager"
     return _MANAGER_NAME_CACHE
 
+def _parse_filter_list(param_val: str, is_branch: bool = False) -> list[str]:
+    if not param_val or str(param_val).strip().lower() == 'all':
+        return []
+    val_str = str(param_val).strip()
+    if '|' in val_str:
+        return [item.strip().lower() for item in val_str.split('|') if item.strip() and item.strip().lower() != 'all']
+    if is_branch:
+        val_lower = val_str.lower()
+        try:
+            bl = get_branches_locations_setting()
+            known_b = [b['name'].strip().lower() for b in bl.get('branches', []) if b.get('name')]
+        except Exception:
+            known_b = []
+        default_known = [
+            'cotton concepts ho, coimbatore',
+            'doctor towels ho',
+            'cotton concepts, vengamedu',
+            'cotton concepts, karur',
+            'doctor towels, karur'
+        ]
+        all_known = list(set(known_b + default_known))
+        if val_lower in all_known:
+            return [val_lower]
+        matched = [kb for kb in all_known if kb in val_lower]
+        if matched:
+            return matched
+    return [item.strip().lower() for item in val_str.split(',') if item.strip() and item.strip().lower() != 'all']
+
 def _row_to_ticket(row: dict) -> dict:
     """Convert a DB row (RealDictRow) to the API-facing dict."""
     attachment_name = row.get("attachment_name") or ""
@@ -970,41 +998,46 @@ def verify_admin_login(email: str, password: str) -> dict | None:
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch, can_receive_mail, can_send_mail, allowed_menus, role, courier_users, department FROM admin_users WHERE email = %s AND password = %s;",
+                "SELECT id, name, email, access, support_type, is_first_login, receiver_position, branch, can_receive_mail, can_send_mail, allowed_menus, role, courier_users, department FROM admin_users WHERE LOWER(TRIM(email)) = LOWER(TRIM(%s)) AND password = %s;",
                 (email, password)
             )
             row = cur.fetchone()
     except Exception:
         row = None
-    conn.close()
+    finally:
+        conn.close()
     if row:
         return dict(row)
     return None
 
 def update_admin_password(user_id: int, new_password: str, security_question: str = None, security_answer: str = None) -> bool:
     conn = _get_conn()
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE admin_users SET password = %s, is_first_login = FALSE, security_question = %s, security_answer = %s WHERE id = %s;",
-                (new_password, security_question, security_answer, user_id)
-            )
-            updated = cur.rowcount > 0
-    conn.close()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE admin_users SET password = %s, is_first_login = FALSE, security_question = %s, security_answer = %s WHERE id = %s;",
+                    (new_password, security_question, security_answer, user_id)
+                )
+                updated = cur.rowcount > 0
+    finally:
+        conn.close()
     return updated
 
 def verify_security_answer(email: str, question: str, answer: str) -> int | None:
     conn = _get_conn()
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id FROM admin_users WHERE email = %s AND security_question = %s AND security_answer = %s;",
-                (email, question, answer)
-            )
-            row = cur.fetchone()
-            if row:
-                return row[0]
-    conn.close()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id FROM admin_users WHERE LOWER(TRIM(email)) = LOWER(TRIM(%s)) AND LOWER(TRIM(security_question)) = LOWER(TRIM(%s)) AND LOWER(TRIM(security_answer)) = LOWER(TRIM(%s));",
+                    (email, question, answer)
+                )
+                row = cur.fetchone()
+                if row:
+                    return row[0]
+    finally:
+        conn.close()
     return None
 
 def reset_admin_password(user_id: int, new_password: str) -> bool:
@@ -1826,8 +1859,8 @@ def get_all_assets(page: int = None, limit: int = 20, page_size: int = None, sea
     import math
     if page_size is not None:
         limit = page_size
+    conn = _get_conn()
     try:
-        conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             where_clauses = []
             params = []
@@ -1838,20 +1871,28 @@ def get_all_assets(page: int = None, limit: int = 20, page_size: int = None, sea
                 params.extend([s_pattern] * 8)
 
             if category and category.lower() != 'all':
-                where_clauses.append("LOWER(category) = %s")
-                params.append(category.strip().lower())
+                categories = _parse_filter_list(category)
+                if categories:
+                    where_clauses.append("LOWER(category) = ANY(%s)")
+                    params.append(categories)
 
             if branch and branch.lower() != 'all':
-                where_clauses.append("LOWER(branch) = %s")
-                params.append(branch.strip().lower())
+                branches = _parse_filter_list(branch, is_branch=True)
+                if branches:
+                    where_clauses.append("LOWER(branch) = ANY(%s)")
+                    params.append(branches)
 
             if department and department.lower() != 'all':
-                where_clauses.append("LOWER(department) = %s")
-                params.append(department.strip().lower())
+                depts = _parse_filter_list(department)
+                if depts:
+                    where_clauses.append("LOWER(department) = ANY(%s)")
+                    params.append(depts)
 
             if condition and condition.lower() != 'all':
-                where_clauses.append("LOWER(condition) = %s")
-                params.append(condition.strip().lower())
+                conditions = _parse_filter_list(condition)
+                if conditions:
+                    where_clauses.append("LOWER(condition) = ANY(%s)")
+                    params.append(conditions)
 
             where_str = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
@@ -1864,7 +1905,20 @@ def get_all_assets(page: int = None, limit: int = 20, page_size: int = None, sea
                 query = f"SELECT {ASSETS_COLUMNS} FROM assets{where_str} ORDER BY created_at DESC LIMIT %s OFFSET %s"
                 cur.execute(query, params + [limit, offset])
                 rows = cur.fetchall()
-                conn.close()
+
+                # Fetch distinct filter options across all IT assets
+                cur.execute('SELECT DISTINCT category FROM assets WHERE category IS NOT NULL AND category != \'\' ORDER BY category;')
+                filter_categories = [r['category'] for r in cur.fetchall()]
+
+                cur.execute('SELECT DISTINCT branch FROM assets WHERE branch IS NOT NULL AND branch != \'\' ORDER BY branch;')
+                filter_branches = [r['branch'] for r in cur.fetchall()]
+
+                cur.execute('SELECT DISTINCT department FROM assets WHERE department IS NOT NULL AND department != \'\' ORDER BY department;')
+                filter_departments = [r['department'] for r in cur.fetchall()]
+
+                cur.execute('SELECT DISTINCT condition FROM assets WHERE condition IS NOT NULL AND condition != \'\' ORDER BY condition;')
+                filter_conditions = [r['condition'] for r in cur.fetchall()]
+
                 items = [_row_to_asset(r) for r in rows]
                 total_pages = math.ceil(total / limit) if limit > 0 else 1
                 return {
@@ -1872,17 +1926,24 @@ def get_all_assets(page: int = None, limit: int = 20, page_size: int = None, sea
                     "total": total,
                     "page": page,
                     "limit": limit,
-                    "totalPages": max(1, total_pages)
+                    "totalPages": max(1, total_pages),
+                    "filter_options": {
+                        "categories": filter_categories,
+                        "branches": filter_branches,
+                        "departments": filter_departments,
+                        "conditions": filter_conditions
+                    }
                 }
             else:
                 query = f"SELECT {ASSETS_COLUMNS} FROM assets{where_str} ORDER BY created_at DESC"
                 cur.execute(query, params)
                 rows = cur.fetchall()
-                conn.close()
                 return [_row_to_asset(r) for r in rows]
     except Exception as e:
         print(f"DEBUG: get_all_assets error: {e}")
-        return {"data": [], "total": 0, "page": 1, "limit": limit, "totalPages": 1} if page is not None else []
+        return {"data": [], "total": 0, "page": 1, "limit": limit, "totalPages": 1, "filter_options": {"categories": [], "branches": [], "departments": [], "conditions": []}} if page is not None else []
+    finally:
+        conn.close()
 
 
 def create_asset(data: dict) -> dict:
@@ -2075,8 +2136,8 @@ def get_all_admin_assets(page: int = None, limit: int = 20, page_size: int = Non
     import math
     if page_size is not None:
         limit = page_size
+    conn = _get_conn()
     try:
-        conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             # Always filter to Admin group only
             where_clauses = ['(LOWER("group") = %s OR "group" IS NULL OR "group" = \'\')']
@@ -2088,20 +2149,28 @@ def get_all_admin_assets(page: int = None, limit: int = 20, page_size: int = Non
                 params.extend([s_pattern] * 7)
 
             if type_val and type_val.lower() != 'all':
-                where_clauses.append("LOWER(type) = %s")
-                params.append(type_val.strip().lower())
+                types = _parse_filter_list(type_val)
+                if types:
+                    where_clauses.append("LOWER(type) = ANY(%s)")
+                    params.append(types)
 
             if branch and branch.lower() != 'all':
-                where_clauses.append("LOWER(branch) = %s")
-                params.append(branch.strip().lower())
+                branches = _parse_filter_list(branch, is_branch=True)
+                if branches:
+                    where_clauses.append("LOWER(branch) = ANY(%s)")
+                    params.append(branches)
 
             if department and department.lower() != 'all':
-                where_clauses.append("LOWER(department) = %s")
-                params.append(department.strip().lower())
+                depts = _parse_filter_list(department)
+                if depts:
+                    where_clauses.append("LOWER(department) = ANY(%s)")
+                    params.append(depts)
 
             if status_val and status_val.lower() != 'all':
-                where_clauses.append("LOWER(status) = %s")
-                params.append(status_val.strip().lower())
+                statuses = _parse_filter_list(status_val)
+                if statuses:
+                    where_clauses.append("LOWER(status) = ANY(%s)")
+                    params.append(statuses)
 
             where_str = " WHERE " + " AND ".join(where_clauses)
 
@@ -2114,7 +2183,20 @@ def get_all_admin_assets(page: int = None, limit: int = 20, page_size: int = Non
                 query = f"SELECT {ADMIN_ASSETS_COLUMNS} FROM admin_assets{where_str} ORDER BY created_at DESC LIMIT %s OFFSET %s"
                 cur.execute(query, params + [limit, offset])
                 rows = cur.fetchall()
-                conn.close()
+
+                # Fetch distinct filter options across all admin assets
+                cur.execute('SELECT DISTINCT type FROM admin_assets WHERE type IS NOT NULL AND type != \'\' AND (LOWER("group") = \'admin\' OR "group" IS NULL OR "group" = \'\') ORDER BY type;')
+                filter_types = [r['type'] for r in cur.fetchall()]
+
+                cur.execute('SELECT DISTINCT branch FROM admin_assets WHERE branch IS NOT NULL AND branch != \'\' AND (LOWER("group") = \'admin\' OR "group" IS NULL OR "group" = \'\') ORDER BY branch;')
+                filter_branches = [r['branch'] for r in cur.fetchall()]
+
+                cur.execute('SELECT DISTINCT department FROM admin_assets WHERE department IS NOT NULL AND department != \'\' AND (LOWER("group") = \'admin\' OR "group" IS NULL OR "group" = \'\') ORDER BY department;')
+                filter_departments = [r['department'] for r in cur.fetchall()]
+
+                cur.execute('SELECT DISTINCT status FROM admin_assets WHERE status IS NOT NULL AND status != \'\' AND (LOWER("group") = \'admin\' OR "group" IS NULL OR "group" = \'\') ORDER BY status;')
+                filter_statuses = [r['status'] for r in cur.fetchall()]
+
                 items = [_row_to_admin_asset(r) for r in rows]
                 total_pages = math.ceil(total / limit) if limit > 0 else 1
                 return {
@@ -2122,17 +2204,24 @@ def get_all_admin_assets(page: int = None, limit: int = 20, page_size: int = Non
                     "total": total,
                     "page": page,
                     "limit": limit,
-                    "totalPages": max(1, total_pages)
+                    "totalPages": max(1, total_pages),
+                    "filter_options": {
+                        "types": filter_types,
+                        "branches": filter_branches,
+                        "departments": filter_departments,
+                        "statuses": filter_statuses
+                    }
                 }
             else:
                 query = f"SELECT {ADMIN_ASSETS_COLUMNS} FROM admin_assets{where_str} ORDER BY created_at DESC"
                 cur.execute(query, params)
                 rows = cur.fetchall()
-                conn.close()
                 return [_row_to_admin_asset(r) for r in rows]
     except Exception as e:
         print(f"DEBUG: get_all_admin_assets error: {e}")
-        return {"data": [], "total": 0, "page": 1, "limit": limit, "totalPages": 1} if page is not None else []
+        return {"data": [], "total": 0, "page": 1, "limit": limit, "totalPages": 1, "filter_options": {"types": [], "branches": [], "departments": [], "statuses": []}} if page is not None else []
+    finally:
+        conn.close()
 
 def create_admin_asset(data: dict) -> dict:
     try:

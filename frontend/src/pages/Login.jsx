@@ -55,7 +55,7 @@ const Login = () => {
         setLoading(true);
         setError('');
         try {
-            const res = await api.post('/api/login', { email, password });
+            const res = await api.post('/api/login', { email: email.trim(), password });
             if (res.status === 200 && res.data.success) {
                 if (res.data.user.is_first_login) {
                     setTempUser(res.data.user);

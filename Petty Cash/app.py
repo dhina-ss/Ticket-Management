@@ -1069,8 +1069,8 @@ def init_db():
                 print("  admin / admin123  (Administrator)")
                 print("  manager / manager123  (Manager)")
                 print("  cashier / cash123  (Staff)\n")
-        except Exception as e:
-            print(f"DEBUG: Default user creation note: {e}")
+        except Exception:
+            db.session.rollback()
 
 
 if __name__ == '__main__':
