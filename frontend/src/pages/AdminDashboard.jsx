@@ -1607,7 +1607,7 @@ const AssetsView = ({
                         <table className="w-full text-left border-collapse table-fixed select-none">
                             <thead>
                                 <tr className="bg-transparent">
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[4%]">
+                                    <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[4%]">
                                         <input
                                             type="checkbox"
                                             onChange={handleSelectAll}
@@ -1615,13 +1615,13 @@ const AssetsView = ({
                                             className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-primary focus:ring-primary cursor-pointer"
                                         />
                                     </th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset ID</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset Type</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[18%]">{activeView === 'admin_assets' ? 'Asset Name' : 'Brand'}</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">{activeView === 'admin_assets' ? 'Department' : 'Serial Number'}</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">{activeView === 'admin_assets' ? 'Location' : 'Emp Code'}</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">{activeView === 'admin_assets' ? 'Assignee' : 'User Name'}</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">{activeView === 'admin_assets' ? 'Status' : 'Condition'}</th>
+                                    <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset ID</th>
+                                    <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset Type</th>
+                                    <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[18%]">{activeView === 'admin_assets' ? 'Asset Name' : 'Brand'}</th>
+                                    <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">{activeView === 'admin_assets' ? 'Department' : 'Serial Number'}</th>
+                                    <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">{activeView === 'admin_assets' ? 'Location' : 'Emp Code'}</th>
+                                    <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">{activeView === 'admin_assets' ? 'Assignee' : 'User Name'}</th>
+                                    <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">{activeView === 'admin_assets' ? 'Status' : 'Condition'}</th>
                                 </tr>
                             </thead>
                         </table>
@@ -1634,13 +1634,13 @@ const AssetsView = ({
                                         <td colSpan="9">
                                             <div className="flex flex-col items-center justify-center py-12">
                                                 <div className="h-10 w-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin mb-2"></div>
-                                                <p className="text-slate-500 text-sm font-medium">Loading assets...</p>
+                                                <p className="text-slate-500 text-[12px] font-medium">Loading assets...</p>
                                             </div>
                                         </td>
                                     </tr>
                                 ) : filteredAssets.length === 0 ? (
                                     <tr>
-                                        <td colSpan="9" className="text-center py-10 text-slate-400 dark:text-slate-500 text-sm">No assets found matching the criteria.</td>
+                                        <td colSpan="9" className="text-center py-10 text-slate-400 dark:text-slate-500 text-[12px]">No assets found matching the criteria.</td>
                                     </tr>
                                 ) : (
                                     pagedAssets.map((asset, idx) => (
@@ -1653,22 +1653,22 @@ const AssetsView = ({
                                                     className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-primary focus:ring-primary cursor-pointer"
                                                 />
                                             </td>
-                                            {/* <td className="px-6 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 w-[4%]">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td> */}
+                                            {/* <td className="px-6 py-4 text-[12px] font-medium text-slate-500 dark:text-slate-400 w-[4%]">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td> */}
                                             <td className="px-6 py-4 w-[12%]">
-                                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{asset.assetId}</span>
+                                                <span className="text-[12px] font-medium text-slate-700 dark:text-slate-300">{asset.assetId}</span>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 w-[12%] truncate" title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.type : normalizeCategory(asset.category)}>{(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.type : normalizeCategory(asset.category)}</td>
+                                            <td className="px-6 py-4 text-[12px] font-medium text-slate-600 dark:text-slate-300 w-[12%] truncate" title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.type : normalizeCategory(asset.category)}>{(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.type : normalizeCategory(asset.category)}</td>
                                             <td className="px-6 py-4 w-[18%]">
-                                                <div className="text-sm font-medium text-slate-900 dark:text-white truncate" title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.assetName : (`${asset.brand || ''} ${asset.model || ''}`.trim() || asset.name)}>
+                                                <div className="text-[12px] font-medium text-slate-900 dark:text-white truncate" title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.assetName : (`${asset.brand || ''} ${asset.model || ''}`.trim() || asset.name)}>
                                                     {(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.assetName : (asset.brand ? `${asset.brand} ${asset.model}` : asset.name)}
                                                 </div>
                                                 <div className="text-[11px] text-slate-400 truncate" title={`${asset.branch}`}>{asset.branch}</div>
                                             </td>
-                                            <td className={`px-6 py-4 text-sm ${(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? 'text-slate-700 dark:text-slate-300' : 'font-mono text-slate-500 dark:text-slate-400'} w-[13%] truncate`} title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? (asset.department || '—') : asset.serial}>
+                                            <td className={`px-6 py-4 font-medium text-[12px] ${(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? 'text-slate-700 dark:text-slate-300' : 'font-mono text-slate-500 dark:text-slate-400'} w-[13%] truncate`} title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? (asset.department || '—') : asset.serial}>
                                                 {(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? (asset.department || '—') : asset.serial}
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[13%] truncate" title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.location : (asset.empCode || '—')}>{(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.location : (asset.empCode || '—')}</td>
-                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[15%] truncate" title={asset.assignee}>{asset.assignee}</td>
+                                            <td className="px-6 py-4 font-medium text-[12px] text-slate-700 dark:text-slate-300 w-[13%] truncate" title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.location : (asset.empCode || '—')}>{(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.location : (asset.empCode || '—')}</td>
+                                            <td className="px-6 py-4 text-[12px] font-medium text-slate-700 dark:text-slate-300 w-[15%] truncate" title={asset.assignee}>{asset.assignee}</td>
                                             <td className="px-6 py-4 w-[13%]">
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'excellent' || ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
                                                     ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'good' || ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'in stock' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
@@ -6606,7 +6606,7 @@ const AdminDashboard = () => {
                                     placeholder="Search asset id, type, brand, username..."
                                     value={assetSearchQuery}
                                     onChange={e => setAssetSearchQuery(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-xs focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
                                 />
                             </div>
                             <div className="flex items-center gap-2">
