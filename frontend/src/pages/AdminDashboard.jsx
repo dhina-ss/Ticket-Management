@@ -1295,6 +1295,7 @@ const AssetsView = ({
                     (a.empCode || '').toLowerCase().includes(searchLower) ||
                     (a.location || '').toLowerCase().includes(searchLower) ||
                     (a.assetName || '').toLowerCase().includes(searchLower) ||
+                    (a.department || '').toLowerCase().includes(searchLower) ||
                     (a.category || '').toLowerCase().includes(searchLower) ||
                     (normalizeCategory(a.category) || '').toLowerCase().includes(searchLower) ||
                     (a.brand || '').toLowerCase().includes(searchLower) ||
@@ -1617,9 +1618,9 @@ const AssetsView = ({
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset ID</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset Type</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[18%]">{activeView === 'admin_assets' ? 'Asset Name' : 'Brand'}</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">Serial Number</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">{activeView === 'admin_assets' ? 'Assignee' : 'User Name'}</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">{activeView === 'admin_assets' ? 'Department' : 'Serial Number'}</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">{activeView === 'admin_assets' ? 'Location' : 'Emp Code'}</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[15%]">{activeView === 'admin_assets' ? 'Assignee' : 'User Name'}</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[13%]">{activeView === 'admin_assets' ? 'Status' : 'Condition'}</th>
                                 </tr>
                             </thead>
@@ -1663,9 +1664,11 @@ const AssetsView = ({
                                                 </div>
                                                 <div className="text-[11px] text-slate-400 truncate" title={`${asset.branch}`}>{asset.branch}</div>
                                             </td>
-                                            <td className="px-6 py-4 text-sm font-mono text-slate-500 dark:text-slate-400 w-[13%] truncate" title={asset.serial}>{asset.serial}</td>
-                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[15%] truncate" title={asset.assignee}>{asset.assignee}</td>
+                                            <td className={`px-6 py-4 text-sm ${(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? 'text-slate-700 dark:text-slate-300' : 'font-mono text-slate-500 dark:text-slate-400'} w-[13%] truncate`} title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? (asset.department || '—') : asset.serial}>
+                                                {(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? (asset.department || '—') : asset.serial}
+                                            </td>
                                             <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[13%] truncate" title={(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.location : (asset.empCode || '—')}>{(activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.location : (asset.empCode || '—')}</td>
+                                            <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 w-[15%] truncate" title={asset.assignee}>{asset.assignee}</td>
                                             <td className="px-6 py-4 w-[13%]">
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'excellent' || ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
                                                     ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'good' || ((activeView === 'admin_assets' || String(asset.group).toLowerCase() === 'admin') ? asset.status : asset.condition)?.toLowerCase() === 'in stock' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
