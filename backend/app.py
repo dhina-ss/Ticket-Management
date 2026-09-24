@@ -1184,29 +1184,34 @@ def get_asset_qr_endpoint(asset_id):
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGBA")
 
-        # 3. Create canvas: 50mm x 30mm label (400 x 240 pixels at 203 DPI / 8 dots per mm)
-        width, height = 400, 240
-        label_img = Image.new("RGBA", (width, height), "white")
+        # 3. Create ultra high-resolution RGB canvas for 50mm x 30mm label (1200 x 720 at ~610 DPI for crisp print quality)
+        scale = 3.0
+        width = int(400 * scale)   # 1200
+        height = int(240 * scale)  # 720
+        # Use solid RGB (pure white) so printers receive a 100% opaque canvas without dithering artifacts
+        label_img = Image.new("RGB", (width, height), (255, 255, 255))
         draw = ImageDraw.Draw(label_img)
 
         # Inset border to create a visible gap between label border and outer canvas edge
-        border_inset = 12
-        border_radius = 12
+        border_inset = int(12 * scale)  # 36
+        border_radius = int(12 * scale) # 36
+        border_width = int(2 * scale)   # 6
         draw.rounded_rectangle(
             [border_inset, border_inset, width - border_inset, height - border_inset],
             radius=border_radius,
             outline="black",
-            width=2
+            width=border_width
         )
+
         # Center QR code vertically on the left side inside border
-        qr_size = 176
+        qr_size = int(176 * scale) # 528
         try:
             resample_filter = Image.Resampling.LANCZOS
         except AttributeError:
             resample_filter = Image.LANCZOS if hasattr(Image, "LANCZOS") else Image.ANTIALIAS
         qr_img_resized = qr_img.resize((qr_size, qr_size), resample_filter)
-        qr_x = border_inset + 8
-        label_img.paste(qr_img_resized, (qr_x, (height - qr_size) // 2), qr_img_resized)
+        qr_x = border_inset + int(8 * scale)
+        label_img.paste(qr_img_resized, (qr_x, (height - qr_size) // 2))
 
         # 4. Brand-based logo select
         logo_filename = "dt.png" if "doctor towels" in branch.lower() else "cc.png"
@@ -1216,24 +1221,25 @@ def get_asset_qr_endpoint(asset_id):
         project_root = os.path.abspath(os.path.join(base_dir, ".."))
         logo_path = os.path.join(project_root, "frontend", "src", "assets", logo_filename)
         
-        # Load logo if it exists (larger dimensions)
+        # Load logo if it exists with high resolution
         logo = None
         if os.path.exists(logo_path):
             logo = Image.open(logo_path).convert("RGBA")
-            # Use appropriate resampling filter depending on Pillow version
             try:
                 resample_filter = Image.Resampling.LANCZOS
             except AttributeError:
                 resample_filter = Image.LANCZOS if hasattr(Image, "LANCZOS") else Image.ANTIALIAS
-            logo.thumbnail((175, 115), resample_filter)
+            logo.thumbnail((int(175 * scale), int(115 * scale)), resample_filter)
         
-        # 5. Load fonts with robust system-agnostic fallbacks (bold for both ID and warning)
+        # 5. Load fonts with robust system-agnostic fallbacks (high-DPI font sizing)
         font_id = None
         font_warn = None
+        font_id_size = int(18 * scale)
+        font_warn_size = int(10 * scale)
         for font_bold_name in ["arialbd.ttf", "Arial-Bold.ttf", "DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf"]:
             try:
-                font_id = ImageFont.truetype(font_bold_name, 16)
-                font_warn = ImageFont.truetype(font_bold_name, 10)
+                font_id = ImageFont.truetype(font_bold_name, font_id_size)
+                font_warn = ImageFont.truetype(font_bold_name, font_warn_size)
                 break
             except IOError:
                 continue
@@ -1241,22 +1247,22 @@ def get_asset_qr_endpoint(asset_id):
         if font_id is None or font_warn is None:
             for font_name in ["arial.ttf", "arial", "Helvetica", "DejaVuSans", "LiberationSans", "FreeSans"]:
                 try:
-                    font_id = ImageFont.truetype(font_name, 16)
-                    font_warn = ImageFont.truetype(font_name, 10)
+                    font_id = ImageFont.truetype(font_name, font_id_size)
+                    font_warn = ImageFont.truetype(font_name, font_warn_size)
                     break
                 except IOError:
                     continue
 
         if font_id is None or font_warn is None:
             try:
-                font_id = ImageFont.load_default(size=16)
-                font_warn = ImageFont.load_default(size=10)
+                font_id = ImageFont.load_default(size=font_id_size)
+                font_warn = ImageFont.load_default(size=font_warn_size)
             except TypeError:
                 font_id = ImageFont.load_default()
                 font_warn = ImageFont.load_default()
 
         # 6. Get element dimensions for dynamic block vertical centering
-        text_id = f"Asset ID: {asset_id}"
+        text_id = f"{asset_id}"
         bbox_id = draw.textbbox((0, 0), text_id, font=font_id)
         text_id_w = bbox_id[2] - bbox_id[0]
         text_id_h = bbox_id[3] - bbox_id[1]
@@ -1267,13 +1273,13 @@ def get_asset_qr_endpoint(asset_id):
         text_warn_h = bbox_warn[3] - bbox_warn[1]
 
         # Define right column layout inside the border
-        right_col_x = qr_x + qr_size + 10
-        right_col_w = (width - border_inset) - right_col_x - 6
+        right_col_x = qr_x + qr_size + int(10 * scale)
+        right_col_w = (width - border_inset) - right_col_x - int(6 * scale)
 
-        # Combined height calculations (logo + 8px gap + Asset ID + 6px gap + Warning text)
-        logo_h = logo.height if logo else 85
-        gap1 = 8
-        gap2 = 6
+        # Combined height calculations (logo + gaps + Asset ID + Warning text)
+        logo_h = logo.height if logo else int(85 * scale)
+        gap1 = int(8 * scale)
+        gap2 = int(6 * scale)
         total_height = logo_h + gap1 + text_id_h + gap2 + text_warn_h
         
         # Starting Y coordinate for perfect vertical centering of the entire right column block
@@ -1283,15 +1289,15 @@ def get_asset_qr_endpoint(asset_id):
         if logo:
             logo_x = right_col_x + (right_col_w - logo.width) // 2
             logo_y = start_y
+            # Paste RGBA logo using its alpha channel onto pure white RGB canvas
             label_img.paste(logo, (logo_x, logo_y), logo)
             next_y = logo_y + logo_h
         else:
-            # Fallback if logo file not found
-            draw.rectangle([right_col_x + 6, start_y, right_col_x + right_col_w - 6, start_y + 80], fill="#F1F5F9", outline="#CBD5E1")
+            draw.rectangle([right_col_x + int(6 * scale), start_y, right_col_x + right_col_w - int(6 * scale), start_y + int(80 * scale)], fill="#F1F5F9", outline="#CBD5E1")
             bbox_no_logo = draw.textbbox((0, 0), "No Logo Found", font=font_warn)
             no_logo_w = bbox_no_logo[2] - bbox_no_logo[0]
-            draw.text((right_col_x + (right_col_w - no_logo_w) // 2, start_y + 35), "No Logo Found", fill="#64748B", font=font_warn)
-            next_y = start_y + 80
+            draw.text((right_col_x + (right_col_w - no_logo_w) // 2, start_y + int(35 * scale)), "No Logo Found", fill="#64748B", font=font_warn)
+            next_y = start_y + int(80 * scale)
 
         # 8. Render Asset ID text
         text_id_x = right_col_x + (right_col_w - text_id_w) // 2
@@ -1303,9 +1309,9 @@ def get_asset_qr_endpoint(asset_id):
         text_warn_y = text_id_y + text_id_h + gap2
         draw.text((text_warn_x, text_warn_y), text_warn, fill="black", font=font_warn)
 
-        # 6. Stream file as response
+        # 10. Stream file as response with explicit 610 DPI header
         img_io = io.BytesIO()
-        label_img.save(img_io, 'PNG')
+        label_img.save(img_io, 'PNG', dpi=(610, 610), optimize=True)
         img_io.seek(0)
         response = send_file(img_io, mimetype='image/png')
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"

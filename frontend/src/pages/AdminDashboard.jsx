@@ -5163,9 +5163,8 @@ const AdminDashboard = () => {
                         background: #fff;
                     }
                     .preview-container {
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
+                        display: block;
+                        width: 50mm;
                         margin: 0;
                         padding: 0;
                     }
@@ -5197,6 +5196,8 @@ const AdminDashboard = () => {
                         max-height: 100%;
                         object-fit: contain;
                         display: block;
+                        image-rendering: -webkit-optimize-contrast;
+                        image-rendering: high-quality;
                     }
                     @page {
                         size: 50mm 30mm;
@@ -5209,20 +5210,27 @@ const AdminDashboard = () => {
                         }
                         html, body {
                             width: 50mm !important;
-                            height: 30mm !important;
+                            height: auto !important;
                             margin: 0 !important;
                             padding: 0 !important;
-                            overflow: hidden !important;
+                            overflow: visible !important;
                         }
                         .preview-container {
+                            display: block !important;
+                            width: 50mm !important;
+                            height: auto !important;
                             margin: 0 !important;
                             padding: 0 !important;
+                            overflow: visible !important;
                         }
                         .label-page {
                             width: 50mm !important;
                             height: 30mm !important;
                             max-width: 50mm !important;
                             max-height: 30mm !important;
+                            display: flex !important;
+                            align-items: center !important;
+                            justify-content: center !important;
                             page-break-after: always !important;
                             break-after: page !important;
                             page-break-inside: avoid !important;
@@ -5243,10 +5251,12 @@ const AdminDashboard = () => {
                             max-height: 100% !important;
                             object-fit: contain !important;
                             display: block !important;
+                            image-rendering: -webkit-optimize-contrast !important;
+                            image-rendering: high-quality !important;
                         }
                         * {
-                            -webkit-print-color-adjust: exact;
-                            print-color-adjust: exact;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
                         }
                     }
                 </style>
