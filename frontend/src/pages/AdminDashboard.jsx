@@ -1248,10 +1248,46 @@ const AssetsView = ({
         }
     }, [showAddModal]);
 
-    const handleSelectAll = (e) => {
+    const [isSelectingAll, setIsSelectingAll] = useState(false);
+
+    const handleSelectAll = async (e) => {
         if (e.target.checked) {
-            const allIds = filteredAssets.map(a => a.id);
-            setSelectedAssetIds(allIds);
+            if (totalServerItems > (assets || []).length) {
+                setIsSelectingAll(true);
+                try {
+                    const endpoint = activeView === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
+                    const params = new URLSearchParams();
+                    if (searchQuery) params.append('search', searchQuery);
+
+                    const catVal = (categoryFilter || []).join('|');
+                    if (catVal && !catVal.toLowerCase().includes('all')) {
+                        params.append(activeView === 'admin_assets' ? 'type' : 'category', catVal);
+                    }
+                    const bVal = (branchFilter || []).join('|');
+                    if (bVal && !bVal.toLowerCase().includes('all')) params.append('branch', bVal);
+
+                    const dVal = (departmentFilter || []).join('|');
+                    if (dVal && !dVal.toLowerCase().includes('all')) params.append('department', dVal);
+
+                    const condVal = (conditionFilter || []).join('|');
+                    if (condVal && !condVal.toLowerCase().includes('all')) {
+                        params.append(activeView === 'admin_assets' ? 'status' : 'condition', condVal);
+                    }
+
+                    const response = await api.get(`${endpoint}?${params.toString()}`);
+                    const allData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+                    const allIds = allData.map(a => a.id);
+                    setSelectedAssetIds(allIds);
+                } catch (err) {
+                    console.error("Failed to select all assets from server:", err);
+                    setSelectedAssetIds(filteredAssets.map(a => a.id));
+                } finally {
+                    setIsSelectingAll(false);
+                }
+            } else {
+                const allIds = filteredAssets.map(a => a.id);
+                setSelectedAssetIds(allIds);
+            }
         } else {
             setSelectedAssetIds([]);
         }
@@ -1608,12 +1644,29 @@ const AssetsView = ({
                             <thead>
                                 <tr className="bg-transparent">
                                     <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[4%]">
-                                        <input
-                                            type="checkbox"
-                                            onChange={handleSelectAll}
-                                            checked={filteredAssets.length > 0 && filteredAssets.every(a => selectedAssetIds.includes(a.id))}
-                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-primary focus:ring-primary cursor-pointer"
-                                        />
+                                        <div className="flex items-center">
+                                            {isSelectingAll ? (
+                                                <span className="h-4 w-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></span>
+                                            ) : (
+                                                <input
+                                                    type="checkbox"
+                                                    onChange={handleSelectAll}
+                                                    ref={el => {
+                                                        if (el) {
+                                                            const totalCount = totalServerItems > 0 ? totalServerItems : filteredAssets.length;
+                                                            const isAll = totalCount > 0 && (selectedAssetIds.length >= totalCount || (filteredAssets.length > 0 && filteredAssets.every(a => selectedAssetIds.includes(a.id))));
+                                                            el.indeterminate = selectedAssetIds.length > 0 && !isAll;
+                                                        }
+                                                    }}
+                                                    checked={
+                                                        filteredAssets.length > 0 &&
+                                                        ((totalServerItems > 0 && selectedAssetIds.length >= totalServerItems) ||
+                                                         filteredAssets.every(a => selectedAssetIds.includes(a.id)))
+                                                    }
+                                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 dark:bg-slate-800 text-primary focus:ring-primary cursor-pointer"
+                                                />
+                                            )}
+                                        </div>
                                     </th>
                                     <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset ID</th>
                                     <th className="px-6 py-4 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">Asset Type</th>
@@ -5021,13 +5074,53 @@ const AdminDashboard = () => {
         }
     ]);
 
-    const handleDownloadSelectedAssets = () => {
+    const fetchAllMatchingAssets = async () => {
+        try {
+            const endpoint = activeView === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
+            const params = new URLSearchParams();
+            if (assetSearchQuery) params.append('search', assetSearchQuery);
+
+            const catVal = (assetCategoryFilter || []).join('|');
+            if (catVal && !catVal.toLowerCase().includes('all')) {
+                params.append(activeView === 'admin_assets' ? 'type' : 'category', catVal);
+            }
+            const bVal = (assetBranchFilter || []).join('|');
+            if (bVal && !bVal.toLowerCase().includes('all')) params.append('branch', bVal);
+
+            const dVal = (assetDepartmentFilter || []).join('|');
+            if (dVal && !dVal.toLowerCase().includes('all')) params.append('department', dVal);
+
+            const condVal = (assetConditionFilter || []).join('|');
+            if (condVal && !condVal.toLowerCase().includes('all')) {
+                params.append(activeView === 'admin_assets' ? 'status' : 'condition', condVal);
+            }
+
+            const response = await api.get(`${endpoint}?${params.toString()}`);
+            if (Array.isArray(response.data)) {
+                return response.data;
+            } else if (response.data && Array.isArray(response.data.data)) {
+                return response.data.data;
+            }
+            return [];
+        } catch (err) {
+            console.error("Failed to fetch all matching assets:", err);
+            return [];
+        }
+    };
+
+    const handleDownloadSelectedAssets = async () => {
         if (selectedAssetIds.length === 0) return;
-        const selectedList = assets.filter(a => selectedAssetIds.includes(a.id));
+        let selectedList = assets.filter(a => selectedAssetIds.includes(a.id));
+        if (selectedAssetIds.length > selectedList.length) {
+            const allItems = await fetchAllMatchingAssets();
+            if (allItems.length > 0) {
+                selectedList = allItems.filter(a => selectedAssetIds.includes(a.id));
+            }
+        }
         const rows = selectedList.map((asset, idx) => ({
             "S.No": idx + 1,
             "Asset ID": asset.assetId || '',
-            "Asset Type": asset.category || '',
+            "Asset Type": asset.category || asset.type || '',
             "Brand": asset.brand || '',
             "Model": asset.model || '',
             "Serial Number": asset.serial || '',
@@ -5038,7 +5131,7 @@ const AdminDashboard = () => {
             "Department": asset.department || '',
             "Purchase Date": asset.purchaseDate || '',
             "Warranty": asset.warranty || '',
-            "Condition": asset.condition || '',
+            "Condition": asset.condition || asset.status || '',
             "Remarks": asset.remarks || ''
         }));
         const worksheet = XLSX.utils.json_to_sheet(rows);
@@ -5053,7 +5146,13 @@ const AdminDashboard = () => {
         setIsGeneratingQRs(true);
 
         try {
-            const selectedList = assets.filter(a => selectedAssetIds.includes(a.id));
+            let selectedList = assets.filter(a => selectedAssetIds.includes(a.id));
+            if (selectedAssetIds.length > selectedList.length) {
+                const allItems = await fetchAllMatchingAssets();
+                if (allItems.length > 0) {
+                    selectedList = allItems.filter(a => selectedAssetIds.includes(a.id));
+                }
+            }
 
             // Helper to convert blob to base64
             const blobToBase64 = (blob) => {
@@ -5833,6 +5932,7 @@ const AdminDashboard = () => {
                 setAssets(prev => prev.filter(a => !selectedAssetIds.includes(a.id)));
                 showToast(`Successfully deleted ${selectedAssetIds.length} assets`, 'success');
                 setSelectedAssetIds([]);
+                fetchAssets(activeView, assetCurrentPage);
             } else {
                 showToast('Failed to delete assets', 'error');
             }
