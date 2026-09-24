@@ -1184,21 +1184,29 @@ def get_asset_qr_endpoint(asset_id):
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGBA")
 
-        # 3. Create canvas: 52.5mm x 29.7mm at 300 DPI is 620 x 350 pixels
-        width, height = 620, 350
+        # 3. Create canvas: 50mm x 30mm label (400 x 240 pixels at 203 DPI / 8 dots per mm)
+        width, height = 400, 240
         label_img = Image.new("RGBA", (width, height), "white")
         draw = ImageDraw.Draw(label_img)
 
-        # Clean, solid black border inset inside the image with a 5px gap from the edges, width=2px
-        draw.rectangle([7, 7, width - 6, height - 6], outline="black", width=2)
-        # Center QR code vertically on the left side
-        qr_size = 210
+        # Inset border to create a visible gap between label border and outer canvas edge
+        border_inset = 12
+        border_radius = 12
+        draw.rounded_rectangle(
+            [border_inset, border_inset, width - border_inset, height - border_inset],
+            radius=border_radius,
+            outline="black",
+            width=2
+        )
+        # Center QR code vertically on the left side inside border
+        qr_size = 176
         try:
             resample_filter = Image.Resampling.LANCZOS
         except AttributeError:
             resample_filter = Image.LANCZOS if hasattr(Image, "LANCZOS") else Image.ANTIALIAS
         qr_img_resized = qr_img.resize((qr_size, qr_size), resample_filter)
-        label_img.paste(qr_img_resized, (45, (height - qr_size) // 2), qr_img_resized)
+        qr_x = border_inset + 8
+        label_img.paste(qr_img_resized, (qr_x, (height - qr_size) // 2), qr_img_resized)
 
         # 4. Brand-based logo select
         logo_filename = "dt.png" if "doctor towels" in branch.lower() else "cc.png"
@@ -1208,7 +1216,7 @@ def get_asset_qr_endpoint(asset_id):
         project_root = os.path.abspath(os.path.join(base_dir, ".."))
         logo_path = os.path.join(project_root, "frontend", "src", "assets", logo_filename)
         
-        # Load logo if it exists
+        # Load logo if it exists (larger dimensions)
         logo = None
         if os.path.exists(logo_path):
             logo = Image.open(logo_path).convert("RGBA")
@@ -1217,26 +1225,32 @@ def get_asset_qr_endpoint(asset_id):
                 resample_filter = Image.Resampling.LANCZOS
             except AttributeError:
                 resample_filter = Image.LANCZOS if hasattr(Image, "LANCZOS") else Image.ANTIALIAS
-            logo.thumbnail((280, 185), resample_filter)
+            logo.thumbnail((175, 115), resample_filter)
         
-        # 5. Load fonts with robust system-agnostic fallbacks
+        # 5. Load fonts with robust system-agnostic fallbacks (bold for both ID and warning)
         font_id = None
         font_warn = None
-        for font_name in ["arial.ttf", "arial", "Helvetica", "DejaVuSans", "LiberationSans", "FreeSans"]:
+        for font_bold_name in ["arialbd.ttf", "Arial-Bold.ttf", "DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf"]:
             try:
-                if font_name == "arial.ttf":
-                    font_id = ImageFont.truetype("arialbd.ttf", 26)
-                else:
-                    font_id = ImageFont.truetype(font_name, 26)
-                font_warn = ImageFont.truetype(font_name, 16)
+                font_id = ImageFont.truetype(font_bold_name, 16)
+                font_warn = ImageFont.truetype(font_bold_name, 10)
                 break
             except IOError:
                 continue
 
         if font_id is None or font_warn is None:
+            for font_name in ["arial.ttf", "arial", "Helvetica", "DejaVuSans", "LiberationSans", "FreeSans"]:
+                try:
+                    font_id = ImageFont.truetype(font_name, 16)
+                    font_warn = ImageFont.truetype(font_name, 10)
+                    break
+                except IOError:
+                    continue
+
+        if font_id is None or font_warn is None:
             try:
-                font_id = ImageFont.load_default(size=26)
-                font_warn = ImageFont.load_default(size=16)
+                font_id = ImageFont.load_default(size=16)
+                font_warn = ImageFont.load_default(size=10)
             except TypeError:
                 font_id = ImageFont.load_default()
                 font_warn = ImageFont.load_default()
@@ -1252,14 +1266,14 @@ def get_asset_qr_endpoint(asset_id):
         text_warn_w = bbox_warn[2] - bbox_warn[0]
         text_warn_h = bbox_warn[3] - bbox_warn[1]
 
-        # Define right column layout
-        right_col_x = 290
-        right_col_w = 300
+        # Define right column layout inside the border
+        right_col_x = qr_x + qr_size + 10
+        right_col_w = (width - border_inset) - right_col_x - 6
 
-        # Combined height calculations (logo + 20px gap + Asset ID + 15px gap + Warning text)
-        logo_h = logo.height if logo else 120
-        gap1 = 20
-        gap2 = 15
+        # Combined height calculations (logo + 8px gap + Asset ID + 6px gap + Warning text)
+        logo_h = logo.height if logo else 85
+        gap1 = 8
+        gap2 = 6
         total_height = logo_h + gap1 + text_id_h + gap2 + text_warn_h
         
         # Starting Y coordinate for perfect vertical centering of the entire right column block
@@ -1273,21 +1287,21 @@ def get_asset_qr_endpoint(asset_id):
             next_y = logo_y + logo_h
         else:
             # Fallback if logo file not found
-            draw.rectangle([right_col_x + 10, start_y, right_col_x + right_col_w - 10, start_y + 120], fill="#F1F5F9", outline="#CBD5E1")
+            draw.rectangle([right_col_x + 6, start_y, right_col_x + right_col_w - 6, start_y + 80], fill="#F1F5F9", outline="#CBD5E1")
             bbox_no_logo = draw.textbbox((0, 0), "No Logo Found", font=font_warn)
             no_logo_w = bbox_no_logo[2] - bbox_no_logo[0]
-            draw.text((right_col_x + (right_col_w - no_logo_w) // 2, start_y + 50), "No Logo Found", fill="#64748B", font=font_warn)
-            next_y = start_y + 120
+            draw.text((right_col_x + (right_col_w - no_logo_w) // 2, start_y + 35), "No Logo Found", fill="#64748B", font=font_warn)
+            next_y = start_y + 80
 
         # 8. Render Asset ID text
         text_id_x = right_col_x + (right_col_w - text_id_w) // 2
         text_id_y = next_y + gap1
         draw.text((text_id_x, text_id_y), text_id, fill="black", font=font_id)
 
-        # 9. Render Warning text
+        # 9. Render Warning text (bold and black)
         text_warn_x = right_col_x + (right_col_w - text_warn_w) // 2
         text_warn_y = text_id_y + text_id_h + gap2
-        draw.text((text_warn_x, text_warn_y), text_warn, fill="#475569", font=font_warn)
+        draw.text((text_warn_x, text_warn_y), text_warn, fill="black", font=font_warn)
 
         # 6. Stream file as response
         img_io = io.BytesIO()

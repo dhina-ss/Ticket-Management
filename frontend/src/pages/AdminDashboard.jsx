@@ -2643,22 +2643,39 @@ const AssetsView = ({
                                 </div>
                             )}
                         </div>
-                        <a
-                            href={qrImageBlobUrl || '#'}
-                            download={`${qrLightbox.assetId || 'asset'}_tag.png`}
-                            onClick={(e) => {
-                                if (qrLoading || !qrImageBlobUrl) {
-                                    e.preventDefault();
-                                }
-                            }}
-                            className={`w-full flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg ${qrLoading || !qrImageBlobUrl
-                                ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'
-                                : 'bg-primary text-white hover:bg-primary/90 shadow-primary/20 cursor-pointer'
-                                }`}
-                        >
-                            <span className="material-symbols-outlined text-[18px]">download</span>
-                            {qrLoading ? 'Loading Tag...' : 'Download Label PNG'}
-                        </a>
+                        <div className="w-full flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (qrLoading || !qrImageBlobUrl) return;
+                                    printQRLabels([{ assetId: qrLightbox.assetId, base64: qrImageBlobUrl }]);
+                                }}
+                                disabled={qrLoading || !qrImageBlobUrl}
+                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-md ${qrLoading || !qrImageBlobUrl
+                                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'
+                                    : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20 cursor-pointer'
+                                    }`}
+                            >
+                                <span className="material-symbols-outlined text-[18px]">print</span>
+                                <span>Print (50×30mm)</span>
+                            </button>
+                            <a
+                                href={qrImageBlobUrl || '#'}
+                                download={`${qrLightbox.assetId || 'asset'}_tag.png`}
+                                onClick={(e) => {
+                                    if (qrLoading || !qrImageBlobUrl) {
+                                        e.preventDefault();
+                                    }
+                                }}
+                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-md ${qrLoading || !qrImageBlobUrl
+                                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'
+                                    : 'bg-primary text-white hover:bg-primary/90 shadow-primary/20 cursor-pointer'
+                                    }`}
+                            >
+                                <span className="material-symbols-outlined text-[18px]">download</span>
+                                <span>{qrLoading ? 'Loading Tag...' : 'Download PNG'}</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
             )}
@@ -5092,151 +5109,180 @@ const AdminDashboard = () => {
                 return;
             }
 
-            // Partition into chunks of 40 labels (4 columns x 10 rows)
-            const chunks = [];
-            for (let i = 0; i < qrImages.length; i += 40) {
-                chunks.push(qrImages.slice(i, i + 40));
-            }
-
-            let pagesHtml = '';
-            chunks.forEach((chunk) => {
-                pagesHtml += `<div class="a4-page">`;
-                chunk.forEach((imgData) => {
-                    pagesHtml += `
-                        <div class="label-cell">
-                            <img class="label-img" src="${imgData.base64}" alt="${imgData.assetId}" />
-                        </div>
-                    `;
-                });
-
-                // Pad remaining cells on last page to preserve 4x10 grid format
-                const remaining = 40 - chunk.length;
-                for (let i = 0; i < remaining; i++) {
-                    pagesHtml += `<div class="label-cell empty-cell"></div>`;
-                }
-                pagesHtml += `</div>`;
-            });
-
-            // Create a hidden iframe for print invocation
-            const iframe = document.createElement('iframe');
-            iframe.style.position = 'fixed';
-            iframe.style.right = '0';
-            iframe.style.bottom = '0';
-            iframe.style.width = '0';
-            iframe.style.height = '0';
-            iframe.style.border = '0';
-            iframe.style.zIndex = '-9999';
-            document.body.appendChild(iframe);
-
-            const iframeDoc = iframe.contentWindow.document;
-            iframeDoc.open();
-            iframeDoc.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Print Asset Labels</title>
-                    <style>
-                        * {
-                            box-sizing: border-box;
-                        }
-                        body {
-                            margin: 0;
-                            padding: 0;
-                        }
-                        .preview-container {
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                        }
-                        .a4-page {
-                            width: 210mm;
-                            height: 297mm;
-                            display: grid;
-                            grid-template-columns: repeat(4, 52.5mm);
-                            grid-template-rows: repeat(10, 29.7mm);
-                            gap: 0;
-                            padding: 0;
-                            margin: 0 auto;
-                            box-sizing: border-box;
-                            page-break-after: always;
-                        }
-                        .label-cell {
-                            width: 52.5mm;
-                            height: 29.7mm;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            overflow: hidden;
-                            border: 0.1mm dashed #e2e8f0;
-                            padding: 2mm;
-                            box-sizing: border-box;
-                        }
-                        .label-img {
-                            width: 100%;
-                            height: 100%;
-                            object-fit: contain;
-                            display: block;
-                        }
-                        .empty-cell {
-                            background-color: transparent;
-                        }
-                        @media print {
-                            body, html {
-                                margin: 0;
-                                padding: 0;
-                                width: 210mm;
-                                height: 297mm;
-                            }
-                            .a4-page {
-                                page-break-after: always;
-                                margin: 0;
-                            }
-                            * {
-                                -webkit-print-color-adjust: exact;
-                                print-color-adjust: exact;
-                            }
-                            @page {
-                                size: A4 portrait;
-                                margin: 0;
-                            }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="preview-container">
-                        ${pagesHtml}
-                    </div>
-                </body>
-                </html>
-            `);
-            iframeDoc.close();
-
-            // Wait for all images in the iframe to finish loading
-            const images = iframeDoc.getElementsByTagName('img');
-            const imageLoadPromises = Array.from(images).map((img) => {
-                if (img.complete) return Promise.resolve();
-                return new Promise((resolve) => {
-                    img.onload = resolve;
-                    img.onerror = resolve;
-                });
-            });
-
-            await Promise.all(imageLoadPromises);
-
-            // Give browser a split second to render base64 textures
-            setTimeout(() => {
-                iframe.contentWindow.focus();
-                iframe.contentWindow.print();
-
-                document.body.removeChild(iframe);
-                setIsGeneratingQRs(false);
-            }, 500);
+            // Helper function to print QR labels on 50mm x 30mm label printer
+            await printQRLabels(qrImages);
+            setIsGeneratingQRs(false);
 
         } catch (error) {
-            console.error("Failed to generate printable QR grid:", error);
+            console.error("Failed to generate printable QR labels:", error);
             setIsGeneratingQRs(false);
-            showToast("Failed to compile A4 sheet layout.", "error");
+            showToast("Failed to prepare label printer layout.", "error");
         }
+    };
+
+    const printQRLabels = async (labelItems) => {
+        if (!labelItems || labelItems.length === 0) return;
+
+        let pagesHtml = '';
+        labelItems.forEach((imgData) => {
+            pagesHtml += `
+                <div class="label-page">
+                    <img class="label-img" src="${imgData.base64 || imgData.url}" alt="${imgData.assetId || 'Asset Label'}" />
+                </div>
+            `;
+        });
+
+        // Create a hidden iframe for print invocation
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        iframe.style.zIndex = '-9999';
+        document.body.appendChild(iframe);
+
+        const iframeDoc = iframe.contentWindow.document;
+        iframeDoc.open();
+        iframeDoc.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Print Asset Labels (50mm x 30mm)</title>
+                <style>
+                    * {
+                        box-sizing: border-box;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    html, body {
+                        margin: 0;
+                        padding: 0;
+                        width: 50mm;
+                        background: #fff;
+                    }
+                    .preview-container {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .label-page {
+                        width: 50mm;
+                        height: 30mm;
+                        max-width: 50mm;
+                        max-height: 30mm;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        overflow: hidden;
+                        box-sizing: border-box;
+                        page-break-after: always;
+                        break-after: page;
+                        page-break-inside: avoid;
+                        break-inside: avoid;
+                        margin: 0 auto;
+                        padding: 0.5mm 1mm;
+                    }
+                    .label-page:last-child {
+                        page-break-after: auto;
+                        break-after: auto;
+                    }
+                    .label-img {
+                        width: 100%;
+                        height: 100%;
+                        max-width: 100%;
+                        max-height: 100%;
+                        object-fit: contain;
+                        display: block;
+                    }
+                    @page {
+                        size: 50mm 30mm;
+                        margin: 0;
+                    }
+                    @media print {
+                        @page {
+                            size: 50mm 30mm;
+                            margin: 0;
+                        }
+                        html, body {
+                            width: 50mm !important;
+                            height: 30mm !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            overflow: hidden !important;
+                        }
+                        .preview-container {
+                            margin: 0 !important;
+                            padding: 0 !important;
+                        }
+                        .label-page {
+                            width: 50mm !important;
+                            height: 30mm !important;
+                            max-width: 50mm !important;
+                            max-height: 30mm !important;
+                            page-break-after: always !important;
+                            break-after: page !important;
+                            page-break-inside: avoid !important;
+                            break-inside: avoid !important;
+                            margin: 0 !important;
+                            padding: 0.5mm 1mm !important;
+                            box-sizing: border-box !important;
+                            overflow: hidden !important;
+                        }
+                        .label-page:last-child {
+                            page-break-after: auto !important;
+                            break-after: auto !important;
+                        }
+                        .label-img {
+                            width: 100% !important;
+                            height: 100% !important;
+                            max-width: 100% !important;
+                            max-height: 100% !important;
+                            object-fit: contain !important;
+                            display: block !important;
+                        }
+                        * {
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="preview-container">
+                    ${pagesHtml}
+                </div>
+            </body>
+            </html>
+        `);
+        iframeDoc.close();
+
+        // Wait for all images in the iframe to finish loading
+        const images = iframeDoc.getElementsByTagName('img');
+        const imageLoadPromises = Array.from(images).map((img) => {
+            if (img.complete) return Promise.resolve();
+            return new Promise((resolve) => {
+                img.onload = resolve;
+                img.onerror = resolve;
+            });
+        });
+
+        await Promise.all(imageLoadPromises);
+
+        // Give browser time to render base64 textures and trigger print
+        setTimeout(() => {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+
+            setTimeout(() => {
+                if (document.body.contains(iframe)) {
+                    document.body.removeChild(iframe);
+                }
+            }, 1000);
+        }, 500);
     };
 
     const handleDateChange = (item) => {
@@ -8194,9 +8240,9 @@ const AdminDashboard = () => {
                             <span className="material-symbols-outlined text-[28px] text-emerald-500 absolute">qr_code_2</span>
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Generating Printable Sheet</h3>
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Generating Printable Labels</h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
-                                Compiling selected asset QR labels into a high-DPI A4 printable layout...
+                                Compiling selected asset QR labels for 50mm × 30mm label printer...
                             </p>
                             <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-full text-xs font-semibold">
                                 <span className="animate-pulse h-1.5 w-1.5 bg-emerald-500 rounded-full"></span>
