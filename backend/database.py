@@ -2148,25 +2148,41 @@ def delete_asset(asset_id: int) -> dict:
         return {"success": False, "error": str(e)}
 
 
+def _optional_text(val):
+    """Return None for empty/null optional text values so DB columns store NULL cleanly."""
+    if val is None:
+        return None
+    text = str(val)
+    return text if text.strip() else None
+
+
+def _normalize_admin_group(val) -> str:
+    text = str(val).strip() if val is not None else ""
+    if not text or text.lower() == "admin":
+        return "Admin"
+    return text
+
+
 def _row_to_admin_asset(row: dict) -> dict:
+    qty = row.get("quantity")
     return {
         "id":             row.get("id"),
-        "assetId":        row.get("asset_id", ""),
-        "assetName":      row.get("asset_name", ""),
-        "department":     row.get("department", ""),
-        "serial":         row.get("serial_number", ""),
-        "assignee":       row.get("assignee", ""),
-        "location":       row.get("location", ""),
-        "group":          row.get("group") or "Admin",
-        "type":           row.get("type", ""),
-        "quantity":       row.get("quantity", ""),
-        "status":         row.get("status", ""),
-        "branch":         row.get("branch", ""),
-        "warrantyExpiry": row.get("warranty_expiry", ""),
-        "purchaseCost":   row.get("purchase_cost", ""),
-        "category":       row.get("category", ""),
-        "brandModel":     row.get("brand_model", ""),
-        "remarks":        row.get("remarks", ""),
+        "assetId":        row.get("asset_id") or "",
+        "assetName":      row.get("asset_name") or "",
+        "department":     row.get("department") or "",
+        "serial":         row.get("serial_number") or "",
+        "assignee":       row.get("assignee") or "",
+        "location":       row.get("location") or "",
+        "group":          _normalize_admin_group(row.get("group")),
+        "type":           row.get("type") or "",
+        "quantity":       str(qty) if qty is not None else "",
+        "status":         row.get("status") or "",
+        "branch":         row.get("branch") or "",
+        "warrantyExpiry": row.get("warranty_expiry") or "",
+        "purchaseCost":   row.get("purchase_cost") or "",
+        "category":       row.get("category") or "",
+        "brandModel":     row.get("brand_model") or "",
+        "remarks":        row.get("remarks") or "",
         "images":         _parse_images_field(row.get("images")),
         "qrCode":         f"/api/assets/{row.get('asset_id')}/qr" if row.get("asset_id") else "",
         "createdAt":      row["created_at"].strftime("%Y-%m-%d %H:%M:%S") if row.get("created_at") else "",
@@ -2280,21 +2296,21 @@ def create_admin_asset(data: dict) -> dict:
                     RETURNING id, asset_id
                 """, (
                     data.get("assetId"),
-                    data.get("assetName", ""),
-                    data.get("department", ""),
-                    data.get("serial", ""),
-                    data.get("assignee", ""),
-                    data.get("location", ""),
-                    data.get("group", "Admin"),
-                    data.get("type", ""),
-                    data.get("quantity", ""),
-                    data.get("status", ""),
-                    data.get("branch", ""),
-                    data.get("warrantyExpiry", ""),
-                    data.get("purchaseCost", ""),
-                    data.get("category", ""),
-                    data.get("brandModel") or data.get("brand", ""),
-                    data.get("remarks", ""),
+                    "" if data.get("assetName") is None else str(data.get("assetName")),
+                    "" if data.get("department") is None else str(data.get("department")),
+                    _optional_text(data.get("serial")),
+                    _optional_text(data.get("assignee")),
+                    _optional_text(data.get("location")),
+                    _normalize_admin_group(data.get("group")),
+                    "" if data.get("type") is None else str(data.get("type")),
+                    "" if data.get("quantity") is None else str(data.get("quantity")),
+                    "" if data.get("status") is None else str(data.get("status")),
+                    "" if data.get("branch") is None else str(data.get("branch")),
+                    _optional_text(data.get("warrantyExpiry")),
+                    _optional_text(data.get("purchaseCost")),
+                    _optional_text(data.get("category")),
+                    _optional_text(data.get("brandModel") if "brandModel" in data else data.get("brand")),
+                    _optional_text(data.get("remarks")),
                     _serialize_images_field(data.get("images"))
                 ))
                 row = cur.fetchone()
@@ -2307,21 +2323,37 @@ def create_admin_asset(data: dict) -> dict:
 def update_admin_asset(asset_id: int, data: dict) -> dict:
     try:
         old_asset = get_admin_asset_by_id(asset_id)
+
+        def _resolve(key: str, default: str = "", optional: bool = False):
+            if key in data:
+                val = data.get(key)
+                return _optional_text(val) if optional else (default if val is None else str(val))
+            if old_asset and key in old_asset:
+                val = old_asset.get(key)
+                return _optional_text(val) if optional else (default if val is None else str(val))
+            return None if optional else default
+
         images_json = (
             _serialize_images_field(data.get("images"))
             if "images" in data
             else _serialize_images_field(old_asset.get("images") if old_asset else [])
         )
-        brand_model_val = (
-            (data.get("brandModel") or data.get("brand") or "")
-            if "brandModel" in data
-            else (data.get("brand") or "")
-        )
+        if "brandModel" in data or "brand" in data:
+            raw_brand_model = data.get("brandModel") if "brandModel" in data else data.get("brand")
+            if raw_brand_model is None and "brand" in data:
+                raw_brand_model = data.get("brand")
+            brand_model_val = _optional_text(raw_brand_model)
+        else:
+            brand_model_val = _optional_text(old_asset.get("brandModel") if old_asset else None)
+
         raw_asset_id = data.get("assetId")
         resolved_asset_id = (
             str(raw_asset_id).strip()
             if raw_asset_id is not None and str(raw_asset_id).strip()
             else (old_asset.get("assetId") if old_asset else "")
+        )
+        resolved_group = _normalize_admin_group(
+            data.get("group") if "group" in data else (old_asset.get("group") if old_asset else "Admin")
         )
         conn = _get_conn()
         with conn:
@@ -2336,22 +2368,22 @@ def update_admin_asset(asset_id: int, data: dict) -> dict:
                         updated_at = NOW()
                     WHERE id = %s
                 """, (
-                    data.get("assetName", ""),
-                    data.get("department", ""),
+                    _resolve("assetName"),
+                    _resolve("department"),
                     resolved_asset_id,
-                    data.get("serial", ""),
-                    data.get("assignee", ""),
-                    data.get("location", ""),
-                    data.get("group", "Admin"),
-                    data.get("type", ""),
-                    data.get("quantity", ""),
-                    data.get("status", ""),
-                    data.get("branch", ""),
-                    data.get("warrantyExpiry", ""),
-                    data.get("purchaseCost", ""),
-                    data.get("category", ""),
+                    _resolve("serial", optional=True),
+                    _resolve("assignee", optional=True),
+                    _resolve("location", optional=True),
+                    resolved_group,
+                    _resolve("type"),
+                    _resolve("quantity"),
+                    _resolve("status"),
+                    _resolve("branch"),
+                    _resolve("warrantyExpiry", optional=True),
+                    _resolve("purchaseCost", optional=True),
+                    _resolve("category", optional=True),
                     brand_model_val,
-                    data.get("remarks", ""),
+                    _resolve("remarks", optional=True),
                     images_json,
                     asset_id
                 ))

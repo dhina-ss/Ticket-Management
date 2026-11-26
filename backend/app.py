@@ -765,7 +765,7 @@ def assets_route():
                 import datetime
                 
                 # 1. Get prefix code based on category
-                category = data.get("category", "")
+                category = (data.get("category") or "")
                 category_lower = category.lower().strip()
                 prefix = None
                 try:
@@ -806,7 +806,7 @@ def assets_route():
                 
                 # 3. Calculate unique increment per category and year
                 existing = get_all_assets()
-                same_category_assets = [a for a in existing if a.get("category", "").lower().strip() == category_lower]
+                same_category_assets = [a for a in existing if (a.get("category") or "").lower().strip() == category_lower]
                 increment = len(same_category_assets) + 1
                 existing_tags = {a.get("assetId") for a in existing}
                 
@@ -867,8 +867,8 @@ def admin_assets_route():
                 import datetime
                 
                 # 1. Get prefix code based on type/category or default
-                category = data.get("category", "")
-                asset_type_name = data.get("type", "")
+                category = (data.get("category") or "")
+                asset_type_name = (data.get("type") or "")
                 prefix = None
                 try:
                     from database import _get_conn
@@ -904,7 +904,7 @@ def admin_assets_route():
                 
                 # 3. Calculate increment
                 existing = get_all_admin_assets()
-                same_category_assets = [a for a in existing if a.get("category", "").lower().strip() == category.lower().strip()]
+                same_category_assets = [a for a in existing if (a.get("category") or "").lower().strip() == category.lower().strip()]
                 increment = len(same_category_assets) + 1
                 existing_tags = {a.get("assetId") for a in existing}
                 

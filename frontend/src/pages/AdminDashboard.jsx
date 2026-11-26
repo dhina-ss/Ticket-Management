@@ -1350,46 +1350,102 @@ const AssetsView = ({
     const handleAdd = async (e) => {
         e.preventDefault();
 
-        const resolvedCategory = newAsset.category || (String(newAsset.group).toLowerCase() === 'admin' ? 'Furniture' : 'Laptop');
-        const resolvedBranch = newAsset.branch || (currentBranchList[0] || '');
-        const resolvedWarranty = newAsset.warranty || '1 Year';
-        const resolvedCondition = newAsset.condition || 'Excellent';
-        const resolvedDepartment = newAsset.department || 'IT';
-        const resolvedGroup = newAsset.group || 'IT';
-        const resolvedType = newAsset.type || (String(newAsset.group).toLowerCase() === 'admin' ? 'Building' : '');
+        const isAdminAsset = activeView === 'admin_assets' || String(newAsset.group || '').trim().toLowerCase() === 'admin';
+        const nullableText = (val) => (val === undefined || val === null || String(val).trim() === '') ? null : String(val);
 
-        const resolvedAsset = {
-            ...newAsset,
-            category: resolvedCategory,
-            branch: resolvedBranch,
-            warranty: resolvedWarranty,
-            condition: resolvedCondition,
-            department: resolvedDepartment,
-            group: resolvedGroup,
-            type: resolvedType,
-            brandModel: newAsset.brandModel ?? newAsset.brand ?? '',
-            updatedBy: user?.name || user?.email || 'System'
-        };
+        let resolvedAsset;
+        if (isAdminAsset) {
+            if (!newAsset.assetName || !String(newAsset.assetName).trim()) {
+                alert('Asset Name is a mandatory field.');
+                return;
+            }
+            if (!newAsset.type || !String(newAsset.type).trim()) {
+                alert('Type is a mandatory field.');
+                return;
+            }
+            if (newAsset.quantity === undefined || newAsset.quantity === null || String(newAsset.quantity).trim() === '') {
+                alert('Quantity (Nos) is a mandatory field.');
+                return;
+            }
+            if (!newAsset.status || !String(newAsset.status).trim()) {
+                alert('Status is a mandatory field.');
+                return;
+            }
+            if (!newAsset.department || !String(newAsset.department).trim()) {
+                alert('Department is a mandatory field.');
+                return;
+            }
+            if (!newAsset.branch || !String(newAsset.branch).trim()) {
+                alert('Branch is a mandatory field.');
+                return;
+            }
 
-        if (resolvedAsset.group !== 'Admin' && (!resolvedAsset.assignee || !resolvedAsset.assignee.trim())) {
-            const el = document.getElementById('asset-assignee');
-            if (el) el.reportValidity();
-            return;
-        }
-        if (resolvedAsset.group !== 'Admin' && (!resolvedAsset.empCode || !resolvedAsset.empCode.trim())) {
-            const el = document.getElementById('asset-emp-code');
-            if (el) el.reportValidity();
-            return;
-        }
-        if (!resolvedAsset.department) {
-            alert('Department is a mandatory field.');
-            return;
+            const optionalBrandModel = nullableText(newAsset.brandModel ?? newAsset.brand);
+            resolvedAsset = {
+                ...newAsset,
+                assetName: String(newAsset.assetName).trim(),
+                type: String(newAsset.type).trim(),
+                quantity: String(newAsset.quantity).trim(),
+                status: String(newAsset.status).trim(),
+                department: String(newAsset.department).trim(),
+                branch: String(newAsset.branch).trim(),
+                group: 'Admin',
+                category: nullableText(newAsset.category),
+                brandModel: optionalBrandModel,
+                brand: optionalBrandModel,
+                serial: nullableText(newAsset.serial),
+                purchaseCost: nullableText(newAsset.purchaseCost),
+                warrantyExpiry: nullableText(newAsset.warrantyExpiry),
+                remarks: nullableText(newAsset.remarks),
+                assignee: nullableText(newAsset.assignee),
+                location: nullableText(newAsset.location),
+                images: Array.isArray(newAsset.images) ? newAsset.images : [],
+                updatedBy: user?.name || user?.email || 'System'
+            };
+        } else {
+            const resolvedCategory = newAsset.category || 'Laptop';
+            const resolvedBranch = newAsset.branch || (currentBranchList[0] || '');
+            const resolvedWarranty = newAsset.warranty || '1 Year';
+            const resolvedCondition = newAsset.condition || 'Excellent';
+            const resolvedDepartment = newAsset.department || 'IT';
+            const resolvedGroup = newAsset.group || 'IT';
+            const resolvedType = newAsset.type || '';
+
+            resolvedAsset = {
+                ...newAsset,
+                category: resolvedCategory,
+                branch: resolvedBranch,
+                warranty: resolvedWarranty,
+                condition: resolvedCondition,
+                department: resolvedDepartment,
+                group: resolvedGroup,
+                type: resolvedType,
+                brandModel: newAsset.brandModel ?? newAsset.brand ?? '',
+                updatedBy: user?.name || user?.email || 'System'
+            };
+
+            if (!resolvedAsset.assignee || !resolvedAsset.assignee.trim()) {
+                const el = document.getElementById('asset-assignee');
+                if (el) el.reportValidity();
+                else alert('User Name is a mandatory field.');
+                return;
+            }
+            if (!resolvedAsset.empCode || !resolvedAsset.empCode.trim()) {
+                const el = document.getElementById('asset-emp-code');
+                if (el) el.reportValidity();
+                else alert('Employee Code is a mandatory field.');
+                return;
+            }
+            if (!resolvedAsset.department) {
+                alert('Department is a mandatory field.');
+                return;
+            }
         }
 
         if (compressingImages || savingAsset) return;
         setSavingAsset(true);
         try {
-            const apiPath = activeView === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
+            const apiPath = isAdminAsset ? '/api/admin-assets' : '/api/assets';
             if (isEditing) {
                 await api.put(`${apiPath}/${editingId}`, resolvedAsset);
                 const existingAsset = assets.find(a => a.id === editingId) || selectedAsset || {};
@@ -1408,9 +1464,12 @@ const AssetsView = ({
             }
             setShowAddModal(false);
             const resetGroup = activeView === 'admin_assets' ? 'Admin' : 'IT';
-            const resetCategory = activeView === 'admin_assets' ? 'Furniture' : 'Laptop';
-            const resetDept = activeView === 'admin_assets' ? 'ADMIN' : 'IT';
-            setNewAsset({ assetId: '', category: resetCategory, brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: resetDept, branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '1 Year', condition: 'Excellent', remarks: '', images: [], qrCode: '', group: resetGroup, assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
+            const resetCategory = activeView === 'admin_assets' ? '' : 'Laptop';
+            const resetDept = activeView === 'admin_assets' ? '' : 'IT';
+            const resetAssignee = activeView === 'admin_assets' ? '' : 'Unassigned';
+            const resetWarranty = activeView === 'admin_assets' ? '' : '1 Year';
+            const resetCondition = activeView === 'admin_assets' ? '' : 'Excellent';
+            setNewAsset({ assetId: '', category: resetCategory, brand: '', model: '', configuration: '', serial: '', assignee: resetAssignee, empCode: '', cug: '', email: '', department: resetDept, branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: resetWarranty, condition: resetCondition, remarks: '', images: [], qrCode: '', group: resetGroup, assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
         } catch (err) {
             console.error("Failed to save asset:", err);
             alert('Failed to save asset: ' + (err.response?.data?.error || err.message));
@@ -1438,8 +1497,10 @@ const AssetsView = ({
         }
     };
 
+    const isCurrentFormAdmin = activeView === 'admin_assets' || String(newAsset.group || '').trim().toLowerCase() === 'admin';
+
     const handleNextStep = () => {
-        if (String(newAsset.group).toLowerCase() === 'admin') {
+        if (isCurrentFormAdmin) {
             const errs = {};
             if (!newAsset.assetName || !newAsset.assetName.trim()) {
                 errs.assetName = true;
@@ -1508,7 +1569,7 @@ const AssetsView = ({
     };
 
     const handleNextToStep3 = () => {
-        if (String(newAsset.group).toLowerCase() === 'admin') {
+        if (isCurrentFormAdmin) {
             const errs = {};
             if (!newAsset.department || !newAsset.department.trim()) {
                 errs.department = true;
@@ -1541,7 +1602,7 @@ const AssetsView = ({
             if (assigneeInput) assigneeInput.reportValidity();
             return;
         }
-        if (newAsset.group !== 'Admin' && (!newAsset.empCode || !newAsset.empCode.trim())) {
+        if (!isCurrentFormAdmin && (!newAsset.empCode || !newAsset.empCode.trim())) {
             if (empCodeInput) empCodeInput.reportValidity();
             return;
         }
@@ -1566,10 +1627,14 @@ const AssetsView = ({
 
     const handleImageUpload = async (e) => {
         const files = Array.from(e.target.files || []);
-        if (photosInputRef.current) photosInputRef.current.value = '';
-        if (cameraInputRef.current) cameraInputRef.current.value = '';
-        if (files.length === 0) return;
+        if (files.length === 0) {
+            if (photosInputRef.current) photosInputRef.current.value = '';
+            if (cameraInputRef.current) cameraInputRef.current.value = '';
+            return;
+        }
         if (files.length + (newAsset.images || []).length > 2) {
+            if (photosInputRef.current) photosInputRef.current.value = '';
+            if (cameraInputRef.current) cameraInputRef.current.value = '';
             alert("Maximum 2 images allowed.");
             return;
         }
@@ -1592,6 +1657,8 @@ const AssetsView = ({
                 }));
             }
         } finally {
+            if (photosInputRef.current) photosInputRef.current.value = '';
+            if (cameraInputRef.current) cameraInputRef.current.value = '';
             setCompressingImages(false);
         }
     };
@@ -2132,7 +2199,7 @@ const AssetsView = ({
                         <form onSubmit={handleAdd} className="space-y-4 overflow-y-auto flex-1 px-6 pb-6">
                             {currentStep === 1 && (
                                 <div className="space-y-4 animate-in fade-in duration-200">
-                                    {String(newAsset.group).toLowerCase() === 'admin' ? (
+                                    {isCurrentFormAdmin ? (
                                         <div className="space-y-4">
                                             {/* Row 1: Asset Name + Sub-type + Type */}
                                             <div className="grid grid-cols-3 gap-4">
@@ -2206,7 +2273,7 @@ const AssetsView = ({
                                                         type="number"
                                                         min="0"
                                                         required
-                                                        value={newAsset.quantity || ''}
+                                                        value={newAsset.quantity ?? ''}
                                                         onChange={e => {
                                                             setNewAsset(p => ({ ...p, quantity: e.target.value }));
                                                             setValidationErrors(prev => ({ ...prev, quantity: false }));
@@ -2240,7 +2307,8 @@ const AssetsView = ({
                                                     <input
                                                         type="number"
                                                         min="0"
-                                                        value={newAsset.purchaseCost || ''}
+                                                        step="any"
+                                                        value={newAsset.purchaseCost ?? ''}
                                                         onChange={e => setNewAsset(p => ({ ...p, purchaseCost: e.target.value }))}
                                                         className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
                                                         placeholder="e.g. 5000"
@@ -2404,7 +2472,7 @@ const AssetsView = ({
 
                             {currentStep === 2 && (
                                 <div className="space-y-4 animate-in fade-in duration-200">
-                                    {String(newAsset.group).toLowerCase() === 'admin' ? (
+                                    {isCurrentFormAdmin ? (
                                         <div className="space-y-4">
                                             {/* Row 1: Assigned To + Department */}
                                             <div className="grid grid-cols-2 gap-4">
@@ -5638,7 +5706,7 @@ const AdminDashboard = () => {
             setAssetSearchQuery('');
             if (path === '/admin-assets/add') {
                 setIsEditingAsset(false);
-                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
+                setNewAsset({ assetId: '', category: '', brand: '', model: '', configuration: '', serial: '', assignee: '', empCode: '', cug: '', email: '', department: '', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '', condition: '', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
             }
         } else if (path === '/users') {
             setActiveView('users');
@@ -6496,7 +6564,7 @@ const AdminDashboard = () => {
                                         onClick={() => {
                                             setIsEditingAsset(false);
                                             if (activeView === 'admin_assets') {
-                                                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
+                                                setNewAsset({ assetId: '', category: '', brand: '', model: '', configuration: '', serial: '', assignee: '', empCode: '', cug: '', email: '', department: '', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '', condition: '', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
                                                 navigate('/admin-assets/add', { state: { group: 'Admin' } });
                                             } else {
                                                 setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });

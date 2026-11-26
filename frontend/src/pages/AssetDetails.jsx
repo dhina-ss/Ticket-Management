@@ -196,7 +196,7 @@ const AssetDetails = () => {
                 model: data.model || '',
                 configuration: data.configuration || '',
                 serial: data.serial || '',
-                assignee: data.assignee || 'Unassigned',
+                assignee: isAdm ? (data.assignee ?? '') : (data.assignee || 'Unassigned'),
                 empCode: data.empCode || '',
                 cug: data.cug || '',
                 email: data.email || '',
@@ -210,9 +210,9 @@ const AssetDetails = () => {
                 images: data.images || [],
                 assetName: data.assetName || '',
                 location: data.location || '',
-                status: data.status || 'Active',
+                status: data.status || '',
                 type: data.type || '',
-                quantity: data.quantity !== undefined && data.quantity !== null ? data.quantity : 1,
+                quantity: isAdm ? (data.quantity ?? '') : (data.quantity !== undefined && data.quantity !== null ? data.quantity : 1),
                 warrantyExpiry: data.warrantyExpiry || '',
                 purchaseCost: data.purchaseCost || '',
                 brandModel: data.brandModel || ''
@@ -268,11 +268,15 @@ const AssetDetails = () => {
     }, [asset, isAuthenticated, location, user, navigate]);
 
     const handleImageUpload = async (e) => {
-        const files = Array.from(e.target.files);
-        if (photosInputRef.current) photosInputRef.current.value = '';
-        if (cameraInputRef.current) cameraInputRef.current.value = '';
-        if (files.length === 0) return;
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) {
+            if (photosInputRef.current) photosInputRef.current.value = '';
+            if (cameraInputRef.current) cameraInputRef.current.value = '';
+            return;
+        }
         if (files.length + (editForm.images || []).length > 2) {
+            if (photosInputRef.current) photosInputRef.current.value = '';
+            if (cameraInputRef.current) cameraInputRef.current.value = '';
             alert("Maximum 2 images allowed.");
             return;
         }
@@ -296,6 +300,8 @@ const AssetDetails = () => {
                 }));
             }
         } finally {
+            if (photosInputRef.current) photosInputRef.current.value = '';
+            if (cameraInputRef.current) cameraInputRef.current.value = '';
             setCompressingImages(false);
         }
     };
@@ -321,20 +327,38 @@ const AssetDetails = () => {
         setSaving(true);
         setSaveError('');
 
+        const isAdminAsset = isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId);
+        const nullableText = (val) => (val === undefined || val === null || String(val).trim() === '') ? null : String(val);
+
         // Programmatic validation to bypass hidden HTML5 bubble validation bugs on mobile
-        if (isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId)) {
-            if (!editForm.type || !editForm.type.trim()) {
-                setSaveError('Asset Type is a required field.');
-                setSaving(false);
-                return;
-            }
+        if (isAdminAsset) {
             if (!editForm.assetName || !editForm.assetName.trim()) {
                 setSaveError('Asset Name is a required field.');
                 setSaving(false);
                 return;
             }
+            if (!editForm.type || !editForm.type.trim()) {
+                setSaveError('Type is a required field.');
+                setSaving(false);
+                return;
+            }
+            if (editForm.quantity === undefined || editForm.quantity === null || String(editForm.quantity).trim() === '') {
+                setSaveError('Quantity (Nos) is a required field.');
+                setSaving(false);
+                return;
+            }
             if (!editForm.status || !editForm.status.trim()) {
                 setSaveError('Status is a required field.');
+                setSaving(false);
+                return;
+            }
+            if (!editForm.department || !editForm.department.trim()) {
+                setSaveError('Department is a required field.');
+                setSaving(false);
+                return;
+            }
+            if (!editForm.branch || !editForm.branch.trim()) {
+                setSaveError('Branch Location is a required field.');
                 setSaving(false);
                 return;
             }
@@ -364,26 +388,48 @@ const AssetDetails = () => {
                 setSaving(false);
                 return;
             }
-        }
-        if (!editForm.assignee || !editForm.assignee.trim()) {
-            setSaveError('Assignee Name is a required field.');
-            setSaving(false);
-            return;
-        }
-        if (!editForm.branch || !editForm.branch.trim()) {
-            setSaveError('Branch Location is a required field.');
-            setSaving(false);
-            return;
-        }
-        if (!editForm.group || !editForm.group.trim()) {
-            setSaveError('Group is a required field.');
-            setSaving(false);
-            return;
+            if (!editForm.assignee || !editForm.assignee.trim()) {
+                setSaveError('Assignee Name is a required field.');
+                setSaving(false);
+                return;
+            }
+            if (!editForm.branch || !editForm.branch.trim()) {
+                setSaveError('Branch Location is a required field.');
+                setSaving(false);
+                return;
+            }
+            if (!editForm.group || !editForm.group.trim()) {
+                setSaveError('Group is a required field.');
+                setSaving(false);
+                return;
+            }
         }
 
         try {
-            const apiPath = isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? `/api/admin-assets/${asset.id}` : `/api/assets/${asset.id}`;
-            await api.put(apiPath, editForm);
+            const apiPath = isAdminAsset ? `/api/admin-assets/${asset.id}` : `/api/assets/${asset.id}`;
+            const payload = isAdminAsset
+                ? {
+                    ...editForm,
+                    assetName: editForm.assetName.trim(),
+                    type: editForm.type.trim(),
+                    quantity: String(editForm.quantity).trim(),
+                    status: editForm.status.trim(),
+                    department: editForm.department.trim(),
+                    branch: editForm.branch.trim(),
+                    group: 'Admin',
+                    category: nullableText(editForm.category),
+                    brandModel: nullableText(editForm.brandModel),
+                    serial: nullableText(editForm.serial),
+                    assignee: nullableText(editForm.assignee),
+                    location: nullableText(editForm.location),
+                    purchaseCost: nullableText(editForm.purchaseCost),
+                    warrantyExpiry: nullableText(editForm.warrantyExpiry),
+                    remarks: nullableText(editForm.remarks),
+                    images: Array.isArray(editForm.images) ? editForm.images : [],
+                    updatedBy: user?.name || user?.email || 'System'
+                }
+                : { ...editForm, updatedBy: user?.name || user?.email || 'System' };
+            await api.put(apiPath, payload);
             await fetchAsset();
             setShowEditModal(false);
             setShowSuccessCard(true);
@@ -683,6 +729,7 @@ const AssetDetails = () => {
                                                 onChange={e => setEditForm(p => ({ ...p, type: e.target.value }))}
                                                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
                                             >
+                                                <option value="">Select Type</option>
                                                 {getAdminTypeOptions().map((tOption, idx) => (
                                                     <option key={idx} value={tOption}>{tOption}</option>
                                                 ))}
@@ -751,6 +798,27 @@ const AssetDetails = () => {
                                                 placeholder="e.g. Godrej Slim"
                                             />
                                         </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Quantity (Nos) <span className="text-red-500">*</span></label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={editForm.quantity ?? ''}
+                                                onChange={e => setEditForm(p => ({ ...p, quantity: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
+                                                placeholder="e.g. 1"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Serial Number</label>
+                                            <input
+                                                type="text"
+                                                value={editForm.serial}
+                                                onChange={e => setEditForm(p => ({ ...p, serial: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium font-mono"
+                                                placeholder="Serial Number"
+                                            />
+                                        </div>
                                     </>
                                 ) : (
                                     <>
@@ -792,7 +860,7 @@ const AssetDetails = () => {
                             {/* Row 4: Assignee + Emp Code / Location */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Assignee Name <span className="text-red-500">*</span></label>
+                                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 font-display">Assignee Name {!isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) && <span className="text-red-500">*</span>}</label>
                                     <input
                                         type="text"
                                         value={editForm.assignee}
@@ -857,9 +925,14 @@ const AssetDetails = () => {
                                         onChange={e => setEditForm(p => ({ ...p, department: e.target.value }))}
                                         className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
                                     >
-                                        {(departments && departments.length > 0 ? departments.map(d => d.name) : DEPARTMENT_OPTIONS).map((dept, idx) => (
-                                            <option key={idx} value={dept}>{dept}</option>
-                                        ))}
+                                        <option value="">Select Department</option>
+                                        {(() => {
+                                            const base = departments && departments.length > 0 ? departments.map(d => d.name) : DEPARTMENT_OPTIONS;
+                                            const list = editForm.department && !base.includes(editForm.department) ? [editForm.department, ...base] : base;
+                                            return list.map((dept, idx) => (
+                                                <option key={idx} value={dept}>{dept}</option>
+                                            ));
+                                        })()}
                                     </select>
                                 </div>
                                 <div>
@@ -869,9 +942,13 @@ const AssetDetails = () => {
                                         onChange={e => setEditForm(p => ({ ...p, branch: e.target.value }))}
                                         className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
                                     >
-                                        {BRANCH_OPTIONS.map((br, idx) => (
-                                            <option key={idx} value={br}>{br}</option>
-                                        ))}
+                                        <option value="">Select Branch</option>
+                                        {(() => {
+                                            const list = editForm.branch && !BRANCH_OPTIONS.includes(editForm.branch) ? [editForm.branch, ...BRANCH_OPTIONS] : BRANCH_OPTIONS;
+                                            return list.map((br, idx) => (
+                                                <option key={idx} value={br}>{br}</option>
+                                            ));
+                                        })()}
                                     </select>
                                 </div>
                             </div>
@@ -935,9 +1012,12 @@ const AssetDetails = () => {
                                     className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-semibold appearance-none cursor-pointer"
                                 >
                                     {isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId) ? (
-                                        ['Active', 'In Stock', 'Under Maintenance', 'Scrap'].map((statusOption, idx) => (
-                                            <option key={idx} value={statusOption}>{statusOption}</option>
-                                        ))
+                                        <>
+                                            <option value="">Select Status</option>
+                                            {['Active', 'In Stock', 'Under Maintenance', 'Scrap'].map((statusOption, idx) => (
+                                                <option key={idx} value={statusOption}>{statusOption}</option>
+                                            ))}
+                                        </>
                                     ) : (
                                         CONDITION_OPTIONS.map((cond, idx) => (
                                             <option key={idx} value={cond}>{cond}</option>

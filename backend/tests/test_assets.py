@@ -346,4 +346,132 @@ def test_update_admin_asset_preserves_asset_id_when_missing_or_null(client, mock
     assert resp.status_code == 200
 
 
+def test_admin_assets_nullable_optional_fields_and_group_normalization(client, mocker):
+    """Verify only mandatory Admin Asset fields are required; optional fields accept None/null."""
+    import database
+
+    # _row_to_admin_asset normalizes lowercase group and SQL None optional fields
+    normalized = database._row_to_admin_asset({
+        "id": 21,
+        "asset_id": "FUR260021",
+        "asset_name": "Guest Chair",
+        "department": "ACCOUNTS",
+        "serial_number": None,
+        "assignee": None,
+        "location": None,
+        "group": "admin",
+        "type": "Furniture",
+        "quantity": "2",
+        "status": "Active",
+        "branch": "Doctor Towels HO",
+        "warranty_expiry": None,
+        "purchase_cost": None,
+        "category": None,
+        "brand_model": None,
+        "remarks": None,
+        "images": None
+    })
+    assert normalized["group"] == "Admin"
+    assert normalized["serial"] == ""
+    assert normalized["category"] == ""
+    assert normalized["brandModel"] == ""
+    assert normalized["assignee"] == ""
+
+    mock_cur = MagicMock()
+    mock_cur.fetchone.return_value = (21, "FUR260021")
+    mock_cur.rowcount = 1
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+    mock_conn.__enter__.return_value = mock_conn
+    mocker.patch('database._get_conn', return_value=mock_conn)
+    mocker.patch('database.compare_and_log_changes')
+
+    # create_admin_asset stores None/NULL cleanly for optional fields
+    create_res = database.create_admin_asset({
+        "assetId": "FUR260021",
+        "assetName": "Guest Chair",
+        "type": "Furniture",
+        "quantity": "2",
+        "status": "Active",
+        "department": "ACCOUNTS",
+        "branch": "Doctor Towels HO",
+        "group": "admin",
+        "category": None,
+        "brandModel": None,
+        "serial": None,
+        "assignee": None,
+        "location": None,
+        "purchaseCost": None,
+        "warrantyExpiry": None,
+        "remarks": None,
+        "images": None
+    })
+    assert create_res == {"success": True, "id": 21, "assetId": "FUR260021"}
+    _, create_params = mock_cur.execute.call_args[0]
+    assert create_params[6] == "Admin"  # normalized group
+    assert create_params[3] is None     # serial_number
+    assert create_params[4] is None     # assignee
+    assert create_params[5] is None     # location
+    assert create_params[13] is None    # category
+    assert create_params[14] is None    # brand_model
+    assert create_params[15] is None    # remarks
+
+    # update_admin_asset clears optional fields to None when explicitly passed null/empty
+    mocker.patch('database.get_admin_asset_by_id', return_value={
+        "id": 21,
+        "assetId": "FUR260021",
+        "assetName": "Guest Chair",
+        "department": "ACCOUNTS",
+        "type": "Furniture",
+        "quantity": "2",
+        "status": "Active",
+        "branch": "Doctor Towels HO",
+        "group": "admin",
+        "remarks": "Old",
+        "images": []
+    })
+    upd_res = database.update_admin_asset(21, {
+        "assetName": "Guest Chair",
+        "type": "Furniture",
+        "quantity": "4",
+        "status": "Active",
+        "department": "ACCOUNTS",
+        "branch": "Doctor Towels HO",
+        "group": "admin",
+        "category": None,
+        "brandModel": "",
+        "serial": None,
+        "assignee": None,
+        "location": None,
+        "purchaseCost": None,
+        "warrantyExpiry": None,
+        "remarks": None,
+        "images": ["data:image/jpeg;base64,img1"]
+    })
+    assert upd_res == {"success": True}
+    _, upd_params = mock_cur.execute.call_args[0]
+    assert upd_params[2] == "FUR260021"
+    assert upd_params[6] == "Admin"
+    assert upd_params[14] is None  # brand_model
+    assert upd_params[15] is None  # remarks
+
+    # POST /api/admin-assets handles null category even when existing items have null category
+    mocker.patch('database.get_all_admin_assets', return_value=[{"assetId": "FUR260001", "category": None}])
+    create_mock = mocker.patch('database.create_admin_asset', return_value={"success": True, "id": 22, "assetId": "ADM260001"})
+    post_resp = client.post('/api/admin-assets', json={
+        "assetName": "Office Table",
+        "type": "Furniture",
+        "quantity": "1",
+        "status": "Active",
+        "department": "ACCOUNTS",
+        "branch": "Doctor Towels HO",
+        "category": None,
+        "assignee": None,
+        "remarks": None
+    })
+    assert post_resp.status_code == 201
+    assert create_mock.call_args[0][0]["category"] is None
+
+
+
 
