@@ -17,6 +17,7 @@ __pycache__/
 .env.test.local
 .env.production.local
 backend/env/
+backend/env/Lib/
 venv/
 ENV/
 
@@ -36,6 +37,9 @@ node_modules/
 backend/dist/
 frontend/dist/
 frontend/test-results/
+
+# Tests
+backend/tests/
 
 # Project-specific / Credentials
 backend/ticket-raise-test-568fbe873bcd.json

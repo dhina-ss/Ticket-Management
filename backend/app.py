@@ -58,9 +58,14 @@ def limit_hosts():
 
 @app.after_request
 def compress_response(response):
+    compressible = (
+        response.mimetype.startswith('text/')
+        or response.mimetype in ('application/json', 'application/javascript', 'image/svg+xml')
+    )
     if (
         response.status_code == 200
         and not response.direct_passthrough
+        and compressible
         and 'gzip' in request.headers.get('Accept-Encoding', '').lower()
         and 'gzip' not in response.headers.get('Content-Encoding', '').lower()
     ):
@@ -73,9 +78,26 @@ def compress_response(response):
                     response.set_data(compressed_data)
                     response.headers['Content-Encoding'] = 'gzip'
                     response.headers['Content-Length'] = str(len(compressed_data))
+                    response.headers.add('Vary', 'Accept-Encoding')
         except Exception:
             pass
     return response
+
+
+@app.errorhandler(413)
+def request_entity_too_large(e):
+    return jsonify({"error": "Uploaded payload is too large (max 16MB). Please use smaller images."}), 413
+
+
+def _parse_json_body():
+    """Parse JSON request body safely, returning (data, error_response)."""
+    data = request.get_json(silent=True)
+    if data is None:
+        raw_body = request.get_data()
+        if raw_body and raw_body.strip():
+            return None, (jsonify({"error": "Invalid JSON request body."}), 400)
+        return {}, None
+    return data, None
 
 LAST_SENT_EMAIL = None # Store the last sent email for E2E testing
 
@@ -735,7 +757,9 @@ def assets_route():
     if request.method == 'POST':
         try:
             from database import create_asset, get_all_assets
-            data = request.json or {}
+            data, err_resp = _parse_json_body()
+            if err_resp:
+                return err_resp
             # Auto-generate assetId if not provided
             if not data.get("assetId"):
                 import datetime
@@ -835,22 +859,31 @@ def admin_assets_route():
     if request.method == 'POST':
         try:
             from database import create_admin_asset, get_all_admin_assets
-            data = request.json or {}
+            data, err_resp = _parse_json_body()
+            if err_resp:
+                return err_resp
             # Auto-generate assetId if not provided
             if not data.get("assetId"):
                 import datetime
                 
-                # 1. Get prefix code based on category or default
+                # 1. Get prefix code based on type/category or default
                 category = data.get("category", "")
+                asset_type_name = data.get("type", "")
                 prefix = None
                 try:
                     from database import _get_conn
                     conn = _get_conn()
                     with conn.cursor() as cur:
-                        cur.execute("SELECT prefix FROM asset_types WHERE LOWER(name) = %s AND is_delete = FALSE LIMIT 1;", (category.lower().strip(),))
-                        row = cur.fetchone()
-                        if row and row[0]:
-                            prefix = row[0].upper()
+                        for candidate in (asset_type_name, category):
+                            if candidate and candidate.strip():
+                                cur.execute(
+                                    "SELECT prefix FROM asset_types WHERE LOWER(name) = %s AND is_delete = FALSE LIMIT 1;",
+                                    (candidate.lower().strip(),)
+                                )
+                                row = cur.fetchone()
+                                if row and row[0]:
+                                    prefix = row[0].upper()
+                                    break
                     conn.close()
                 except Exception:
                     pass
@@ -915,74 +948,58 @@ def admin_assets_route():
             return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/assets/<asset_id>/image/<int:img_idx>', methods=['GET'])
-@app.route('/api/assets/<asset_id>/image', methods=['GET'])
-def get_asset_image_route(asset_id, img_idx=0):
-    """Lazy-load an image for IT assets."""
+def _serve_asset_image(table_name: str, asset_id: str, img_idx: int = 0):
+    """Serve a stored asset image by table ('assets' or 'admin_assets') and index."""
+    if table_name not in ('assets', 'admin_assets'):
+        return jsonify({"error": "Invalid asset table"}), 400
     try:
         from database import _get_conn
         conn = _get_conn()
         with conn.cursor() as cur:
-            cur.execute("SELECT images FROM assets WHERE asset_id = %s OR id::text = %s LIMIT 1;", (str(asset_id), str(asset_id)))
+            cur.execute(
+                f"SELECT images FROM {table_name} WHERE asset_id = %s OR id::text = %s LIMIT 1;",
+                (str(asset_id), str(asset_id))
+            )
             row = cur.fetchone()
         conn.close()
         if not row or not row[0]:
             return jsonify({"error": "Image not found"}), 404
-        images = json.loads(row[0]) if isinstance(row[0], str) else (row[0] or [])
-        if not images or img_idx < 0 or img_idx >= len(images):
+        try:
+            images = json.loads(row[0]) if isinstance(row[0], str) else (row[0] or [])
+        except Exception:
+            images = []
+        if not isinstance(images, list) or not images or img_idx < 0 or img_idx >= len(images):
             return jsonify({"error": "Image index out of bounds"}), 404
-        
+
         img_data = images[img_idx]
-        if isinstance(img_data, str) and img_data.startswith("data:image/"):
+        if isinstance(img_data, str) and img_data.startswith("data:image/") and "," in img_data:
             header, base64_str = img_data.split(",", 1)
-            mime_type = header.split(";")[0].replace("data:", "")
+            mime_type = header.split(";")[0].replace("data:", "") or "image/jpeg"
             import base64
             from flask import Response
             img_bytes = base64.b64decode(base64_str)
             res = Response(img_bytes, mimetype=mime_type)
             res.headers['Cache-Control'] = 'public, max-age=86400'
             return res
-        elif isinstance(img_data, str) and (img_data.startswith("http://") or img_data.startswith("https://")):
+        if isinstance(img_data, str) and (img_data.startswith("http://") or img_data.startswith("https://")):
             return redirect(img_data)
-        else:
-            return jsonify({"error": "Invalid image format"}), 404
+        return jsonify({"error": "Invalid image format"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/assets/<asset_id>/image/<int:img_idx>', methods=['GET'])
+@app.route('/api/assets/<asset_id>/image', methods=['GET'])
+def get_asset_image_route(asset_id, img_idx=0):
+    """Lazy-load an image for IT assets."""
+    return _serve_asset_image('assets', asset_id, img_idx)
 
 
 @app.route('/api/admin-assets/<asset_id>/image/<int:img_idx>', methods=['GET'])
 @app.route('/api/admin-assets/<asset_id>/image', methods=['GET'])
 def get_admin_asset_image_route(asset_id, img_idx=0):
     """Lazy-load an image for Admin assets."""
-    try:
-        from database import _get_conn
-        conn = _get_conn()
-        with conn.cursor() as cur:
-            cur.execute("SELECT images FROM admin_assets WHERE asset_id = %s OR id::text = %s LIMIT 1;", (str(asset_id), str(asset_id)))
-            row = cur.fetchone()
-        conn.close()
-        if not row or not row[0]:
-            return jsonify({"error": "Image not found"}), 404
-        images = json.loads(row[0]) if isinstance(row[0], str) else (row[0] or [])
-        if not images or img_idx < 0 or img_idx >= len(images):
-            return jsonify({"error": "Image index out of bounds"}), 404
-        
-        img_data = images[img_idx]
-        if isinstance(img_data, str) and img_data.startswith("data:image/"):
-            header, base64_str = img_data.split(",", 1)
-            mime_type = header.split(";")[0].replace("data:", "")
-            import base64
-            from flask import Response
-            img_bytes = base64.b64decode(base64_str)
-            res = Response(img_bytes, mimetype=mime_type)
-            res.headers['Cache-Control'] = 'public, max-age=86400'
-            return res
-        elif isinstance(img_data, str) and (img_data.startswith("http://") or img_data.startswith("https://")):
-            return redirect(img_data)
-        else:
-            return jsonify({"error": "Invalid image format"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return _serve_asset_image('admin_assets', asset_id, img_idx)
 
 
 @app.route('/api/admin-assets/<int:asset_id>', methods=['PUT'])
@@ -990,7 +1007,9 @@ def update_admin_asset_route(asset_id):
     """Update an existing admin asset."""
     try:
         from database import update_admin_asset
-        data = request.json or {}
+        data, err_resp = _parse_json_body()
+        if err_resp:
+            return err_resp
         result = update_admin_asset(asset_id, data)
         if result.get("success"):
             logging.info(f"Admin Action: Updated admin asset {asset_id}")
@@ -1077,7 +1096,9 @@ def update_asset_route(asset_id):
     """Update an existing asset."""
     try:
         from database import update_asset
-        data = request.json or {}
+        data, err_resp = _parse_json_body()
+        if err_resp:
+            return err_resp
         result = update_asset(asset_id, data)
         if result.get("success"):
             logging.info(f"Admin Action: Updated asset {asset_id}")
@@ -2395,8 +2416,13 @@ def serve(path):
 
 @app.errorhandler(404)
 def not_found(e):
-    # This catches React Router paths like /admin, returning the SPA index.html
-    return send_from_directory(DIST_DIR, 'index.html')
+    # Return JSON 404 for API endpoints; serve SPA index.html for frontend routes
+    if request.path.startswith('/api/'):
+        return jsonify({"error": "Endpoint not found."}), 404
+    index_path = os.path.join(DIST_DIR, 'index.html')
+    if os.path.exists(index_path):
+        return send_from_directory(DIST_DIR, 'index.html')
+    return jsonify({"error": "Not found."}), 404
 # ---------------------------------------------------------------------------
 # Asset Types Management
 # ---------------------------------------------------------------------------

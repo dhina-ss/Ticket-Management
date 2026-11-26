@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import api from '../api';
+import { compressImage, resolveAssetImageUrl } from '../utils/image';
 import logoImage from '../assets/logo.png';
 import logoDarkImage from '../assets/logo1.png';
 import ccLogo from '../assets/cc.png';
@@ -1077,6 +1078,8 @@ const AssetsView = ({
     const photosInputRef = useRef(null);
     const cameraInputRef = useRef(null);
     const [showSourceModal, setShowSourceModal] = useState(false);
+    const [compressingImages, setCompressingImages] = useState(false);
+    const [savingAsset, setSavingAsset] = useState(false);
 
     const handleUploadContainerClick = () => {
         if ((newAsset.images || []).length >= 2) return;
@@ -1364,6 +1367,7 @@ const AssetsView = ({
             department: resolvedDepartment,
             group: resolvedGroup,
             type: resolvedType,
+            brandModel: newAsset.brandModel ?? newAsset.brand ?? '',
             updatedBy: user?.name || user?.email || 'System'
         };
 
@@ -1382,31 +1386,37 @@ const AssetsView = ({
             return;
         }
 
+        if (compressingImages || savingAsset) return;
+        setSavingAsset(true);
         try {
             const apiPath = activeView === 'admin_assets' ? '/api/admin-assets' : '/api/assets';
             if (isEditing) {
                 await api.put(`${apiPath}/${editingId}`, resolvedAsset);
-                const updatedObj = { ...selectedAsset, ...resolvedAsset, qrCode: `/api/assets/${selectedAsset?.assetId || resolvedAsset.assetId}/qr` };
+                const existingAsset = assets.find(a => a.id === editingId) || selectedAsset || {};
+                const targetAssetId = existingAsset.assetId || resolvedAsset.assetId;
+                const updatedObj = { ...existingAsset, ...resolvedAsset, assetId: targetAssetId, qrCode: `/api/assets/${targetAssetId}/qr` };
                 setAssets(prev => prev.map(a => a.id === editingId ? updatedObj : a));
                 setSelectedAsset(updatedObj);
                 setIsEditing(false);
                 setEditingId(null);
-                setSuccessModal({ show: true, type: 'Update', id: selectedAsset?.assetId || resolvedAsset.assetId });
+                setSuccessModal({ show: true, type: 'Update', id: targetAssetId });
             } else {
                 const res = await api.post(apiPath, resolvedAsset);
                 const data = res.data;
                 setAssets(prev => [...prev, { ...resolvedAsset, id: data.id, assetId: data.assetId, qrCode: `/api/assets/${data.assetId}/qr`, date: new Date().toISOString().split('T')[0] }]);
                 setSuccessModal({ show: true, type: 'Add', id: data.assetId });
             }
+            setShowAddModal(false);
+            const resetGroup = activeView === 'admin_assets' ? 'Admin' : 'IT';
+            const resetCategory = activeView === 'admin_assets' ? 'Furniture' : 'Laptop';
+            const resetDept = activeView === 'admin_assets' ? 'ADMIN' : 'IT';
+            setNewAsset({ assetId: '', category: resetCategory, brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: resetDept, branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '1 Year', condition: 'Excellent', remarks: '', images: [], qrCode: '', group: resetGroup, assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
         } catch (err) {
             console.error("Failed to save asset:", err);
             alert('Failed to save asset: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setSavingAsset(false);
         }
-        setShowAddModal(false);
-        const resetGroup = activeView === 'admin_assets' ? 'Admin' : 'IT';
-        const resetCategory = activeView === 'admin_assets' ? 'Furniture' : 'Laptop';
-        const resetDept = activeView === 'admin_assets' ? 'ADMIN' : 'IT';
-        setNewAsset({ assetId: '', category: resetCategory, brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: resetDept, branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '1 Year', condition: 'Excellent', remarks: '', images: [], qrCode: '', group: resetGroup, assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
     };
 
     const handleEdit = (asset) => {
@@ -1554,26 +1564,36 @@ const AssetsView = ({
         setCurrentStep(3);
     };
 
-    const handleImageUpload = (e) => {
-        const files = Array.from(e.target.files);
-        if (files.length + (newAsset.images || []).length > 2) {
-            alert("Maximum 2 images allowed.");
-            if (photosInputRef.current) photosInputRef.current.value = '';
-            if (cameraInputRef.current) cameraInputRef.current.value = '';
-            return;
-        }
-        files.forEach(file => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setNewAsset(prev => ({
-                    ...prev,
-                    images: [...(prev.images || []), reader.result]
-                }));
-            };
-            reader.readAsDataURL(file);
-        });
+    const handleImageUpload = async (e) => {
+        const files = Array.from(e.target.files || []);
         if (photosInputRef.current) photosInputRef.current.value = '';
         if (cameraInputRef.current) cameraInputRef.current.value = '';
+        if (files.length === 0) return;
+        if (files.length + (newAsset.images || []).length > 2) {
+            alert("Maximum 2 images allowed.");
+            return;
+        }
+        setCompressingImages(true);
+        const compressed = [];
+        try {
+            for (const file of files) {
+                try {
+                    const dataUrl = await compressImage(file);
+                    compressed.push(dataUrl);
+                } catch (err) {
+                    console.error('Image compression failed:', err);
+                    alert(`Failed to process image "${file.name}". Please upload a valid PNG, JPG, or WEBP image.`);
+                }
+            }
+            if (compressed.length > 0) {
+                setNewAsset(prev => ({
+                    ...prev,
+                    images: [...(prev.images || []), ...compressed].slice(0, 2)
+                }));
+            }
+        } finally {
+            setCompressingImages(false);
+        }
     };
 
     const handleRemoveImage = (index) => {
@@ -1970,7 +1990,7 @@ const AssetsView = ({
                                                     onClick={() => setActiveImage(img)}
                                                     className="relative w-28 h-28 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 shadow-sm cursor-pointer hover:scale-[1.02] hover:shadow-md transition-all active:scale-[0.98] group/thumb"
                                                 >
-                                                    <img src={img} loading="lazy" alt={`Asset image ${i + 1}`} className="w-full h-full object-cover" />
+                                                    <img src={resolveAssetImageUrl(img)} loading="lazy" alt={`Asset image ${i + 1}`} className="w-full h-full object-cover" />
                                                     <div className="absolute inset-0 bg-black/15 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
                                                         <span className="material-symbols-outlined text-white text-[18px] bg-slate-900/60 p-1.5 rounded-full backdrop-blur-sm border border-slate-800/50">zoom_in</span>
                                                     </div>
@@ -2085,7 +2105,7 @@ const AssetsView = ({
                         onClick={e => e.stopPropagation()}
                     >
                         <img
-                            src={activeImage}
+                            src={resolveAssetImageUrl(activeImage)}
                             alt="Device Photo Fullscreen"
                             className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-slate-900/50 animate-in zoom-in-95 duration-200"
                         />
@@ -2164,8 +2184,8 @@ const AssetsView = ({
                                                     <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 font-display">Brand/Model</label>
                                                     <input
                                                         type="text"
-                                                        value={newAsset.brand || ''}
-                                                        onChange={e => setNewAsset(p => ({ ...p, brand: e.target.value }))}
+                                                        value={newAsset.brandModel ?? newAsset.brand ?? ''}
+                                                        onChange={e => setNewAsset(p => ({ ...p, brandModel: e.target.value, brand: e.target.value }))}
                                                         className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white font-medium"
                                                         placeholder="e.g. Godrej"
                                                     />
@@ -2570,11 +2590,11 @@ const AssetsView = ({
                                             <div className="grid grid-cols-2 gap-3 mt-1">
                                                 {newAsset.images.map((img, idx) => (
                                                     <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 group bg-slate-100 dark:bg-slate-950">
-                                                        <img src={img} loading="lazy" alt={`Asset preview ${idx + 1}`} className="w-full h-full object-cover" />
+                                                        <img src={resolveAssetImageUrl(img)} loading="lazy" alt={`Asset preview ${idx + 1}`} className="w-full h-full object-cover" />
                                                         <button
                                                             type="button"
                                                             onClick={() => handleRemoveImage(idx)}
-                                                            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-red-600/80 text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow z-20 cursor-pointer"
+                                                            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-red-600/80 text-white flex items-center justify-center transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 shadow z-20 cursor-pointer"
                                                             title="Remove"
                                                         >
                                                             <span className="material-symbols-outlined text-[14px]">delete</span>
@@ -2594,8 +2614,12 @@ const AssetsView = ({
                                             <span className="material-symbols-outlined text-sm">arrow_back</span>
                                             Back: User Details
                                         </button>
-                                        <button type="submit" className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary hover:bg-primary/90 rounded-xl transition-colors cursor-pointer">
-                                            {isEditing ? 'Save Changes' : 'Add Asset'}
+                                        <button
+                                            type="submit"
+                                            disabled={compressingImages || savingAsset}
+                                            className="flex-1 py-2.5 text-sm font-semibold text-white bg-primary hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl transition-colors cursor-pointer"
+                                        >
+                                            {compressingImages ? 'Processing images...' : savingAsset ? 'Saving...' : (isEditing ? 'Save Changes' : 'Add Asset')}
                                         </button>
                                     </div>
                                 </div>
@@ -4951,7 +4975,7 @@ const AdminDashboard = () => {
     const [assetDepartmentFilter, setAssetDepartmentFilter] = useState(['All']);
     const [assetConditionFilter, setAssetConditionFilter] = useState(['All']);
     const [showAddAssetModal, setShowAddAssetModal] = useState(false);
-    const [newAsset, setNewAsset] = useState({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: '', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+    const [newAsset, setNewAsset] = useState({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: '', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
     const [isEditingAsset, setIsEditingAsset] = useState(false);
     const [editingAssetId, setEditingAssetId] = useState(null);
     const [selectedAssetIds, setSelectedAssetIds] = useState([]);
@@ -5595,9 +5619,9 @@ const AdminDashboard = () => {
                 setIsEditingAsset(false);
                 const initialGroup = location.state?.group || 'IT';
                 if (initialGroup === 'Admin') {
-                    setNewAsset({ assetId: '', category: '', brand: '', model: '', configuration: '', serial: '', assignee: '', empCode: '', cug: '', email: '', department: '', branch: '', purchaseDate: '', warranty: '', condition: '', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                    setNewAsset({ assetId: '', category: '', brand: '', model: '', configuration: '', serial: '', assignee: '', empCode: '', cug: '', email: '', department: '', branch: '', purchaseDate: '', warranty: '', condition: '', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
                 } else {
-                    setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                    setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: 'Cotton Concepts HO_ Coimbatore', purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
                 }
             }
         } else if (path === '/admin-assets' || path === '/admin-assets/add') {
@@ -5614,7 +5638,7 @@ const AdminDashboard = () => {
             setAssetSearchQuery('');
             if (path === '/admin-assets/add') {
                 setIsEditingAsset(false);
-                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
             }
         } else if (path === '/users') {
             setActiveView('users');
@@ -6472,10 +6496,10 @@ const AdminDashboard = () => {
                                         onClick={() => {
                                             setIsEditingAsset(false);
                                             if (activeView === 'admin_assets') {
-                                                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                                                setNewAsset({ assetId: '', category: 'Furniture', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'ADMIN', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'Admin', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
                                                 navigate('/admin-assets/add', { state: { group: 'Admin' } });
                                             } else {
-                                                setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '' });
+                                                setNewAsset({ assetId: '', category: 'Laptop', brand: '', model: '', configuration: '', serial: '', assignee: 'Unassigned', empCode: '', cug: '', email: '', department: 'IT', branch: (currentBranchList[0] || ''), purchaseDate: '', warranty: '1 Year', condition: 'Good', remarks: '', images: [], qrCode: '', group: 'IT', assetName: '', location: '', assetProvidedTeam: '', type: '', quantity: '', status: '', warrantyExpiry: '', purchaseCost: '', brandModel: '' });
                                                 navigate('/assets/add', { state: { group: 'IT' } });
                                             }
                                         }}

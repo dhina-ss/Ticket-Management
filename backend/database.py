@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 ASSETS_COLUMNS = 'id, asset_id, category, brand, model, configuration, serial, assignee, emp_code, cug, email, department, branch, "group", purchase_date, warranty, warranty_date, warranty_label, condition, remarks, images, created_at, updated_at, asset_name, location, asset_provided_team, type, quantity, status, warranty_expiry, purchase_cost'
 
-ADMIN_ASSETS_COLUMNS = 'id, asset_id, asset_name, department, serial_number, assignee, location, "group", type, quantity, status, branch, warranty_expiry, purchase_cost, category, brand_model, remarks, created_at, updated_at'
+ADMIN_ASSETS_COLUMNS = 'id, asset_id, asset_name, department, serial_number, assignee, location, "group", type, quantity, status, branch, warranty_expiry, purchase_cost, category, brand_model, remarks, images, created_at, updated_at'
 
 TICKETS_COLUMNS = 'id, ticket_id, created_at, full_name, mobile, category, mode, description, attachment_name, assignee, status, sub_category, admin_description, admin_manager_status, management_status, admin_manager_comments, management_comments, branch, department, support_type, is_delete, approval_request_time, resolution_comments, admin_manager_has_mail, pending_time, completed_time, in_progress_time, pending_comments, expense_amount, bill_attachment_name, user_confirmation, email, management_approvals, admin_comments, admin_manager_admin_desc, admin_manager_approvals, admin_manager_mail_time, admin_manager_status_time, management_mail_time, management_status_time'
 
@@ -654,7 +654,8 @@ def init_db():
                 "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS purchase_cost TEXT;",
                 "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS category TEXT;",
                 "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS brand_model TEXT;",
-                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS remarks TEXT;"
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS remarks TEXT;",
+                "ALTER TABLE admin_assets ADD COLUMN IF NOT EXISTS images TEXT;"
             ]
             for stmt in admin_alterations:
                 try:
@@ -1814,12 +1815,48 @@ def delete_expired_attachments() -> dict:
 # Assets CRUD
 # ---------------------------------------------------------------------------
 
-def _row_to_asset(row: dict) -> dict:
+def _parse_images_field(raw_images) -> list:
+    """Safely parse stored asset images JSON/list into a list."""
     import json
-    try:
-        images_list = json.loads(row.get("images")) if row.get("images") else []
-    except Exception:
-        images_list = []
+    if not raw_images:
+        return []
+    if isinstance(raw_images, list):
+        return raw_images
+    if isinstance(raw_images, str):
+        stripped = raw_images.strip()
+        if not stripped:
+            return []
+        try:
+            parsed = json.loads(stripped)
+            return parsed if isinstance(parsed, list) else []
+        except Exception:
+            return []
+    return []
+
+
+def _serialize_images_field(images_val) -> str:
+    """Safely serialize incoming asset images list/JSON string for DB storage."""
+    import json
+    if not images_val:
+        return "[]"
+    if isinstance(images_val, list):
+        return json.dumps(images_val)
+    if isinstance(images_val, str):
+        stripped = images_val.strip()
+        if not stripped:
+            return "[]"
+        try:
+            parsed = json.loads(stripped)
+            if isinstance(parsed, list):
+                return json.dumps(parsed)
+        except Exception:
+            pass
+        return json.dumps([stripped])
+    return "[]"
+
+
+def _row_to_asset(row: dict) -> dict:
+    images_list = _parse_images_field(row.get("images"))
     return {
         "id":            row.get("id"),
         "assetId":       row.get("asset_id", ""),
@@ -1859,8 +1896,9 @@ def get_all_assets(page: int = None, limit: int = 20, page_size: int = None, sea
     import math
     if page_size is not None:
         limit = page_size
-    conn = _get_conn()
+    conn = None
     try:
+        conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             where_clauses = []
             params = []
@@ -1943,7 +1981,8 @@ def get_all_assets(page: int = None, limit: int = 20, page_size: int = None, sea
         print(f"DEBUG: get_all_assets error: {e}")
         return {"data": [], "total": 0, "page": 1, "limit": limit, "totalPages": 1, "filter_options": {"categories": [], "branches": [], "departments": [], "conditions": []}} if page is not None else []
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def create_asset(data: dict) -> dict:
@@ -2128,6 +2167,8 @@ def _row_to_admin_asset(row: dict) -> dict:
         "category":       row.get("category", ""),
         "brandModel":     row.get("brand_model", ""),
         "remarks":        row.get("remarks", ""),
+        "images":         _parse_images_field(row.get("images")),
+        "qrCode":         f"/api/assets/{row.get('asset_id')}/qr" if row.get("asset_id") else "",
         "createdAt":      row["created_at"].strftime("%Y-%m-%d %H:%M:%S") if row.get("created_at") else "",
         "updatedAt":      row["updated_at"].strftime("%Y-%m-%d %H:%M:%S") if row.get("updated_at") else ""
     }
@@ -2136,8 +2177,9 @@ def get_all_admin_assets(page: int = None, limit: int = 20, page_size: int = Non
     import math
     if page_size is not None:
         limit = page_size
-    conn = _get_conn()
+    conn = None
     try:
+        conn = _get_conn()
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             # Always filter to Admin group only
             where_clauses = ['(LOWER("group") = %s OR "group" IS NULL OR "group" = \'\')']
@@ -2221,7 +2263,8 @@ def get_all_admin_assets(page: int = None, limit: int = 20, page_size: int = Non
         print(f"DEBUG: get_all_admin_assets error: {e}")
         return {"data": [], "total": 0, "page": 1, "limit": limit, "totalPages": 1, "filter_options": {"types": [], "branches": [], "departments": [], "statuses": []}} if page is not None else []
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 def create_admin_asset(data: dict) -> dict:
     try:
@@ -2232,8 +2275,8 @@ def create_admin_asset(data: dict) -> dict:
                     INSERT INTO admin_assets
                         (asset_id, asset_name, department, serial_number, assignee,
                          location, "group", type, quantity, status, branch,
-                         warranty_expiry, purchase_cost, category, brand_model, remarks)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                         warranty_expiry, purchase_cost, category, brand_model, remarks, images)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     RETURNING id, asset_id
                 """, (
                     data.get("assetId"),
@@ -2250,8 +2293,9 @@ def create_admin_asset(data: dict) -> dict:
                     data.get("warrantyExpiry", ""),
                     data.get("purchaseCost", ""),
                     data.get("category", ""),
-                    data.get("brandModel", ""),
-                    data.get("remarks", "")
+                    data.get("brandModel") or data.get("brand", ""),
+                    data.get("remarks", ""),
+                    _serialize_images_field(data.get("images"))
                 ))
                 row = cur.fetchone()
         conn.close()
@@ -2263,6 +2307,16 @@ def create_admin_asset(data: dict) -> dict:
 def update_admin_asset(asset_id: int, data: dict) -> dict:
     try:
         old_asset = get_admin_asset_by_id(asset_id)
+        images_json = (
+            _serialize_images_field(data.get("images"))
+            if "images" in data
+            else _serialize_images_field(old_asset.get("images") if old_asset else [])
+        )
+        brand_model_val = (
+            data.get("brandModel", "")
+            if "brandModel" in data
+            else data.get("brand", "")
+        )
         conn = _get_conn()
         with conn:
             with conn.cursor() as cur:
@@ -2272,7 +2326,7 @@ def update_admin_asset(asset_id: int, data: dict) -> dict:
                         serial_number = %s, assignee = %s, location = %s,
                         "group" = %s, type = %s, quantity = %s, status = %s,
                         branch = %s, warranty_expiry = %s, purchase_cost = %s,
-                        category = %s, brand_model = %s, remarks = %s,
+                        category = %s, brand_model = %s, remarks = %s, images = %s,
                         updated_at = NOW()
                     WHERE id = %s
                 """, (
@@ -2290,8 +2344,9 @@ def update_admin_asset(asset_id: int, data: dict) -> dict:
                     data.get("warrantyExpiry", ""),
                     data.get("purchaseCost", ""),
                     data.get("category", ""),
-                    data.get("brandModel", ""),
+                    brand_model_val,
                     data.get("remarks", ""),
+                    images_json,
                     asset_id
                 ))
                 updated = cur.rowcount > 0
@@ -2385,21 +2440,6 @@ def delete_asset_type(type_id: int) -> bool:
     conn.close()
     return deleted
 
-def get_asset_by_id(id: int) -> dict:
-    conn = _get_conn()
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute("SELECT * FROM assets WHERE id = %s", (id,))
-        row = cur.fetchone()
-    conn.close()
-    return _row_to_asset(row) if row else None
-
-def get_admin_asset_by_id(id: int) -> dict:
-    conn = _get_conn()
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute("SELECT * FROM admin_assets WHERE id = %s", (id,))
-        row = cur.fetchone()
-    conn.close()
-    return _row_to_admin_asset(row) if row else None
 
 def log_asset_history(asset_id: str, field_name: str, old_value: str, new_value: str, changed_by: str):
     try:

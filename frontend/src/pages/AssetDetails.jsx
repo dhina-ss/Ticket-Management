@@ -2,42 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
-
-/**
- * Compress an image File using a canvas element.
- * Downscales to max 1024px on the longest side and exports as JPEG at 0.75 quality.
- * Returns a Promise that resolves with the compressed base64 data URL.
- */
-const compressImage = (file) =>
-    new Promise((resolve, reject) => {
-        const MAX_PX = 1024;
-        const reader = new FileReader();
-        reader.onerror = reject;
-        reader.onload = (evt) => {
-            const img = new Image();
-            img.onerror = reject;
-            img.onload = () => {
-                let { width, height } = img;
-                if (width > MAX_PX || height > MAX_PX) {
-                    if (width >= height) {
-                        height = Math.round((height * MAX_PX) / width);
-                        width = MAX_PX;
-                    } else {
-                        width = Math.round((width * MAX_PX) / height);
-                        height = MAX_PX;
-                    }
-                }
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.75));
-            };
-            img.src = evt.target.result;
-        };
-        reader.readAsDataURL(file);
-    });
+import { compressImage, resolveAssetImageUrl } from '../utils/image';
 
 const AssetDetails = () => {
     const { assetId } = useParams();
@@ -137,6 +102,7 @@ const AssetDetails = () => {
         images: []
     });
     const [saving, setSaving] = useState(false);
+    const [compressingImages, setCompressingImages] = useState(false);
     const [saveError, setSaveError] = useState('');
 
     const photosInputRef = useRef(null);
@@ -309,20 +275,26 @@ const AssetDetails = () => {
             return;
         }
         // Compress images sequentially to avoid concurrent state race conditions
+        setCompressingImages(true);
         const compressed = [];
-        for (const file of files) {
-            try {
-                const dataUrl = await compressImage(file);
-                compressed.push(dataUrl);
-            } catch (err) {
-                console.error('Image compression failed:', err);
+        try {
+            for (const file of files) {
+                try {
+                    const dataUrl = await compressImage(file);
+                    compressed.push(dataUrl);
+                } catch (err) {
+                    console.error('Image compression failed:', err);
+                    setSaveError(`Failed to process image "${file.name}". Please upload a valid PNG, JPG, or WEBP image.`);
+                }
             }
-        }
-        if (compressed.length > 0) {
-            setEditForm(prev => ({
-                ...prev,
-                images: [...(prev.images || []), ...compressed]
-            }));
+            if (compressed.length > 0) {
+                setEditForm(prev => ({
+                    ...prev,
+                    images: [...(prev.images || []), ...compressed].slice(0, 2)
+                }));
+            }
+        } finally {
+            setCompressingImages(false);
         }
     };
 
@@ -343,15 +315,11 @@ const AssetDetails = () => {
 
     const handleSave = async (e) => {
         e.preventDefault();
+        if (compressingImages) return;
         setSaving(true);
         setSaveError('');
 
         // Programmatic validation to bypass hidden HTML5 bubble validation bugs on mobile
-        if (!editForm.category || !editForm.category.trim()) {
-            setSaveError('Asset Type is a required field.');
-            setSaving(false);
-            return;
-        }
         if (isGroupAdmin(editForm.group, editForm.assetName, asset?.assetId)) {
             if (!editForm.type || !editForm.type.trim()) {
                 setSaveError('Asset Type is a required field.');
@@ -468,7 +436,7 @@ const AssetDetails = () => {
                         <div className="flex flex-wrap items-center gap-2">
                             <h1 className="text-lg sm:text-2xl font-extrabold text-slate-900 dark:text-white font-display leading-tight">Asset Information</h1>
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-primary/10 text-primary">
-                                {normalizeCategory(asset.category)}
+                                {isGroupAdmin(asset.group, asset.assetName, asset.assetId) ? (asset.type || normalizeCategory(asset.category)) : normalizeCategory(asset.category)}
                             </span>
                         </div>
                         <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 font-mono mt-0.5 sm:mt-1">ID: {asset.assetId}</p>
@@ -667,7 +635,7 @@ const AssetDetails = () => {
                                         className="relative aspect-video rounded-2xl overflow-hidden border border-slate-250 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 cursor-pointer shadow-sm group/thumb"
                                     >
                                         <img 
-                                            src={img.startsWith('data:image') ? img : `${import.meta.env.VITE_API_URL || ''}${img}`} 
+                                            src={resolveAssetImageUrl(img)} 
                                             alt={`Device photo ${idx + 1}`} 
                                             className="w-full h-full object-cover" 
                                         />
@@ -1023,7 +991,7 @@ const AssetDetails = () => {
                                     <div className="grid grid-cols-2 gap-3 mt-1">
                                         {editForm.images.map((img, idx) => (
                                             <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 group bg-slate-100 dark:bg-slate-900">
-                                                <img src={img.startsWith('data:image') ? img : `${import.meta.env.VITE_API_URL || ''}${img}`} loading="lazy" alt={`Asset preview ${idx + 1}`} className="w-full h-full object-cover" />
+                                                <img src={resolveAssetImageUrl(img)} loading="lazy" alt={`Asset preview ${idx + 1}`} className="w-full h-full object-cover" />
                                                 <button
                                                     type="button"
                                                     onClick={() => handleRemoveImage(idx)}
@@ -1050,11 +1018,11 @@ const AssetDetails = () => {
                                 <button
                                     type="submit"
                                     onClick={() => setSubmitAction('exit')}
-                                    disabled={saving}
+                                    disabled={saving || compressingImages}
                                     className="px-6 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 disabled:opacity-60 transition-all cursor-pointer flex items-center justify-center gap-2"
                                 >
                                     {saving && submitAction === 'exit' && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
-                                    {saving && submitAction === 'exit' ? 'Saving...' : 'Save Changes'}
+                                    {compressingImages ? 'Processing images...' : saving && submitAction === 'exit' ? 'Saving...' : 'Save Changes'}
                                 </button>
                             </div>
 
@@ -1063,20 +1031,20 @@ const AssetDetails = () => {
                                 <button
                                     type="submit"
                                     onClick={() => setSubmitAction('exit')}
-                                    disabled={saving}
+                                    disabled={saving || compressingImages}
                                     className="w-full px-6 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary/90 shadow-md disabled:opacity-60 transition-all cursor-pointer flex items-center justify-center gap-2"
                                 >
                                     {saving && submitAction === 'exit' && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
-                                    {saving && submitAction === 'exit' ? 'Saving...' : 'Save and Exit'}
+                                    {compressingImages ? 'Processing images...' : saving && submitAction === 'exit' ? 'Saving...' : 'Save and Exit'}
                                 </button>
                                 <button
                                     type="submit"
                                     onClick={() => setSubmitAction('scan')}
-                                    disabled={saving}
+                                    disabled={saving || compressingImages}
                                     className="w-full px-6 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md disabled:opacity-60 transition-all cursor-pointer flex items-center justify-center gap-2"
                                 >
                                     {saving && submitAction === 'scan' && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
-                                    {saving && submitAction === 'scan' ? 'Saving...' : 'Save and Next'}
+                                    {compressingImages ? 'Processing images...' : saving && submitAction === 'scan' ? 'Saving...' : 'Save and Next'}
                                 </button>
                                 <button
                                     type="button"
@@ -1179,7 +1147,7 @@ const AssetDetails = () => {
                         onClick={e => e.stopPropagation()}
                     >
                         <img 
-                            src={activeImage.startsWith('data:image') ? activeImage : `${import.meta.env.VITE_API_URL || ''}${activeImage}`} 
+                            src={resolveAssetImageUrl(activeImage)} 
                             alt="Device Photo Fullscreen" 
                             className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-slate-900/50 animate-in zoom-in-95 duration-200"
                         />
