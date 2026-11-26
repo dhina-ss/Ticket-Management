@@ -84,6 +84,22 @@ def _parse_filter_list(param_val: str, is_branch: bool = False) -> list[str]:
             return matched
     return [item.strip().lower() for item in val_str.split(',') if item.strip() and item.strip().lower() != 'all']
 
+
+def _dedupe_filter_values(values) -> list[str]:
+    """Deduplicate filter option strings case/whitespace-insensitively."""
+    by_key = {}
+    for val in values or []:
+        if val is None:
+            continue
+        text = str(val).strip()
+        if not text:
+            continue
+        key = text.lower()
+        existing = by_key.get(key)
+        if existing is None or (existing.isupper() and not text.isupper()):
+            by_key[key] = text
+    return sorted(by_key.values(), key=str.casefold)
+
 def _row_to_ticket(row: dict) -> dict:
     """Convert a DB row (RealDictRow) to the API-facing dict."""
     attachment_name = row.get("attachment_name") or ""
@@ -1946,16 +1962,16 @@ def get_all_assets(page: int = None, limit: int = 20, page_size: int = None, sea
 
                 # Fetch distinct filter options across all IT assets
                 cur.execute('SELECT DISTINCT category FROM assets WHERE category IS NOT NULL AND category != \'\' ORDER BY category;')
-                filter_categories = [r['category'] for r in cur.fetchall()]
+                filter_categories = _dedupe_filter_values([r['category'] for r in cur.fetchall()])
 
                 cur.execute('SELECT DISTINCT branch FROM assets WHERE branch IS NOT NULL AND branch != \'\' ORDER BY branch;')
-                filter_branches = [r['branch'] for r in cur.fetchall()]
+                filter_branches = _dedupe_filter_values([r['branch'] for r in cur.fetchall()])
 
                 cur.execute('SELECT DISTINCT department FROM assets WHERE department IS NOT NULL AND department != \'\' ORDER BY department;')
-                filter_departments = [r['department'] for r in cur.fetchall()]
+                filter_departments = _dedupe_filter_values([r['department'] for r in cur.fetchall()])
 
                 cur.execute('SELECT DISTINCT condition FROM assets WHERE condition IS NOT NULL AND condition != \'\' ORDER BY condition;')
-                filter_conditions = [r['condition'] for r in cur.fetchall()]
+                filter_conditions = _dedupe_filter_values([r['condition'] for r in cur.fetchall()])
 
                 items = [_row_to_asset(r) for r in rows]
                 total_pages = math.ceil(total / limit) if limit > 0 else 1
@@ -2244,16 +2260,16 @@ def get_all_admin_assets(page: int = None, limit: int = 20, page_size: int = Non
 
                 # Fetch distinct filter options across all admin assets
                 cur.execute('SELECT DISTINCT type FROM admin_assets WHERE type IS NOT NULL AND type != \'\' AND (LOWER("group") = \'admin\' OR "group" IS NULL OR "group" = \'\') ORDER BY type;')
-                filter_types = [r['type'] for r in cur.fetchall()]
+                filter_types = _dedupe_filter_values([r['type'] for r in cur.fetchall()])
 
                 cur.execute('SELECT DISTINCT branch FROM admin_assets WHERE branch IS NOT NULL AND branch != \'\' AND (LOWER("group") = \'admin\' OR "group" IS NULL OR "group" = \'\') ORDER BY branch;')
-                filter_branches = [r['branch'] for r in cur.fetchall()]
+                filter_branches = _dedupe_filter_values([r['branch'] for r in cur.fetchall()])
 
                 cur.execute('SELECT DISTINCT department FROM admin_assets WHERE department IS NOT NULL AND department != \'\' AND (LOWER("group") = \'admin\' OR "group" IS NULL OR "group" = \'\') ORDER BY department;')
-                filter_departments = [r['department'] for r in cur.fetchall()]
+                filter_departments = _dedupe_filter_values([r['department'] for r in cur.fetchall()])
 
                 cur.execute('SELECT DISTINCT status FROM admin_assets WHERE status IS NOT NULL AND status != \'\' AND (LOWER("group") = \'admin\' OR "group" IS NULL OR "group" = \'\') ORDER BY status;')
-                filter_statuses = [r['status'] for r in cur.fetchall()]
+                filter_statuses = _dedupe_filter_values([r['status'] for r in cur.fetchall()])
 
                 items = [_row_to_admin_asset(r) for r in rows]
                 total_pages = math.ceil(total / limit) if limit > 0 else 1

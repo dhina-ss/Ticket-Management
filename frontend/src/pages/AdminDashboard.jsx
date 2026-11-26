@@ -89,6 +89,22 @@ const normalizeCategory = (cat) => {
     return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 };
 
+const dedupeFilterValues = (values = []) => {
+    const byKey = new Map();
+    for (const raw of values || []) {
+        if (raw === undefined || raw === null) continue;
+        const text = String(raw).trim();
+        if (!text) continue;
+        const key = text.toLowerCase();
+        if (key === 'all') continue;
+        const prev = byKey.get(key);
+        if (!prev || (prev === prev.toUpperCase() && text !== text.toUpperCase())) {
+            byKey.set(key, text);
+        }
+    }
+    return Array.from(byKey.values());
+};
+
 // BRANCH_OPTIONS is now dynamic - loaded from Settings page branches
 
 const MultiSelectFormDropdown = ({ label, icon, options = [], selected = [], onChange, menuWidthClass }) => {
@@ -179,11 +195,19 @@ const SelectDropdown = ({ label, options = [], value, onChange, direction = 'dow
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
-    // Deduplicate options by value/label to avoid duplicate items & duplicate keys
-    const uniqueOptions = (options || []).filter((opt, index, self) => {
-        const val = typeof opt === 'object' && opt !== null ? (opt.value ?? opt.label) : opt;
-        return self.findIndex(o => (typeof o === 'object' && o !== null ? (o.value ?? o.label) : o) === val) === index;
-    });
+    // Deduplicate options case-insensitively by value/label to avoid duplicate items & keys
+    const uniqueOptions = (() => {
+        const seen = new Map();
+        for (const opt of options || []) {
+            const rawVal = typeof opt === 'object' && opt !== null ? (opt.value ?? opt.label) : opt;
+            if (rawVal === undefined || rawVal === null) continue;
+            const key = String(rawVal).trim().toLowerCase();
+            if (!seen.has(key)) {
+                seen.set(key, opt);
+            }
+        }
+        return Array.from(seen.values());
+    })();
 
     return (
         <div className="relative w-full" ref={ref}>
@@ -4851,21 +4875,28 @@ const MultiSelectFilter = ({ label, icon, options = [], selected = ['All'], onCh
     }, []);
 
     const safeSelected = Array.isArray(selected) ? selected : (selected ? [selected] : ['All']);
-    const cleanOptions = Array.from(new Set(options || []));
+    const hasAllOption = (options || []).some(o => String(o).trim().toLowerCase() === 'all');
+    const cleanOptions = hasAllOption
+        ? ['All', ...dedupeFilterValues(options)]
+        : dedupeFilterValues(options);
 
     const toggleOption = (option) => {
         if (option === 'All') {
             onChange(['All']);
         } else {
-            let next = safeSelected.includes(option)
-                ? safeSelected.filter(o => o !== option)
-                : [...safeSelected.filter(o => o !== 'All'), option];
+            const optKey = String(option).trim().toLowerCase();
+            const exists = safeSelected.some(o => String(o).trim().toLowerCase() === optKey);
+            let next = exists
+                ? safeSelected.filter(o => String(o).trim().toLowerCase() !== optKey)
+                : [...safeSelected.filter(o => String(o).trim().toLowerCase() !== 'all'), option];
             if (next.length === 0) next = ['All'];
             onChange(next);
         }
     };
 
-    const isSelected = (option) => safeSelected.includes(option);
+    const isSelected = (option) => safeSelected.some(
+        o => String(o).trim().toLowerCase() === String(option).trim().toLowerCase()
+    );
 
     const getDisplayValue = () => {
         if (safeSelected.includes('All')) return `All ${label}`;
@@ -5602,17 +5633,17 @@ const AdminDashboard = () => {
                 if (response.data.filter_options) {
                     if (view === 'admin_assets') {
                         setAdminAssetFilterOptions(prev => ({
-                            types: Array.from(new Set([...(prev.types || []), ...(response.data.filter_options.types || [])])),
-                            departments: Array.from(new Set([...(prev.departments || []), ...(response.data.filter_options.departments || [])])),
-                            branches: Array.from(new Set([...(prev.branches || []), ...(response.data.filter_options.branches || [])])),
-                            statuses: Array.from(new Set([...(prev.statuses || []), ...(response.data.filter_options.statuses || [])]))
+                            types: dedupeFilterValues([...(prev.types || []), ...(response.data.filter_options.types || [])]),
+                            departments: dedupeFilterValues([...(prev.departments || []), ...(response.data.filter_options.departments || [])]),
+                            branches: dedupeFilterValues([...(prev.branches || []), ...(response.data.filter_options.branches || [])]),
+                            statuses: dedupeFilterValues([...(prev.statuses || []), ...(response.data.filter_options.statuses || [])])
                         }));
                     } else {
                         setItAssetFilterOptions(prev => ({
-                            categories: Array.from(new Set([...(prev.categories || []), ...(response.data.filter_options.categories || [])])),
-                            departments: Array.from(new Set([...(prev.departments || []), ...(response.data.filter_options.departments || [])])),
-                            branches: Array.from(new Set([...(prev.branches || []), ...(response.data.filter_options.branches || [])])),
-                            conditions: Array.from(new Set([...(prev.conditions || []), ...(response.data.filter_options.conditions || [])]))
+                            categories: dedupeFilterValues([...(prev.categories || []), ...(response.data.filter_options.categories || [])]),
+                            departments: dedupeFilterValues([...(prev.departments || []), ...(response.data.filter_options.departments || [])]),
+                            branches: dedupeFilterValues([...(prev.branches || []), ...(response.data.filter_options.branches || [])]),
+                            conditions: dedupeFilterValues([...(prev.conditions || []), ...(response.data.filter_options.conditions || [])])
                         }));
                     }
                 }
@@ -6355,10 +6386,10 @@ const AdminDashboard = () => {
         setCurrentPage(1);
     }, [searchQuery, statusFilter, branchFilter, departmentFilter, categoryFilter, assigneeFilter, mailApprovalFilter, dateRange, isDateFilterActive]);
 
-    const uniqueBranches = ['All', ...new Set([...currentBranchList, ...tickets.map(t => t.branch).filter(Boolean)])];
-    const uniqueDepartments = ['All', ...new Set(tickets.map(t => t.department).filter(Boolean))];
-    const uniqueCategories = ['All', ...new Set(tickets.map(t => t.category).filter(Boolean))];
-    const uniqueAssignees = ['All', ...new Set(tickets.map(t => t.assignee).filter(Boolean))];
+    const uniqueBranches = ['All', ...dedupeFilterValues([...currentBranchList, ...tickets.map(t => t.branch)])];
+    const uniqueDepartments = ['All', ...dedupeFilterValues(tickets.map(t => t.department))];
+    const uniqueCategories = ['All', ...dedupeFilterValues(tickets.map(t => t.category))];
+    const uniqueAssignees = ['All', ...dedupeFilterValues(tickets.map(t => t.assignee))];
     useEffect(() => {
         if (assets && assets.length > 0) {
             if (activeView === 'admin_assets') {
@@ -6368,10 +6399,10 @@ const AdminDashboard = () => {
                 const statuses = assets.map(a => a.status).filter(Boolean);
                 if (types.length > 0 || depts.length > 0 || branches.length > 0 || statuses.length > 0) {
                     setAdminAssetFilterOptions(prev => ({
-                        types: Array.from(new Set([...(prev.types || []), ...types])),
-                        departments: Array.from(new Set([...(prev.departments || []), ...depts])),
-                        branches: Array.from(new Set([...(prev.branches || []), ...branches])),
-                        statuses: Array.from(new Set([...(prev.statuses || []), ...statuses]))
+                        types: dedupeFilterValues([...(prev.types || []), ...types]),
+                        departments: dedupeFilterValues([...(prev.departments || []), ...depts]),
+                        branches: dedupeFilterValues([...(prev.branches || []), ...branches]),
+                        statuses: dedupeFilterValues([...(prev.statuses || []), ...statuses])
                     }));
                 }
             } else if (activeView === 'assets') {
@@ -6381,10 +6412,10 @@ const AdminDashboard = () => {
                 const conds = assets.map(a => a.condition).filter(Boolean);
                 if (cats.length > 0 || depts.length > 0 || branches.length > 0 || conds.length > 0) {
                     setItAssetFilterOptions(prev => ({
-                        categories: Array.from(new Set([...(prev.categories || []), ...cats])),
-                        departments: Array.from(new Set([...(prev.departments || []), ...depts])),
-                        branches: Array.from(new Set([...(prev.branches || []), ...branches])),
-                        conditions: Array.from(new Set([...(prev.conditions || []), ...conds]))
+                        categories: dedupeFilterValues([...(prev.categories || []), ...cats]),
+                        departments: dedupeFilterValues([...(prev.departments || []), ...depts]),
+                        branches: dedupeFilterValues([...(prev.branches || []), ...branches]),
+                        conditions: dedupeFilterValues([...(prev.conditions || []), ...conds])
                     }));
                 }
             }
@@ -6393,37 +6424,34 @@ const AdminDashboard = () => {
 
     const uniqueAssetBranches = useMemo(() => {
         const backendOpts = activeView === 'admin_assets' ? adminAssetFilterOptions.branches : itAssetFilterOptions.branches;
-        const set = new Set([
+        const cleanBranches = dedupeFilterValues([
             ...currentBranchList,
             ...(backendOpts || []),
-            ...(assets || []).map(a => a.branch).filter(Boolean),
-            ...assetBranchFilter.filter(b => b && b !== 'All')
+            ...(assets || []).map(a => a.branch),
+            ...assetBranchFilter
         ]);
-        const cleanBranches = Array.from(set).filter(b => Boolean(b) && b !== 'All');
-        return ['All', ...cleanBranches.sort((a, b) => a.localeCompare(b))];
+        return ['All', ...cleanBranches.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))];
     }, [activeView, currentBranchList, adminAssetFilterOptions.branches, itAssetFilterOptions.branches, assets, assetBranchFilter]);
 
     const uniqueAssetDepartments = useMemo(() => {
         const backendOpts = activeView === 'admin_assets' ? adminAssetFilterOptions.departments : itAssetFilterOptions.departments;
-        const set = new Set([
-            ...(departments || []).map(d => d.name).filter(Boolean),
+        const cleanDepts = dedupeFilterValues([
+            ...(departments || []).map(d => d.name),
             ...(backendOpts || []),
-            ...(assets || []).map(a => a.department).filter(Boolean),
-            ...assetDepartmentFilter.filter(d => d && d !== 'All')
+            ...(assets || []).map(a => a.department),
+            ...assetDepartmentFilter
         ]);
-        const cleanDepts = Array.from(set).filter(d => Boolean(d) && d !== 'All');
-        return ['All', ...cleanDepts.sort((a, b) => a.localeCompare(b))];
+        return ['All', ...cleanDepts.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))];
     }, [activeView, departments, adminAssetFilterOptions.departments, itAssetFilterOptions.departments, assets, assetDepartmentFilter]);
 
     const uniqueAssetTypes = useMemo(() => {
         const backendOpts = activeView === 'admin_assets' ? adminAssetFilterOptions.types : itAssetFilterOptions.categories;
-        const set = new Set([
+        const cleanTypes = dedupeFilterValues([
             ...(backendOpts || []),
-            ...(assets || []).map(a => activeView === 'admin_assets' ? a.type : a.category).filter(Boolean),
-            ...assetCategoryFilter.filter(t => t && t !== 'All')
+            ...(assets || []).map(a => activeView === 'admin_assets' ? a.type : a.category),
+            ...assetCategoryFilter
         ]);
-        const cleanTypes = Array.from(set).filter(t => Boolean(t) && t !== 'All');
-        return ['All', ...cleanTypes.sort((a, b) => a.localeCompare(b))];
+        return ['All', ...cleanTypes.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))];
     }, [activeView, adminAssetFilterOptions.types, itAssetFilterOptions.categories, assets, assetCategoryFilter]);
 
     const uniqueAssetConditions = useMemo(() => {
@@ -6431,14 +6459,13 @@ const AdminDashboard = () => {
         const defaultItConditions = ['Good', 'Fair', 'Poor', 'Damaged', 'Scrap'];
         const defaults = activeView === 'admin_assets' ? defaultAdminStatuses : defaultItConditions;
         const backendOpts = activeView === 'admin_assets' ? adminAssetFilterOptions.statuses : itAssetFilterOptions.conditions;
-        const set = new Set([
+        const cleanConds = dedupeFilterValues([
             ...defaults,
             ...(backendOpts || []),
-            ...(assets || []).map(a => activeView === 'admin_assets' ? a.status : a.condition).filter(Boolean),
-            ...assetConditionFilter.filter(c => c && c !== 'All')
+            ...(assets || []).map(a => activeView === 'admin_assets' ? a.status : a.condition),
+            ...assetConditionFilter
         ]);
-        const cleanConds = Array.from(set).filter(c => Boolean(c) && c !== 'All');
-        return ['All', ...cleanConds.sort((a, b) => a.localeCompare(b))];
+        return ['All', ...cleanConds.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))];
     }, [activeView, adminAssetFilterOptions.statuses, itAssetFilterOptions.conditions, assets, assetConditionFilter]);
 
     if (isMobile) {

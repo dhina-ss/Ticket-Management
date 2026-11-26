@@ -485,6 +485,31 @@ def test_api_admin_assets_cors_credentials(client, mocker):
     assert resp.headers.get("Access-Control-Allow-Credentials") == "true"
 
 
+def test_get_all_admin_assets_deduplicates_filter_options(mocker):
+    """Verify get_all_admin_assets deduplicates case/whitespace variants in filter_options."""
+    import database
+
+    mock_cur = MagicMock()
+    mock_cur.fetchone.return_value = {"count": 0}
+    mock_cur.fetchall.side_effect = [
+        [],  # paginated rows
+        [{"type": "FURNITURE"}, {"type": "Furniture"}, {"type": " furniture "}],
+        [{"branch": "Doctor Towels HO"}, {"branch": "doctor towels ho "}],
+        [{"department": "ACCOUNTS"}, {"department": "Accounts"}, {"department": " Accounts "}],
+        [{"status": "ACTIVE"}, {"status": "Active"}],
+    ]
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+    mocker.patch('database._get_conn', return_value=mock_conn)
+
+    res = database.get_all_admin_assets(page=1, limit=20)
+    assert res["filter_options"]["departments"] == ["Accounts"]
+    assert res["filter_options"]["types"] == ["Furniture"]
+    assert res["filter_options"]["branches"] == ["Doctor Towels HO"]
+    assert res["filter_options"]["statuses"] == ["Active"]
+
+
+
 
 
 
