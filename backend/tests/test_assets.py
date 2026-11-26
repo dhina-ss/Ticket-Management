@@ -473,5 +473,18 @@ def test_admin_assets_nullable_optional_fields_and_group_normalization(client, m
     assert create_mock.call_args[0][0]["category"] is None
 
 
+def test_api_admin_assets_cors_credentials(client, mocker):
+    """Verify cross-origin requests to admin assets allow credentials cleanly."""
+    mocker.patch('database.update_admin_asset', return_value={"success": True})
+    resp = client.put(
+        '/api/admin-assets/231',
+        json={"assetName": "Chair"},
+        headers={"Origin": "http://122.165.253.167:443"}
+    )
+    assert resp.status_code == 200
+    assert resp.headers.get("Access-Control-Allow-Credentials") == "true"
+
+
+
 
 

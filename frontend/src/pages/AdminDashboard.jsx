@@ -8,7 +8,7 @@ import 'react-date-range/dist/theme/default.css';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
-import api from '../api';
+import api, { getApiBaseUrl } from '../api';
 import { compressImage, resolveAssetImageUrl } from '../utils/image';
 import logoImage from '../assets/logo.png';
 import logoDarkImage from '../assets/logo1.png';
@@ -1091,8 +1091,7 @@ const AssetsView = ({
     const getAssetQRUrl = (qrPath) => {
         if (!qrPath) return '';
         if (qrPath.startsWith('data:image')) return qrPath;
-        const apiBase = import.meta.env.VITE_API_URL || '';
-        return `${apiBase}${qrPath}`;
+        return `${getApiBaseUrl()}${qrPath}`;
     };
     const [selectedAsset, setSelectedAsset] = useState(null);
     const location = useLocation();

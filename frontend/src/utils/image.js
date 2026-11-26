@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from '../api';
+
 /**
  * Compress an image File using an offscreen canvas.
  * Downscales to max 1024px on the longest side and exports as JPEG at 0.75 quality.
@@ -52,5 +54,5 @@ export const resolveAssetImageUrl = (img) => {
     if (img.startsWith('data:image') || img.startsWith('http://') || img.startsWith('https://')) {
         return img;
     }
-    return `${import.meta.env.VITE_API_URL || ''}${img}`;
+    return `${getApiBaseUrl()}${img}`;
 };

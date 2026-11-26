@@ -520,7 +520,7 @@ const AssetDetails = () => {
                         <div className="relative border border-slate-100 dark:border-slate-850 rounded-2xl overflow-hidden shadow-inner p-2 bg-slate-50 dark:bg-slate-950 flex items-center justify-center min-h-[120px] sm:min-h-[160px] w-full">
                             {asset.qrCode ? (
                                 <img
-                                    src={asset.qrCode.startsWith('data:image') ? asset.qrCode : `${import.meta.env.VITE_API_URL || ''}${asset.qrCode}`}
+                                    src={resolveAssetImageUrl(asset.qrCode)}
                                     loading="lazy"
                                     alt="Asset QR Label"
                                     className="w-full h-auto object-contain max-h-[110px] sm:max-h-[150px] rounded"

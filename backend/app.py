@@ -38,7 +38,7 @@ from database import get_app_setting, set_app_setting
 DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'dist'))
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-CORS(app)
+CORS(app, supports_credentials=True)
 
 @app.before_request
 def limit_hosts():
@@ -58,6 +58,8 @@ def limit_hosts():
 
 @app.after_request
 def compress_response(response):
+    if response.mimetype == 'text/html' and 'Cache-Control' not in response.headers:
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     compressible = (
         response.mimetype.startswith('text/')
         or response.mimetype in ('application/json', 'application/javascript', 'image/svg+xml')
@@ -2410,6 +2412,8 @@ def serve_logo_assets(filename):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
+    if path == 'api' or path.startswith('api/'):
+        return jsonify({"error": "Endpoint not found."}), 404
     if path and os.path.exists(os.path.join(DIST_DIR, path)):
         return send_from_directory(DIST_DIR, path)
     return send_from_directory(DIST_DIR, 'index.html')
