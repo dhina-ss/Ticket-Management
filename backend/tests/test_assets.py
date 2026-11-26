@@ -298,3 +298,52 @@ def test_api_admin_asset_image_route(client, mocker):
     assert "error" in bad_img_resp.json
 
 
+def test_update_admin_asset_preserves_asset_id_when_missing_or_null(client, mocker):
+    """Verify update_admin_asset never overwrites asset_id with NULL/empty when omitted."""
+    import database
+
+    mock_cur = MagicMock()
+    mock_cur.rowcount = 1
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+    mock_conn.__enter__.return_value = mock_conn
+    mocker.patch('database._get_conn', return_value=mock_conn)
+    mocker.patch('database.compare_and_log_changes')
+
+    # Case 1: payload omits assetId (AssetDetails edit flow) -> uses old_asset['assetId']
+    mocker.patch('database.get_admin_asset_by_id', return_value={
+        "id": 231,
+        "assetId": "FUR260010",
+        "images": []
+    })
+    res = database.update_admin_asset(231, {
+        "assetName": "Rolling Chair",
+        "department": "ACCOUNTS",
+        "assignee": "Karthikeyan E",
+        "type": "Furniture",
+        "status": "Active",
+        "images": ["data:image/jpeg;base64,img1"]
+    })
+    assert res == {"success": True}
+    sql, params = mock_cur.execute.call_args[0]
+    assert "COALESCE(NULLIF(%s, ''), asset_id)" in sql
+    assert params[2] == "FUR260010"
+
+    # Case 2: explicit assetId=None -> still falls back cleanly and never passes None
+    database.update_admin_asset(231, {"assetId": None, "assetName": "Rolling Chair"})
+    _, null_params = mock_cur.execute.call_args[0]
+    assert null_params[2] == "FUR260010"
+
+    # Case 3: even if old_asset lookup returns None, param is '' (never None) for COALESCE
+    mocker.patch('database.get_admin_asset_by_id', return_value=None)
+    database.update_admin_asset(231, {"assetName": "Rolling Chair"})
+    _, missing_old_params = mock_cur.execute.call_args[0]
+    assert missing_old_params[2] == ""
+
+    # Case 4: PUT /api/admin-assets/231 without assetId succeeds with 200
+    mocker.patch('database.get_admin_asset_by_id', return_value={"id": 231, "assetId": "FUR260010", "images": []})
+    resp = client.put('/api/admin-assets/231', json={"assetName": "Rolling Chair", "images": ["data:image/jpeg;base64,img1"]})
+    assert resp.status_code == 200
+
+
+

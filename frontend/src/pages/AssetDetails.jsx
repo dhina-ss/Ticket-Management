@@ -83,6 +83,7 @@ const AssetDetails = () => {
 
     // Edit form state
     const [editForm, setEditForm] = useState({
+        assetId: '',
         category: '',
         brand: '',
         model: '',
@@ -189,6 +190,7 @@ const AssetDetails = () => {
             const updatedAsset = { ...data, group: resolvedGroup };
             setAsset(updatedAsset);
             setEditForm({
+                assetId: data.assetId || '',
                 category: data.category || '',
                 brand: data.brand || '',
                 model: data.model || '',

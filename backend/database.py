@@ -2313,16 +2313,22 @@ def update_admin_asset(asset_id: int, data: dict) -> dict:
             else _serialize_images_field(old_asset.get("images") if old_asset else [])
         )
         brand_model_val = (
-            data.get("brandModel", "")
+            (data.get("brandModel") or data.get("brand") or "")
             if "brandModel" in data
-            else data.get("brand", "")
+            else (data.get("brand") or "")
+        )
+        raw_asset_id = data.get("assetId")
+        resolved_asset_id = (
+            str(raw_asset_id).strip()
+            if raw_asset_id is not None and str(raw_asset_id).strip()
+            else (old_asset.get("assetId") if old_asset else "")
         )
         conn = _get_conn()
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE admin_assets SET
-                        asset_name = %s, department = %s, asset_id = %s,
+                        asset_name = %s, department = %s, asset_id = COALESCE(NULLIF(%s, ''), asset_id),
                         serial_number = %s, assignee = %s, location = %s,
                         "group" = %s, type = %s, quantity = %s, status = %s,
                         branch = %s, warranty_expiry = %s, purchase_cost = %s,
@@ -2332,7 +2338,7 @@ def update_admin_asset(asset_id: int, data: dict) -> dict:
                 """, (
                     data.get("assetName", ""),
                     data.get("department", ""),
-                    data.get("assetId"),
+                    resolved_asset_id,
                     data.get("serial", ""),
                     data.get("assignee", ""),
                     data.get("location", ""),
